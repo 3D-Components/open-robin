@@ -1,0 +1,6 @@
+# Limits for the Pilz planner
+cartesian_limits:
+  max_trans_vel: 0.25   # 250 mm/s is relatively safe for welding
+  max_trans_acc: 0.5    # 500 mm/s²
+  max_trans_dec: -0.5   # -500 mm/s²
+  max_rot_vel: 0.7854  # 45 deg/s

@@ -1,0 +1,8 @@
+robin_interfaces/WeldBead[] weld_beads
+bool dry_run  # If true, execute motion only without activating welding arc
+---
+bool success
+float32 completion_percentage
+---
+string status
+float32 progress_percentage

@@ -1,0 +1,182 @@
+<!-- robin/dashboard.html (minimal Wirecloud-like dashboard) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ROBIN Dashboard (Minimal)</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #121923;
+      --muted: #8aa1b1;
+      --accent: #2eaadc;
+      --ok: #26c281;
+      --warn: #ffb020;
+      --err: #ff5a5f;
+    }
+    body { margin: 0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; background: var(--bg); color: #e7eef5; }
+    .wrap { padding: 18px 22px 28px; max-width: 1200px; margin: 0 auto; }
+    h1 { margin: 0 0 14px; font-size: 20px; font-weight: 600; letter-spacing: .2px; }
+    .row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .card { background: var(--card); border-radius: 10px; padding: 12px 14px; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+    .controls { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: end; min-width: 320px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="number"] { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #314153; background: #0e141b; color: #dce7f1; outline: none; }
+    button { padding: 9px 12px; border-radius: 8px; border: 1px solid #2b3c4e; background: #16202b; color: #e7eef5; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: #1592c6; color: #00131d; font-weight: 600; }
+    button.ghost { background: transparent; }
+    .status { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; flex: 1; min-width: 480px; }
+    .stat h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+    .stat p { margin: 0; font: 600 18px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .plots { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    @media (max-width: 900px) { .plots { grid-template-columns: 1fr; } .status { grid-template-columns: repeat(2, minmax(120px, 1fr)); } .controls { grid-template-columns: 1fr; } }
+  </style>
+  <script>
+    const ALERT_URL = window.location.origin; // Works when served by Alert Engine (http://localhost:8000)
+
+    // State
+    let processId = '';
+    let pollMs = 1000;
+    let pollTimer = null;
+    let samples = [];
+
+    // Helpers
+    function $(id) { return document.getElementById(id); }
+    function setText(id, val) { const el = $(id); if (el) el.textContent = val; }
+    function qp(name) { return new URLSearchParams(window.location.search).get(name); }
+
+    async function fetchJSON(url, opts) {
+      const res = await fetch(url, opts);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return res.json();
+    }
+
+    // Core flow
+    async function start() {
+      const pidInput = $('pid');
+      const intervalInput = $('interval');
+      processId = (pidInput.value || '').trim();
+      pollMs = Math.max(500, Number(intervalInput.value || 1000));
+      if (!processId) { alert('Enter a process id.'); return; }
+
+      clearTimer();
+      $('startBtn').disabled = true;
+      $('stopBtn').disabled = false;
+      setText('statusInfo', 'Polling...');
+      await tick();
+      pollTimer = setInterval(tick, pollMs);
+    }
+
+    function stop() {
+      clearTimer();
+      setText('statusInfo', 'Stopped');
+      $('startBtn').disabled = false;
+      $('stopBtn').disabled = true;
+    }
+
+    function clearTimer() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+    async function tick() {
+      try {
+        const url = `${ALERT_URL}/process/${encodeURIComponent(processId)}/measurements`;
+        const data = await fetchJSON(url);
+        if (data.status !== 'success') throw new Error(data.error || 'fetch failed');
+
+        samples = data.measurements || [];
+        setText('source', data.debug_info ? data.debug_info.source : 'unknown');
+        setText('count', String(samples.length));
+        if (samples.length > 0) {
+          const last = samples[samples.length - 1];
+          setText('h', fmt(last.height));
+          setText('w', fmt(last.width));
+          setText('s', fmt(last.speed));
+          setText('c', fmt(last.current));
+          setText('v', fmt(last.voltage));
+          setText('lastTs', new Date(last.timestamp).toLocaleTimeString());
+        } else {
+          ['h','w','s','c','v','lastTs'].forEach(id => setText(id, '--'));
+        }
+        draw();
+        setText('statusInfo', `OK - ${new Date().toLocaleTimeString()}`);
+      } catch (e) {
+        setText('statusInfo', `Error: ${e.message}`);
+        console.error('poll error', e);
+      }
+    }
+
+    function fmt(v) { return (v === undefined || v === null) ? '--' : (typeof v === 'number' ? v.toFixed(2) : String(v)); }
+
+    function toXY(key) { return { x: samples.map(m => m.timestamp), y: samples.map(m => m[key]) }; }
+
+    function draw() {
+      const h = toXY('height');
+      const w = toXY('width');
+      const s = toXY('speed');
+      const c = toXY('current');
+      const v = toXY('voltage');
+
+      Plotly.react('plotHW', [
+        { x: h.x, y: h.y, mode: 'lines+markers', name: 'Height (mm)', line: {color: '#26c281'}, marker: {size: 6} },
+        { x: w.x, y: w.y, mode: 'lines+markers', name: 'Width (mm)',  line: {color: '#2eaadc'}, marker: {size: 6} }
+      ], {title: 'Geometry', paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', font: {color: '#e7eef5'}, margin: {t: 30, r: 10, b: 30, l: 40} });
+
+      Plotly.react('plotSCV', [
+        { x: s.x, y: s.y, mode: 'lines+markers', name: 'Speed (mm/s)',  line: {color: '#ffb020'}, marker: {size: 5} },
+        { x: c.x, y: c.y, mode: 'lines+markers', name: 'Current (A)',   line: {color: '#ff5a5f'}, marker: {size: 5} },
+        { x: v.x, y: v.y, mode: 'lines+markers', name: 'Voltage (V)',   line: {color: '#8aa1b1'}, marker: {size: 5} }
+      ], {title: 'Process Params', paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', font: {color: '#e7eef5'}, margin: {t: 30, r: 10, b: 30, l: 40} });
+    }
+
+    // Init from query params
+    window.addEventListener('DOMContentLoaded', () => {
+      const qpPid = qp('pid');
+      if (qpPid) $('pid').value = qpPid;
+      const qpInt = qp('interval');
+      if (qpInt) $('interval').value = qpInt;
+      if (qpPid) start();
+    });
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ROBIN Dashboard (Minimal)</h1>
+    <div class="row">
+      <div class="card" style="flex: 1 1 420px;">
+        <div class="controls">
+          <div>
+            <label>Process ID</label>
+            <input id="pid" type="text" placeholder="e.g. demo-123" />
+          </div>
+          <div>
+            <label>Interval (ms)</label>
+            <input id="interval" type="number" value="1000" min="250" step="250" />
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button id="startBtn" class="primary" onclick="start()">Start</button>
+            <button id="stopBtn" class="ghost" onclick="stop()" disabled>Stop</button>
+          </div>
+        </div>
+        <p class="hint" id="statusInfo">Idle</p>
+      </div>
+
+      <div class="card status">
+        <div class="stat"><h3>Source</h3><p id="source">--</p></div>
+        <div class="stat"><h3>Samples</h3><p id="count">0</p></div>
+        <div class="stat"><h3>Last Update</h3><p id="lastTs">--</p></div>
+        <div class="stat"><h3>Height / Width</h3><p><span id="h">--</span> mm / <span id="w">--</span> mm</p></div>
+        <div class="stat"><h3>Speed</h3><p id="s">--</p></div>
+        <div class="stat"><h3>Current</h3><p id="c">--</p></div>
+        <div class="stat"><h3>Voltage</h3><p id="v">--</p></div>
+      </div>
+    </div>
+
+    <div class="plots">
+      <div id="plotHW" class="card"></div>
+      <div id="plotSCV" class="card"></div>
+    </div>
+  </div>
+</body>
+</html>

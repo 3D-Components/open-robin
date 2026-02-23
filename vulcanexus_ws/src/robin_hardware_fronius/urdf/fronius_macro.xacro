@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fronius">
+
+  <!-- Define Fronius macro -->
+    <xacro:macro name="fronius_weld_torch" params="parent *origin">
+
+        <link name="weld_torch">
+        <visual>
+            <geometry>
+                <mesh filename="package://robin_hardware_fronius/meshes/weld_torch/visual/weld_torch.obj"/>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+                <mesh filename="package://robin_hardware_fronius/meshes/weld_torch/collision/weld_torch.stl"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="4.0"/>
+            <origin xyz="0.016 -0.12 0.16" rpy="0 0 0"/>
+            <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+        </inertial>
+        </link>
+
+        <link name="weld_torch_tip">
+        <visual>
+            <geometry>
+                <sphere radius="0.005"/>
+            </geometry>
+            <material name="red">
+            <color rgba="1 0 0 1"/>
+            </material>
+        </visual>
+        <inertial>
+            <mass value="0.1"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+        </inertial>
+        </link>
+
+        <joint name="weld_torch_tip_joint" type="fixed">
+        <parent link="weld_torch"/>
+        <child link="weld_torch_tip"/>
+        <origin xyz="0.00 -0.085 0.645" rpy="-${pi/6} 0 0"/>
+        </joint>
+
+        <joint name="weld_torch_joint" type="fixed">
+        <parent link="${parent}"/>
+        <child link="weld_torch"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+    </xacro:macro>
+</robot>

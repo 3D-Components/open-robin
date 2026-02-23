@@ -1,0 +1,75 @@
+profile:
+  name: spray_coating
+  description: "Robotic protective / decorative spray coating"
+
+vocabulary:
+  process: Coat Job
+  processPlural: Coat Jobs
+  segment: Pass
+  segmentPlural: Passes
+  geometry: Coating
+  profileHeight: Thickness
+  profileWidth: Coverage Width
+  depositionView: Coating Cross Section
+  speed: Line Speed
+  speedUnit: mm/s
+  current: Flow Rate
+  currentUnit: ml/min
+  voltage: Pressure
+  voltageUnit: bar
+  toolPath: Spray Path
+  workpiece: Substrate
+
+fields:
+  measuredHeight:
+    label: Coating Thickness
+    unit: mm
+  measuredWidth:
+    label: Coverage Width
+    unit: mm
+  measuredSpeed:
+    label: Line Speed
+    unit: mm/s
+  measuredCurrent:
+    label: Flow Rate
+    unit: ml/min
+  measuredVoltage:
+    label: Nozzle Pressure
+    unit: bar
+
+ros2:
+  topics:
+    geometry: /robin/coating_dimensions
+    process_params: /robin/data/spray_head
+    pose: /tcp_pose_broadcaster/pose
+    telemetry_output: /robin/telemetry
+  min_publish_period: 0.1
+
+skills:
+  start_process:
+    ros_type: service
+    ros_name: /coating/start
+    srv_type: std_srvs/srv/Trigger
+    description: Open spray nozzle and begin coating
+  stop_process:
+    ros_type: service
+    ros_name: /coating/stop
+    srv_type: std_srvs/srv/Trigger
+    description: Close spray nozzle
+  set_parameters:
+    ros_type: service
+    ros_name: /coating/set_params
+    srv_type: robin_interfaces/srv/SetFloat32
+    description: Adjust flow rate or nozzle pressure
+
+ai:
+  feature_order: [wireSpeed, current, voltage]
+  model_path: data/models/spray_coating/process_geometry_mlp.pt
+  default_tolerance: 10.0
+  default_mode: geometry_driven
+
+dds:
+  input_topic: rt/robin/telemetry
+  entity_type: "urn:robin:Process"
+  entity_id: "urn:ngsi-ld:Process:ros_bridge"
+  attribute: "urn:robin:processTelemetry"

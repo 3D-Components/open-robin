@@ -1,0 +1,186 @@
+# ROBIN Integration Example
+#
+# This docker-compose file shows how to compose the three ROBIN modules with
+# FIWARE infrastructure into a complete robotic process intelligence stack.
+# It is an EXAMPLE - each module can be deployed independently in your own setup.
+#
+# Services by role:
+#   FIWARE infrastructure:  orion-ld, mongo-db, timescaledb, mintaka
+#   Module 1 (API):         alert-processor
+#   Module 2 (Dashboard):   robin-dashboard
+#   Integration pattern:    vulcanexus  (+ Orion's built-in -dds flag)
+#
+services:
+  orion-ld:
+    image: fiware/orion-ld:1.12.0
+    platform: linux/amd64  # ✅ Force AMD64 emulation
+    hostname: orion
+    container_name: fiware-orion
+    privileged: true
+    # IMPORTANT: Using host network for DDS discovery with vulcanexus container
+    # This allows Orion's DDS bridge to discover ROS 2 topics published on host network
+    network_mode: host
+    ipc: host
+    depends_on:
+      - mongo-db
+      - timescaledb # ensure TROE target is up before orion-ld starts
+    environment:
+      ORIONLD_TROE: "TRUE"
+      ORIONLD_TROE_USER: "orion"
+      ORIONLD_TROE_PWD: "orionpass"
+      # Use localhost with published port (5433) since we're on host network
+      ORIONLD_TROE_HOST: "127.0.0.1"
+      ORIONLD_TROE_PORT: "5433"
+      ORIONLD_TROE_DB: "orion"
+      # Set ROS_DOMAIN_ID to match vulcanexus for DDS discovery
+      ROS_DOMAIN_ID: "0"
+    # Use localhost for mongo (published on 27017) since we're on host network
+    command: -dbhost 127.0.0.1 -logLevel DEBUG -troe -wip dds
+    dns:
+      - 8.8.8.8
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    volumes:
+      - ./config-dds.json:/root/.orionld
+  # Integration pattern: ROS 2 workspace (telemetry aggregator + example domain adapters)
+  vulcanexus:
+    build:
+      context: .
+      dockerfile: vulcanexus_ws/Dockerfile
+    container_name: vulcanexus-bridge
+    hostname: vulcanexus-bridge
+    # network_mode: host is mutually exclusive with networks. 
+    # Since we need to communicate with other containers, let's use the bridge network
+    # OR if host mode is strictly required for DDS, we must remove the networks block.
+    # Given the error, I'll remove the networks block to satisfy host mode requirement.
+    network_mode: host
+    privileged: true
+    ipc: host
+    user: "${UID}:${GID}"
+    environment:
+      # This passes your host's DISPLAY variable for GUIs
+      - ROS_WS=/workspace/ros2_packages
+      - DISPLAY=${DISPLAY}
+    volumes:
+      # GUI/X11 Forwarding
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      # Mount workspace packages into the expected container path
+      - ./vulcanexus_ws/src:/workspace/ros2_packages/src
+      # Mount this repo's ros2_packages for testing inside container
+      - ./ros2_packages:/workspace/repo_ros2/ros2_packages
+    # Keep the container alive so we can exec into it
+    command: sleep infinity # check if this is needed
+
+  mongo-db:
+    image: mongo:4.4
+    platform: linux/amd64  # ✅ Force AMD64 emulation
+    hostname: mongo-db
+    container_name: db-mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - fiware-net
+    command: --nojournal
+    volumes:
+      - mongo-db:/data
+
+  timescaledb:
+    image: timescale/timescaledb-ha:pg15-latest
+    platform: linux/amd64  # Force AMD64 emulation
+    container_name: fiware-timescaledb
+    environment:
+      POSTGRES_DB: orion
+      POSTGRES_USER: orion
+      POSTGRES_PASSWORD: orionpass
+    ports:
+      - "5433:5432"     # host 5433 -> container 5432 to avoid clashes
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ./db/init/01_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
+    networks:
+      - fiware-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orion -d orion"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # FIWARE: Mintaka temporal API (reads Orion temporal state from TimescaleDB)
+  mintaka:
+    image: fiware/mintaka:latest
+    hostname: mintaka
+    container_name: fiware-mintaka
+    platform: linux/amd64  # Force AMD64 emulation
+    ports:
+      - "9090:8080"
+    environment:
+      # Workaround Micronaut metrics+cgroups NPE on some hosts
+      MICRONAUT_METRICS_ENABLED: "false"
+      DATASOURCES_DEFAULT_URL: jdbc:postgresql://timescaledb:5432/orion
+      DATASOURCES_DEFAULT_USERNAME: orion
+      DATASOURCES_DEFAULT_PASSWORD: orionpass
+      # Connect to Orion via host.docker.internal since Orion is on host network
+      MINTAKA_BROKER_URL: http://host.docker.internal:1026
+      # Enable HTTP header based tenant resolution (use NGSILD-Tenant)
+      MICRONAUT_MULTITENANCY_TENANTRESOLVER_HTTPHEADER_ENABLED: "true"
+      MICRONAUT_MULTITENANCY_TENANTRESOLVER_HTTPHEADER_NAMES_0: NGSILD-Tenant
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      orion-ld:
+        condition: service_started
+    networks:
+      - fiware-net
+    # Add host.docker.internal for Linux compatibility
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Module 1: Process Intelligence API (Alert Engine + CLI)
+  alert-processor:
+    build:
+      context: .
+      dockerfile: robin/Dockerfile
+    container_name: robin-alert-processor
+    ports:
+      - "8001:8000"  # alert-processor: host 8001 -> container 8000
+    volumes:
+      - ./config:/app/config
+      - ./data/models:/app/data/models
+    environment:
+      MINTAKA_URL: http://mintaka:8080
+      ROBIN_PROFILE: ${ROBIN_PROFILE:-welding}
+      #NGSILD_TENANT: robin  # disable tenant header to match DDS/TROE default
+    depends_on:
+      - orion-ld
+      - mintaka
+    networks:
+      - fiware-net
+    extra_hosts:
+      - "orion-ld:host-gateway"   # Orion runs in host mode, map hostname for alert-processor
+    stop_grace_period: 5s  # Give uvicorn 5 seconds to shut down gracefully before SIGKILL
+
+  # Module 2: Monitoring Dashboard
+  robin-dashboard:
+    build:
+      context: ./robin-dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_ROBIN_API_URL: "http://localhost:8001"
+    container_name: robin-dashboard
+    ports:
+      - "5174:80"  # React UI at http://localhost:5174
+    depends_on:
+      - alert-processor
+    networks:
+      - fiware-net
+
+networks:
+  fiware-net:
+    driver: bridge
+
+volumes:
+  mongo-db: {}
+  timescale-data: {}

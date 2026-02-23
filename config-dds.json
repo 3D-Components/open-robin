@@ -1,0 +1,44 @@
+{
+  "dds": {
+    "ddsmodule": {
+      "dds": {
+        "domain": 0,
+        "allowlist": [
+          {
+            "name": "*"
+          }
+        ],
+        "blocklist": [          
+            {
+            "name": ""
+            }
+        ]
+      },
+      "topics": {
+        "name": "*",
+        "qos": {
+          "durability": "VOLATILE",
+          "reliability": "BEST_EFFORT",
+          "history-depth": 5000
+        }
+      },
+      "ddsenabler": null,
+      "specs": {
+        "threads": 12,
+        "logging": {
+          "stdout": true,
+          "verbosity": "info"
+        }
+      }
+    },
+    "ngsild": {
+      "topics": {
+        "rt/robin/telemetry": {
+          "entityType": "urn:robin:Process",
+          "entityId": "urn:ngsi-ld:Process:ros_bridge",
+          "attribute": "urn:robin:processTelemetry"
+        }
+      }
+    }
+  }
+}

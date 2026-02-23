@@ -1,0 +1,72 @@
+# OPC UA Bridge Configuration
+# High-performance bridge with batch polling
+
+servers:
+  # Fronius Welder - welding data and parameters
+  fronius:
+    url: "opc.tcp://192.168.1.104:4840"
+    auth:
+      type: anonymous
+    poll_rate: 100.0  # Hz - single timer for all topics
+    
+    # Topics: OPC UA nodes published as ROS2 topics
+    topics:
+      - name: "fronius/display_current"
+        node_id: "ns=1;s=DISPLAY_CURRENT"
+        type: float32
+        
+      - name: "fronius/display_voltage"
+        node_id: "ns=1;s=DISPLAY_VOLTAGE"
+        type: float32
+        
+      - name: "fronius/display_wfs"
+        node_id: "ns=1;s=DISPLAY_WFS"
+        type: float32
+        
+      - name: "fronius/display_power"
+        node_id: "ns=1;s=DISPLAY_POWER"
+        type: float32
+
+    # Services: ROS2 services that write to OPC UA nodes
+    services:
+      - name: "fronius/set_current"
+        node_id: "ns=1;s=CURRENT_RECOMMVALUE"
+        type: float32
+        
+      - name: "fronius/set_voltage"
+        node_id: "ns=1;s=VOLTAGE_RECOMMVALUE"
+        type: float32
+        
+      - name: "fronius/set_wire_speed"
+        node_id: "ns=1;s=WFS_COMMANDVALUE"
+        type: float32
+
+  # WAGO PLC - welding control signals
+  wago:
+    url: "opc.tcp://192.168.0.17:4840"
+    auth:
+      type: username_password
+      username: "admin"
+      password: "wago"
+    
+    # Services only - no polling needed for PLC
+    services:
+      - name: "wago/gas_on"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.GasOn"
+        type: bool
+        
+      - name: "wago/robot_ready"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.RobotReady"
+        type: bool
+        
+      - name: "wago/welding_start"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.WeldingStart"
+        type: bool
+        
+      - name: "wago/wire_backward"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.WireBackward"
+        type: bool
+        
+      - name: "wago/wire_forward"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.WireForward"
+        type: bool

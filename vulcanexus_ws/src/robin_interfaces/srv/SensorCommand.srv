@@ -1,0 +1,10 @@
+# Request
+string sensor_ip
+int32 ctrl_port
+int32 data_port
+string cmd
+int32 fps
+---
+# Response
+bool success
+string message

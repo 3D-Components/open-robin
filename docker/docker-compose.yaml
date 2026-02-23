@@ -1,0 +1,137 @@
+# docker/docker-compose.yaml (deployment directory)
+services:
+  orion-ld:
+    image: fiware/orion-ld:1.8.0
+    platform: linux/amd64
+    hostname: orion
+    container_name: fiware-orion
+    privileged: true
+    ipc: host
+    expose:
+      - "1026"
+    ports:
+      - "1026:1026"
+    depends_on:
+      - mongo-db
+      - timescaledb
+    environment:
+      ORIONLD_TROE: "TRUE"
+      ORIONLD_TROE_USER: "orion"
+      ORIONLD_TROE_PWD: "orionpass"
+      ORIONLD_TROE_HOST: "timescaledb"
+      ORIONLD_TROE_PORT: "5432"
+      ORIONLD_TROE_DB: "orion"
+    command: -dbhost mongo-db -logLevel DEBUG -troe -wip dds
+    dns:
+      - 8.8.8.8
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    networks:
+      - fiware-net
+    volumes:
+      - ../config-dds.json:/root/.orionld
+
+  vulcanexus:
+    image: eprosima/vulcanexus:jazzy-desktop
+    container_name: vulcanexus-bridge
+    hostname: vulcanexus-bridge
+    privileged: true
+    ipc: host
+    user: "${UID}:${GID}"
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      # Mount host ROS 2 packages into expected container path
+      - ../vulcanexus_ws/src:/workspace/ros2_packages
+    networks:
+      - fiware-net
+    command: sleep infinity
+
+  mongo-db:
+    image: mongo:4.4
+    platform: linux/amd64
+    hostname: mongo-db
+    container_name: db-mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - fiware-net
+    command: --nojournal
+    volumes:
+      - mongo-db:/data
+
+  timescaledb:
+    image: timescale/timescaledb-ha:pg15-latest
+    platform: linux/amd64
+    container_name: fiware-timescaledb
+    environment:
+      POSTGRES_DB: orion
+      POSTGRES_USER: orion
+      POSTGRES_PASSWORD: orionpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      - ../db/init/01_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
+      # wirecloud DB init removed - faros frontend replaces wirecloud
+    networks:
+      - fiware-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orion -d orion"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mintaka:
+    image: fiware/mintaka:latest
+    hostname: mintaka
+    container_name: fiware-mintaka
+    platform: linux/amd64
+    ports:
+      - "9090:8080"
+    environment:
+      MICRONAUT_METRICS_ENABLED: "false"
+      DATASOURCES_DEFAULT_URL: jdbc:postgresql://timescaledb:5432/orion
+      DATASOURCES_DEFAULT_USERNAME: orion
+      DATASOURCES_DEFAULT_PASSWORD: orionpass
+      MINTAKA_BROKER_URL: http://orion-ld:1026
+      MICRONAUT_MULTITENANCY_TENANTRESOLVER_HTTPHEADER_ENABLED: "true"
+      MICRONAUT_MULTITENANCY_TENANTRESOLVER_HTTPHEADER_NAMES_0: NGSILD-Tenant
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      orion-ld:
+        condition: service_started
+    networks:
+      - fiware-net
+
+  alert-processor:
+    build:
+      context: ..
+      dockerfile: robin/Dockerfile
+    container_name: robin-alert-processor
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../config:/app/config
+    environment:
+      MINTAKA_URL: http://mintaka:8080
+    depends_on:
+      - orion-ld
+      - mintaka
+    networks:
+      - fiware-net
+    stop_grace_period: 5s
+
+networks:
+  fiware-net:
+    driver: bridge
+
+volumes:
+  mongo-db: {}
+  timescale-data: {}
+

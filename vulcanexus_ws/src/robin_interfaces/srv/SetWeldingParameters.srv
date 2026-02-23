@@ -1,0 +1,7 @@
+# Request desired welding parameters (setpoint targets)
+float32 current    # Amperes; NaN or negative to skip
+float32 voltage    # Volts;   NaN or negative to skip
+float32 wire_speed # m/min;   NaN or negative to skip
+---
+bool success
+string message

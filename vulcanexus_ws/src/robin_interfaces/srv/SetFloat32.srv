@@ -1,0 +1,5 @@
+# Service to set a single float32 value
+float32 data
+---
+bool success
+string message

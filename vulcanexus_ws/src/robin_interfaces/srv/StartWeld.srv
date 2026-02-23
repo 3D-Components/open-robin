@@ -1,0 +1,9 @@
+# StartWeld.srv - Start welding with parameters
+# Request: welding parameters
+float32 current      # Welding current in Amps
+float32 voltage      # Welding voltage in Volts  
+float32 wire_speed   # Wire feed speed in m/min
+---
+# Response: success status
+bool success
+string message

@@ -1,0 +1,52 @@
+# MoveItCpp configuration for robin_core_planner
+# Reference: https://moveit.picknik.ai/main/doc/examples/moveit_cpp/moveitcpp_tutorial.html
+
+planning_scene_monitor_options:
+  name: "planning_scene_monitor"
+  robot_description: "robot_description"
+  joint_state_topic: "/joint_states"
+  attached_collision_object_topic: "/planning_scene_monitor/attached_collision_object"
+  publish_planning_scene_topic: "/planning_scene_monitor/publish_planning_scene"
+  monitored_planning_scene_topic: "/planning_scene_monitor/monitored_planning_scene"
+  wait_for_initial_state_timeout: 10.0
+
+# Only Pilz planner - no OMPL or other planners
+planning_pipelines:
+  pipeline_names: ["pilz_industrial_motion_planner"]
+
+# Default plan request parameters
+plan_request_params:
+  planning_attempts: 1
+  planning_pipeline: pilz_industrial_motion_planner
+  planner_id: "LIN"
+  max_velocity_scaling_factor: 1.0
+  max_acceleration_scaling_factor: 1.0
+
+# Named configurations for different motion types
+pilz_ptp:
+  plan_request_params:
+    planning_attempts: 1
+    planning_pipeline: pilz_industrial_motion_planner
+    planner_id: "PTP"
+    max_velocity_scaling_factor: 1.0
+    max_acceleration_scaling_factor: 1.0
+    planning_time: 1.0
+
+pilz_lin:
+  plan_request_params:
+    planning_attempts: 1
+    planning_pipeline: pilz_industrial_motion_planner
+    planner_id: "LIN"
+    max_velocity_scaling_factor: 1.0
+    max_acceleration_scaling_factor: 1.0
+    planning_time: 1.0
+
+pilz_circ:
+  plan_request_params:
+    planning_attempts: 1
+    planning_pipeline: pilz_industrial_motion_planner
+    planner_id: "CIRC"
+    max_velocity_scaling_factor: 1.0
+    max_acceleration_scaling_factor: 1.0
+    planning_time: 1.0
+

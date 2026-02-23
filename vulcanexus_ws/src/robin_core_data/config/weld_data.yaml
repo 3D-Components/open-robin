@@ -1,0 +1,16 @@
+# Weld data node configuration
+
+weld_data_node:
+  ros__parameters:
+    # Publishing rate for progression and data
+    publish_rate: 100.0  # Hz
+    
+    # Source topics (raw Fronius data)
+    current_topic: "/fronius/display_current"
+    voltage_topic: "/fronius/display_voltage"
+    wire_feed_topic: "/fronius/display_wfs"
+    power_topic: "/fronius/display_power"
+    
+    # TF frames for TCP position (used for progression calculation)
+    base_frame: "base_link"
+    tcp_frame: "weld_torch_tip"

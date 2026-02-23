@@ -1,0 +1,8 @@
+# Default initial positions for the ROBIN UR robot joints
+initial_positions:
+  joint_1:  1.68137
+  joint_2: -1.68537
+  joint_3: -3.51299
+  joint_4: -2.06692
+  joint_5: -1.42022
+  joint_6: -0.28220

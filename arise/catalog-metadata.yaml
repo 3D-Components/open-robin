@@ -1,0 +1,94 @@
+schema_version: "0.1"
+project:
+  name: "ROBIN Open Process Intelligence Core"
+  short_name: "open-robin-core"
+  version: "0.1.0"
+  status: "release-candidate"
+  license: "MIT"
+  repository: "https://github.com/Industry40Lab/open-robin"
+  homepage: "https://github.com/Industry40Lab/open-robin"
+  description: >
+    Reusable FIWARE + ROS 2 process intelligence core for machine-agnostic telemetry
+    ingestion, process monitoring, deviation detection, and AI-assisted parameter control.
+  keywords:
+    - "FIWARE"
+    - "NGSI-LD"
+    - "ROS 2"
+    - "DDS"
+    - "process monitoring"
+    - "industrial AI"
+  domain_profiles:
+    - "welding (demo profile)"
+    - "spray coating (demo profile)"
+  maturity:
+    trl: "4"
+    notes: "Validated in lab setup with FIWARE backend and ROS 2 telemetry ingestion."
+
+components:
+  - id: "core-api"
+    name: "Process Lifecycle and Alert API"
+    path: "robin/"
+    type: "python-service"
+    interfaces:
+      - "REST"
+      - "NGSI-LD"
+    reusable: true
+
+  - id: "telemetry-pipeline"
+    name: "ROS 2 Telemetry Aggregation and DDS Mapping"
+    path: "vulcanexus_ws/src/robin_core_data/scripts/telemetry_aggregator_node.py"
+    type: "ros2-node"
+    interfaces:
+      - "ROS 2 topics"
+      - "DDS"
+    reusable: true
+
+  - id: "telemetry-schema"
+    name: "ProcessTelemetry Message"
+    path: "vulcanexus_ws/src/robin_interfaces/msg/ProcessTelemetry.msg"
+    type: "ros2-interface"
+    reusable: true
+
+  - id: "dds-to-ngsi-config"
+    name: "Orion DDS Mapping Configuration"
+    path: "config-dds.json"
+    type: "configuration"
+    reusable: true
+
+  - id: "ui-shell"
+    name: "FAROS Monitoring UI Shell"
+    path: "robin-dashboard/"
+    type: "web-ui"
+    reusable: true
+    notes: "Domain vocabulary is configurable via VITE_TERM_* env vars."
+
+non_core_adapters:
+  - "vulcanexus_ws/src/robin_hardware_fronius/"
+  - "welding-specific ROS bags and launch profiles"
+
+deployment:
+  stack:
+    - "Docker Compose"
+    - "Orion-LD"
+    - "MongoDB"
+    - "TimescaleDB"
+    - "Mintaka"
+  default_ports:
+    orion: 1026
+    mintaka: 9090
+    alert_api: 8001
+    ui: 5174
+
+artifacts:
+  documentation:
+    - "README.md"
+    - "current_stack_feb22.md"
+    - "ARISE_PUBLICATION_ROADMAP.md"
+  demo_scripts:
+    - "demo/simulation-demo-rosbag.sh"
+    - "demo/interactive-demo.sh"
+    - "demo/profiles/spray_coating_profile.py"
+
+contacts:
+  organization: "3D-Components AS + Mechatronics Innovation Lab"
+  support_email: "opensource@industry40lab.eu"
