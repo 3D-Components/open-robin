@@ -90,7 +90,10 @@ Profiles
 The core is domain-agnostic.  Domain-specific demos are provided as **profiles**:
 
 * **Welding** (reference): ``python demo/profiles/welding_profile.py --mode both``
-* **Spray Coating** (reusability proof): ``python demo/profiles/spray_coating_profile.py --mode both``
+* **Spray Coating**: ``ROBIN_PROFILE=spray_coating docker compose up -d`` then
+  ``python demo/profiles/spray_coating_profile.py --mode both``
+
+Each demo waits for you to press **Start** from the dashboard before streaming.
 
 Each profile maps domain terms onto the same five core measurement fields
 (``measuredHeight``, ``measuredWidth``, ``measuredSpeed``, ``measuredCurrent``,

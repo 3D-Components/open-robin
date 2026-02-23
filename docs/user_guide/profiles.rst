@@ -53,16 +53,21 @@ Profile Comparison
 Canonical Profile Demos
 -----------------------
 
-Run the robust dual-mode demos directly from profile scripts:
+Run the robust dual-mode demos directly from profile scripts.  Each script
+will create the process, configure AI expectations, then **wait for you to
+press Start from the dashboard** before streaming data (pass ``--no-prompt``
+to skip the wait):
 
 .. code-block:: bash
 
    # Welding (default profile)
    python demo/profiles/welding_profile.py --mode both --duration 120 --interval 2
+   # -> select the process in the dashboard and press Start
 
    # Spray coating profile
    ROBIN_PROFILE=spray_coating docker compose up -d
    python demo/profiles/spray_coating_profile.py --mode both --duration 120 --interval 2
+   # -> select the process in the dashboard and press Start
 
 How Profiles Work
 -----------------

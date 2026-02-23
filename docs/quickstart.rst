@@ -12,6 +12,8 @@ By the end of this guide you will have:
 * The **Alert Engine** (FastAPI) serving deviation detection and AI predictions
 * The **ROBIN Dashboard** (React) showing live KPIs, time-series charts, robot
   control, 3D visualisation, and deviation monitoring
+* A **3D Visualization** server (Viser) rendering a UR5 robot with live
+  welding animation driven by simulation progress
 * Simulated process telemetry flowing through the entire stack in real time
 
 .. mermaid::
@@ -22,6 +24,7 @@ By the end of this guide you will have:
            TSDB[("TimescaleDB")]
            MINTAKA["Mintaka<br/>Temporal API"]
            ALERT["Alert Engine<br/>+ AI Model"]
+           VISER["Viser<br/>3D Visualization"]
            DASH["ROBIN Dashboard"]
        end
        SIM["Simulation<br/>Script"] -->|NGSI-LD| ORION
@@ -30,6 +33,7 @@ By the end of this guide you will have:
        ALERT --> ORION
        ALERT --> MINTAKA
        DASH --> ALERT
+       DASH -->|WebSocket| VISER
 
 Prerequisites
 -------------
@@ -47,7 +51,7 @@ Step 1 - Launch the Stack
 
    docker compose up -d
 
-Verify all seven services are healthy:
+Verify all services are healthy:
 
 .. code-block:: bash
 
@@ -78,6 +82,9 @@ Verify all seven services are healthy:
    * - ``robin-dashboard``
      - 5174
      - Operator Dashboard (Module 2)
+   * - ``robin-viser``
+     - 8081, 8082
+     - 3D Visualization (Viser + WebSocket bridge)
    * - ``vulcanexus``
      - -
      - ROS 2 / DDS bridge container
@@ -102,11 +109,12 @@ This is the **Live Ops** cockpit - the main operator view.  It's empty right
 now because no data is flowing yet.  For a full walkthrough of every panel, see
 :doc:`user_guide/dashboard`.
 
-Step 3 - Stream Live Data
---------------------------
+Step 3 - Start a Demo
+----------------------
 
-Run the canonical welding demo (parameter-driven mode) to push synthetic
-measurements and trigger AI-backed deviation checks:
+Run the canonical welding demo (parameter-driven mode). The script will
+create the process, configure AI expectations, then **wait for you to
+press Start from the dashboard UI** before streaming data:
 
 .. code-block:: bash
 
@@ -116,18 +124,40 @@ measurements and trigger AI-backed deviation checks:
        --duration 60 \
        --interval 0.3
 
+The terminal will print::
+
+   Waiting for Start from the dashboard UI for process "demo-quickstart"...
+     Open http://localhost:5174, select process "demo-quickstart", and press Start.
+
+Step 4 - Press Start
+---------------------
+
+1. In the dashboard, select **demo-quickstart** from the process selector
+   dropdown in the top bar.
+2. Click the **Start** button in the Robot Control panel.
+3. The simulation script detects the start signal and begins streaming
+   telemetry.
+
+You will see:
+
+* The **progress bar** advancing in real time with the actual simulation
+  progress (elapsed time / total duration).
+* **Telemetry charts** and **KPI cards** updating live.
+* The **3D visualization** showing the UR5 robot performing a welding sweep
+  along the seam, driven by the simulation progress.
+* **Deviation alerts** firing during injected deviation windows.
+
 .. tip::
 
-   While the simulation is running, select **demo-quickstart** from the
-   process selector dropdown at the top of the dashboard.  Telemetry charts
-   and KPI cards will update in real time.
+   Use ``--no-prompt`` to skip the Start-button wait and stream data
+   immediately (useful for CI or scripted verification runs).
 
 .. image:: _static/screenshots/dashboard-with-data.png
    :alt: ROBIN Dashboard - process selector with multiple processes
    :align: center
    :width: 100%
 
-Step 4 - Clean Up
+Step 5 - Clean Up
 ------------------
 
 Remove demo data without stopping the stack:
@@ -145,12 +175,13 @@ Or tear everything down:
 After Code Changes (Rebuild + Sanity Check)
 -------------------------------------------
 
-If you changed ``robin/`` or ``robin-dashboard/``, refresh the running services:
+If you changed ``robin/``, ``robin-dashboard/``, or ``faros/services/``, refresh
+the running services:
 
 .. code-block:: bash
 
-   docker compose build alert-processor robin-dashboard
-   docker compose up -d --force-recreate alert-processor robin-dashboard
+   docker compose build alert-processor robin-dashboard robin-viser
+   docker compose up -d --force-recreate alert-processor robin-dashboard robin-viser
 
 Then run a short verification demo and confirm UI data source/cadence:
 

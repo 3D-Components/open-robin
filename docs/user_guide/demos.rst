@@ -43,10 +43,38 @@ Dual-Mode Validation Logic
    AI-suggested parameters (falling back to target geometry if needed).
 5. Deviation alerts are generated when tolerance is exceeded.
 
+Press Start to Begin
+--------------------
+
+When you run a demo script (without ``--no-prompt``), it will create the
+process and configure AI expectations, then **pause and wait for you to press
+Start from the dashboard UI**. The terminal will print::
+
+   Waiting for Start from the dashboard UI for process "<id>"...
+     Open http://localhost:5174, select process "<id>", and press Start.
+
+In the dashboard:
+
+1. Select the process from the top-bar dropdown.
+2. Click **Start** in the Robot Control panel.
+
+The simulation detects the start signal and begins streaming telemetry. The
+dashboard progress bar tracks the actual simulation elapsed time (not just
+measurement count).
+
+.. tip::
+
+   Pass ``--no-prompt`` to skip the Start-button wait and stream data
+   immediately. This is useful for CI, scripted verification, or when you
+   want the demo to start unattended.
+
 What to watch in the dashboard:
 
+* **Progress bar** advances with actual simulation progress (elapsed / total).
 * **Measurement KPIs** update in real time.
 * **Telemetry chart** continues streaming.
+* **3D Visualization** shows the UR5 robot performing a welding sweep driven
+  by simulation progress.
 * **Deviation Monitor** toggles between OK/Deviation/ALERT with mode-aware source.
 * **Alerts panel** receives warning/critical entries during injected deviation windows.
 
@@ -56,13 +84,13 @@ Rebuild + Verification Checklist
 Use this exact sequence when you need to ensure recent code changes are live and
 the dashboard is plotting real Mintaka-stored data.
 
-1. Rebuild and recreate backend + dashboard containers:
+1. Rebuild and recreate backend, dashboard, and visualization containers:
 
 .. code-block:: bash
 
-   docker compose build alert-processor robin-dashboard
-   docker compose up -d --force-recreate alert-processor robin-dashboard
-   docker compose ps alert-processor robin-dashboard
+   docker compose build alert-processor robin-dashboard robin-viser
+   docker compose up -d --force-recreate alert-processor robin-dashboard robin-viser
+   docker compose ps alert-processor robin-dashboard robin-viser
 
 2. Start a non-interactive dual-mode welding demo:
 
@@ -123,8 +151,7 @@ integration tasks, but they are not the primary demos:
 * ``demo/validate-setup.sh`` - service health checks
 * ``demo/cleanup-demo.sh`` - remove demo entities
 * ``demo/simulation-demo-rosbag.sh`` - ROS 2 bag replay path
-* ``demo/dashboard-simulation.py`` - headless dashboard data pump
-* ``demo/interactive-demo.sh`` / ``demo/simulation-demo.sh`` / ``demo/smooth-simulation-demo.py`` - legacy walkthrough/sim variants
+* ``demo/interactive-demo.sh`` - interactive walkthrough
 
 Cleanup
 -------

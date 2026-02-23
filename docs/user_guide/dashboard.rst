@@ -118,6 +118,11 @@ Other Tabs
    * - **Settings**
      - Dark mode, trust thresholds, chart freeze, connection status
 
+.. image:: ../_static/screenshots/dashboard-history.png
+   :alt: ROBIN Dashboard - History & Reports tab
+   :align: center
+   :width: 100%
+
 History CSV Workflow
 --------------------
 

@@ -60,10 +60,12 @@ The repository includes demo profiles that compose the modules into working stac
 for different industrial domains:
 
 * **Welding** (reference): ``python demo/profiles/welding_profile.py --mode both``
-* **Spray Coating** (reusability proof): ``python demo/profiles/spray_coating_profile.py --mode both``
+* **Spray Coating**: ``ROBIN_PROFILE=spray_coating docker compose up -d`` then
+  ``python demo/profiles/spray_coating_profile.py --mode both``
 
-No module code is modified when switching domains. See ``demo/profiles/README.md`` for
-the full comparison.
+Each demo waits for you to press **Start** from the dashboard before streaming
+data. No module code is modified when switching domains. See
+``demo/profiles/README.md`` for the full comparison.
 
 For publication planning and ARISE alignment, see:
 
