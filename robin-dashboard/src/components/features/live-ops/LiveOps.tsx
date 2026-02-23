@@ -58,7 +58,6 @@ interface LiveOpsProps {
     currentRun: ProcessRun | null;
     alerts: Array<{ id: string; at: string; severity: "Info" | "Warning" | "Critical"; message: string; source: string }>;
     vizMode: VizMode;
-    setVizMode: (m: VizMode) => void;
     layers: { robotModel: boolean; torchPath: boolean; workpiece: boolean; profileSegments: boolean; frames: boolean };
     setLayers: (v: any) => void;
     camera: "Isometric" | "Top" | "Side";
@@ -102,7 +101,6 @@ export function LiveOps(props: LiveOpsProps) {
         currentRun,
         alerts,
         vizMode,
-        setVizMode,
         layers,
         setLayers,
         camera,
@@ -214,7 +212,6 @@ export function LiveOps(props: LiveOpsProps) {
                 <div className="col-span-12 space-y-4 xl:col-span-6">
                     <VisualizationPanel
                         vizMode={vizMode}
-                        setVizMode={setVizMode}
                         layers={layers}
                         setLayers={setLayers}
                         camera={camera}
@@ -446,7 +443,6 @@ function AlertRow({
 
 function VisualizationPanel({
     vizMode,
-    setVizMode,
     layers,
     setLayers,
     camera,
@@ -458,7 +454,6 @@ function VisualizationPanel({
     robot,
 }: {
     vizMode: VizMode;
-    setVizMode: (m: VizMode) => void;
     layers: {
         robotModel: boolean;
         torchPath: boolean;
@@ -506,29 +501,6 @@ function VisualizationPanel({
                 subtitle="Embedded 3D view (Viser)"
                 right={
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="inline-flex overflow-hidden rounded-md border border-slate-200 dark:border-slate-800">
-                            <Button
-                                size="sm"
-                                variant={vizMode === "execution" ? "primary" : "secondary"}
-                                className="rounded-none border-0"
-                                onClick={() => setVizMode("execution")}
-                                title="Robot execution view"
-                            >
-                                <Bot className="h-4 w-4" />
-                                Execution
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant={vizMode === "deposition" ? "primary" : "secondary"}
-                                className="rounded-none border-0"
-                                onClick={() => setVizMode("deposition")}
-                                title={`${domainTerms.depositionView} view`}
-                            >
-                                <Layers className="h-4 w-4" />
-                                Deposition
-                            </Button>
-                        </div>
-
                         <div className="relative">
                             <Button
                                 size="sm"

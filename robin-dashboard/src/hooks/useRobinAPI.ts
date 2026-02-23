@@ -156,6 +156,9 @@ export interface ProcessSnapshotResponse {
     wireSpeed?: { value: number };
     current?: { value: number };
     voltage?: { value: number };
+    processStatus?: { value: string };
+    simulationProgress?: { value: number };
+    expectedDuration?: { value: number };
     [key: string]: unknown;
 }
 

@@ -368,7 +368,7 @@ export function RobinPage() {
 
     const [trustFeed, setTrustFeed] = useState<TrustAssessment[]>([]);
 
-    const [vizMode, setVizMode] = useState<VizMode>('execution');
+    const [vizMode] = useState<VizMode>('execution');
     const [layers, setLayers] = useState<LayerVisibility>({
         robotModel: true,
         torchPath: true,
@@ -384,6 +384,11 @@ export function RobinPage() {
     const [metric, setMetric] = useState<MetricType>('profileHeight');
     const [freezeCharts, setFreezeCharts] = useState(false);
 
+    const simulationProgress = useMemo(() => {
+        const raw = processSnapshotData?.simulationProgress?.value;
+        return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+    }, [processSnapshotData]);
+
     useEffect(() => {
         if (!measurementsData?.measurements?.length) return;
         if (freezeCharts) return;
@@ -391,15 +396,30 @@ export function RobinPage() {
         const points = apiToMeasurementPoints(measurementsData.measurements);
         setTelemetry(points);
         setTimelineT(points.length ? points[points.length - 1].t : 0);
-
-        if (measurementsData.count > 0) {
-            setRobot((prev) => ({
-                ...prev,
-                state: prev.state === 'Idle' ? 'Running' as const : prev.state,
-                taskProgressPct: Math.min(100, (measurementsData.count / 200) * 100),
-            }));
-        }
     }, [measurementsData, freezeCharts]);
+
+    useEffect(() => {
+        if (simulationProgress === null) return;
+        setRobot((prev) => ({
+            ...prev,
+            taskProgressPct: Math.max(0, Math.min(100, simulationProgress)),
+        }));
+    }, [simulationProgress]);
+
+    const backendProcessStatus = processSnapshotData?.processStatus?.value ?? null;
+
+    useEffect(() => {
+        if (!backendProcessStatus) return;
+        setRobot((prev) => {
+            if (backendProcessStatus === 'active' && prev.state === 'Idle') {
+                return { ...prev, state: 'Running' as const };
+            }
+            if (backendProcessStatus === 'stopped' && prev.state === 'Running') {
+                return { ...prev, state: 'Idle' as const };
+            }
+            return prev;
+        });
+    }, [backendProcessStatus]);
 
     useEffect(() => {
         if (!measurementsData?.measurements?.length) return;
@@ -486,14 +506,10 @@ export function RobinPage() {
             pushAlert('Critical', `${robot.name} is in E-Stop. Reset required.`, robot.name);
             return;
         }
-        setRobot((prev) => ({ ...prev, state: 'Running' as const, taskProgressPct: 2 }));
+        setRobot((prev) => ({ ...prev, state: 'Running' as const, taskProgressPct: 0 }));
         pushAlert('Info', `${robot.name} started.`, robot.name);
         if (processId) {
-            if (sessionMode === 'Active Run') {
-                resumeProcess(processId).catch(() => {});
-            } else {
-                pushAlert('Info', 'Demo Mode: start command simulated (no backend call).', robot.name);
-            }
+            resumeProcess(processId).catch(() => {});
         }
     };
     const pauseRobot = () => {
@@ -501,11 +517,7 @@ export function RobinPage() {
         setRobot((prev) => ({ ...prev, state: 'Paused' as const }));
         pushAlert('Warning', `${robot.name} paused by operator.`, robot.name);
         if (processId) {
-            if (sessionMode === 'Active Run') {
-                stopProcess(processId, 'operator_pause').catch(() => {});
-            } else {
-                pushAlert('Info', 'Demo Mode: pause command simulated (no backend call).', robot.name);
-            }
+            stopProcess(processId, 'operator_pause').catch(() => {});
         }
     };
     const resumeRobotHandler = () => {
@@ -513,22 +525,14 @@ export function RobinPage() {
         setRobot((prev) => ({ ...prev, state: 'Running' as const }));
         pushAlert('Info', `${robot.name} resumed.`, robot.name);
         if (processId) {
-            if (sessionMode === 'Active Run') {
-                resumeProcess(processId).catch(() => {});
-            } else {
-                pushAlert('Info', 'Demo Mode: resume command simulated (no backend call).', robot.name);
-            }
+            resumeProcess(processId).catch(() => {});
         }
     };
     const abortRobot = () => {
         setRobot((prev) => ({ ...prev, state: 'Idle' as const, taskProgressPct: 0, segmentIndex: 0 }));
         pushAlert('Critical', `${robot.name} aborted.`, robot.name);
         if (processId) {
-            if (sessionMode === 'Active Run') {
-                stopProcess(processId, 'operator_abort').catch(() => {});
-            } else {
-                pushAlert('Info', 'Demo Mode: abort command simulated (no backend call).', robot.name);
-            }
+            stopProcess(processId, 'operator_abort').catch(() => {});
         }
     };
     const toggleParamFreeze = () => {
@@ -602,7 +606,6 @@ export function RobinPage() {
                             currentRun={currentRun}
                             alerts={alerts}
                             vizMode={vizMode}
-                            setVizMode={setVizMode}
                             layers={layers}
                             setLayers={setLayers}
                             camera={camera}

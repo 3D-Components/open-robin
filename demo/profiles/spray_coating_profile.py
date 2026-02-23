@@ -192,6 +192,54 @@ def check_deviation(
         return None
 
 
+def stop_process(process_id: str, api_url: str) -> None:
+    """Stop the process so it waits for a UI Start signal."""
+    try:
+        requests.post(
+            f'{api_url.rstrip("/")}/process/{process_id}/stop?reason=awaiting_start',
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def post_progress(process_id: str, progress: float, expected_duration: float, api_url: str) -> None:
+    """Report simulation progress (0-100) to the alert engine."""
+    try:
+        requests.post(
+            f'{api_url.rstrip("/")}/process/{process_id}/progress',
+            json={'progress': round(progress, 1), 'expected_duration': expected_duration},
+            timeout=2,
+        )
+    except Exception:
+        pass
+
+
+def get_process_status(process_id: str, api_url: str) -> str:
+    """Return the current process status from the backend ('active', 'stopped', etc.)."""
+    try:
+        resp = requests.get(
+            f'{api_url.rstrip("/")}/process/{process_id}/status',
+            timeout=5,
+        )
+        if resp.ok:
+            return (resp.json().get('process_data') or {}).get('status', 'unknown')
+    except Exception:
+        pass
+    return 'unknown'
+
+
+def wait_for_start(process_id: str, api_url: str) -> None:
+    """Poll process status until it becomes 'active' (user pressed Start in the UI)."""
+    print(f'Waiting for Start from the dashboard UI for process "{process_id}"…')
+    print(f'  Open {DASHBOARD_URL}, select process "{process_id}", and press Start.')
+    while True:
+        if get_process_status(process_id, api_url) == 'active':
+            print('Start received – beginning simulation.')
+            return
+        time.sleep(1.0)
+
+
 def extract_number(data: Dict[str, Any], keys: Sequence[str], fallback: float) -> float:
     for key in keys:
         value = data.get(key)
@@ -271,18 +319,37 @@ def stream_measurements(
     print(f'Deviation windows (s): {[(round(s, 1), round(e, 1)) for s, e in windows]}')
     print()
 
-    start = time.time()
     count = 0
     ok_count = 0
     fail_count = 0
     alert_count = 0
+    sim_elapsed = 0.0
+    last_progress_post = 0.0
+    last_tick = time.time()
+    was_paused = False
 
-    while True:
-        elapsed = time.time() - start
-        if elapsed >= duration:
-            break
+    while sim_elapsed < duration:
+        now = time.time()
 
-        sample = generate_sample(elapsed, expected_geometry, reference_params, windows)
+        status = get_process_status(process_id, api_url)
+        if status != 'active':
+            if not was_paused:
+                print('  ⏸  Paused by operator – waiting for Resume…')
+                was_paused = True
+            post_progress(process_id, min(100.0, (sim_elapsed / duration) * 100), float(duration), api_url)
+            last_tick = now
+            time.sleep(0.5)
+            continue
+
+        if was_paused:
+            print('  ▶  Resumed – continuing simulation.')
+            was_paused = False
+
+        dt = now - last_tick
+        last_tick = now
+        sim_elapsed += dt
+
+        sample = generate_sample(sim_elapsed, expected_geometry, reference_params, windows)
         measurement_id = f'coat-{int(time.time() * 1000)}-{count}'
 
         result = run_robin(
@@ -308,6 +375,11 @@ def stream_measurements(
         else:
             fail_count += 1
 
+        if now - last_progress_post >= 1.0:
+            pct = min(100.0, (sim_elapsed / duration) * 100)
+            post_progress(process_id, pct, float(duration), api_url)
+            last_progress_post = now
+
         check = check_deviation(
             process_id=process_id,
             mode=mode,
@@ -330,7 +402,7 @@ def stream_measurements(
         if alert_flag:
             alert_count += 1
 
-        marker = ' DEVIATION_WINDOW' if in_any_window(elapsed, windows) else ''
+        marker = ' DEVIATION_WINDOW' if in_any_window(sim_elapsed, windows) else ''
         print(
             f'[{count:03d}] '
             f't={sample.thickness:>7.4f}mm '
@@ -347,6 +419,7 @@ def stream_measurements(
 
         time.sleep(interval)
 
+    post_progress(process_id, 100, float(duration), api_url)
     return ok_count, fail_count, count, alert_count
 
 
@@ -416,6 +489,7 @@ def run_single_mode(
     base_flow_rate: float,
     base_pressure: float,
     api_url: str,
+    no_prompt: bool = False,
 ) -> Tuple[int, int, int, int]:
     maybe_create_process(process_id, mode)
     set_process_mode(process_id, mode, api_url)
@@ -444,6 +518,13 @@ def run_single_mode(
             api_url=api_url,
         )
         print(f'[{process_id}] Parameter-driven expected geometry source: {source}')
+
+    post_progress(process_id, 0, float(duration), api_url)
+    if no_prompt:
+        print(f'[{process_id}] --no-prompt: streaming immediately.')
+    else:
+        stop_process(process_id, api_url)
+        wait_for_start(process_id, api_url)
 
     return stream_measurements(
         process_id=process_id,
@@ -592,6 +673,7 @@ def main() -> int:
             base_flow_rate=args.flow_rate,
             base_pressure=args.pressure,
             api_url=args.api_url,
+            no_prompt=args.no_prompt,
         )
         summary.append((process_id, mode, accepted, failed, streamed, alerts))
         print()

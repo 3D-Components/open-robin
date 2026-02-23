@@ -51,7 +51,7 @@ export function useViserBridge(robot: RobotCell) {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
         const payload = {
-            robot: {
+            robotA: {
                 state: robot.state,
                 segmentIndex: robot.segmentIndex,
                 progressPct: robot.taskProgressPct,

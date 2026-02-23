@@ -222,6 +222,11 @@ class CreateProcessRequest(BaseModel):
     target_geometry: Optional[Dict[str, float]] = None
 
 
+class SimulationProgressRequest(BaseModel):
+    progress: float  # 0-100
+    expected_duration: Optional[float] = None  # seconds
+
+
 class SetTargetRequest(BaseModel):
     height: float
     width: float
@@ -1815,6 +1820,60 @@ async def get_process_target(process_id: str):
         return {'status': 'not_set', 'process_id': process_id}
     except Exception as e:
         return {'status': 'error', 'process_id': process_id, 'error': str(e)}
+
+
+@app.post('/process/{process_id}/progress')
+async def set_simulation_progress(
+    process_id: str, request: SimulationProgressRequest
+):
+    """Update simulation progress (0-100) on the Process entity in Orion."""
+    try:
+        engine = ENGINE
+        entity_id = f'urn:ngsi-ld:Process:{process_id}'
+        payload: Dict[str, Any] = {
+            'simulationProgress': {
+                'type': 'Property',
+                'value': max(0.0, min(100.0, request.progress)),
+            },
+        }
+        if request.expected_duration is not None:
+            payload['expectedDuration'] = {
+                'type': 'Property',
+                'value': request.expected_duration,
+                'unitCode': 'SEC',
+            }
+        url = f'{engine.client.orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs'
+        resp = requests.post(
+            url,
+            headers=engine.client.headers,
+            json=payload,
+            timeout=5,
+        )
+        if resp.status_code in (207, 409):
+            resp = requests.patch(
+                url,
+                headers=engine.client.headers,
+                json=payload,
+                timeout=5,
+            )
+        ok = 200 <= resp.status_code < 300
+        if ok:
+            return {
+                'status': 'success',
+                'process_id': process_id,
+                'progress': request.progress,
+            }
+        return {
+            'status': 'error',
+            'process_id': process_id,
+            'message': f'Orion returned {resp.status_code}',
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'process_id': process_id,
+            'error': str(e),
+        }
 
 
 @app.get('/processes/list')

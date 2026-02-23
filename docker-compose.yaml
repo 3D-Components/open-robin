@@ -162,6 +162,17 @@ services:
       - "orion-ld:host-gateway"   # Orion runs in host mode, map hostname for alert-processor
     stop_grace_period: 5s  # Give uvicorn 5 seconds to shut down gracefully before SIGKILL
 
+  # Module 3: 3D Visualization (Viser)
+  robin-viser:
+    build:
+      context: .
+      dockerfile: faros/services/Dockerfile
+    container_name: robin-viser
+    ports:
+      - "8081:8081"   # Viser 3D viewer
+      - "8082:8082"   # WebSocket bridge for dashboard
+    restart: unless-stopped
+
   # Module 2: Monitoring Dashboard
   robin-dashboard:
     build:

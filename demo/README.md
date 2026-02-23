@@ -87,8 +87,7 @@ These scripts remain available for setup/integration tasks:
 - `demo/validate-setup.sh`
 - `demo/cleanup-demo.sh`
 - `demo/simulation-demo-rosbag.sh`
-- `demo/dashboard-simulation.py`
-- `demo/interactive-demo.sh`, `demo/simulation-demo.sh`, `demo/smooth-simulation-demo.py`
+- `demo/interactive-demo.sh`
 
 ## Cleanup
 

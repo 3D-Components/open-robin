@@ -35,13 +35,14 @@ export function KV({
     mono?: boolean;
 }) {
     return (
-        <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-slate-600 dark:text-slate-400">{k}</div>
+        <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="shrink-0 text-xs text-slate-600 dark:text-slate-400">{k}</div>
             <div
                 className={cx(
-                    "text-xs text-slate-900 dark:text-slate-100",
+                    "text-xs text-slate-900 dark:text-slate-100 truncate",
                     mono && "font-mono"
                 )}
+                title={typeof v === "string" ? v : undefined}
             >
                 {v}
             </div>
