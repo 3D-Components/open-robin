@@ -166,7 +166,7 @@ services:
   robin-viser:
     build:
       context: .
-      dockerfile: faros/services/Dockerfile
+      dockerfile: robin-ui/services/Dockerfile
     container_name: robin-viser
     ports:
       - "8081:8081"   # Viser 3D viewer

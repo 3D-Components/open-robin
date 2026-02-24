@@ -77,7 +77,7 @@ services:
     volumes:
       - timescale-data:/var/lib/postgresql/data
       - ../db/init/01_extensions.sql:/docker-entrypoint-initdb.d/01_extensions.sql:ro
-      # wirecloud DB init removed - faros frontend replaces wirecloud
+      # wirecloud DB init removed - robin-ui frontend replaces wirecloud
     networks:
       - fiware-net
     healthcheck:
@@ -134,4 +134,3 @@ networks:
 volumes:
   mongo-db: {}
   timescale-data: {}
-

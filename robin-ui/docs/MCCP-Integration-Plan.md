@@ -8,7 +8,7 @@ Integrate the standalone MCCP inference module from the MLOps team into RobTrack
 
 #### [NEW] [mccp_inference.py](file:///Users/orpheus/Documents/Work/RobTrack/RobTrack/src/gui/faros_page/mccp_inference.py)
 
-The MCCP inference module (provided by the MLO team) lives at `faros/inference/mccp_inference.py` - no modifications needed.
+The MCCP inference module (provided by the MLO team) lives at `robin-ui/inference/mccp_inference.py` - no modifications needed.
 
 ---
 
@@ -78,7 +78,7 @@ Use a small local API wrapper for development:
 
 - `visual_page/mccp_inference_devlab_server.py`
   - Loads artifacts from shared workspace (`model.h5`, `mccp_state.pkl`)
-  - Calls `faros/inference/mccp_inference.py` directly
+  - Calls `robin-ui/inference/mccp_inference.py` directly
   - Exposes `GET /health` and `POST /predict`
   - Returns calibrated intervals and derived uncertainty width
 

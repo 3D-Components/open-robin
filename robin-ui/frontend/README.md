@@ -53,14 +53,14 @@ Variables are resolved at build time in `src/config/domain.ts`.
 ```bash
 docker build -t robin-dashboard \
   --build-arg VITE_ROBIN_API_URL=http://your-api:8001 \
-  faros/frontend/
+  robin-ui/frontend/
 docker run -p 5174:80 robin-dashboard
 ```
 
 **For development:**
 
 ```bash
-cd faros/frontend
+cd robin-ui/frontend
 npm ci
 npm run dev
 ```

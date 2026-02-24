@@ -47,7 +47,7 @@ Use this as the `workspace_root` for the `LocalFilesystemProvider`:
 
 ### What we're providing you
 
-Instead of requiring you to import the full `mccp_lib` library (which includes training, calibration, dataset loaders, ONNX export, and classification paths that RobTrack doesn't need), we've extracted a **single self-contained inference module** (`faros/inference/mccp_inference.py`):
+Instead of requiring you to import the full `mccp_lib` library (which includes training, calibration, dataset loaders, ONNX export, and classification paths that RobTrack doesn't need), we've extracted a **single self-contained inference module** (`robin-ui/inference/mccp_inference.py`):
 
 ```
 temp_mccp/

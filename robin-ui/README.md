@@ -8,7 +8,7 @@ manages the subprocess lifecycle and hosts a `QWebEngineView`.
 ## Directory Structure
 
 ```
-faros/
+robin-ui/
 ├── frontend/          # React 19 + Vite + TypeScript + Tailwind CSS
 │   ├── src/           #   Application source (components, hooks, types, utils)
 │   ├── public/        #   Static assets (URDF models, STL meshes)
@@ -32,7 +32,7 @@ faros/
 ### Frontend (React)
 
 ```bash
-cd faros/frontend
+cd robin-ui/frontend
 npm install
 npm run dev          # Vite dev server on http://localhost:5174
 ```
@@ -40,14 +40,14 @@ npm run dev          # Vite dev server on http://localhost:5174
 ### Viser Server (3D Visualization)
 
 ```bash
-cd faros/services
+cd robin-ui/services
 python viser_server.py   # HTTP :8081, WebSocket :8082
 ```
 
 ### MCCP Inference API
 
 ```bash
-cd faros/services
+cd robin-ui/services
 MCCP_WORKSPACE_ROOT=/path/to/shared-workspace python mccp_inference_devlab_server.py
 # HTTP API on :8091
 ```

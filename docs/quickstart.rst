@@ -175,7 +175,7 @@ Or tear everything down:
 After Code Changes (Rebuild + Sanity Check)
 -------------------------------------------
 
-If you changed ``robin/``, ``robin-dashboard/``, or ``faros/services/``, refresh
+If you changed ``robin/``, ``robin-dashboard/``, or ``robin-ui/services/``, refresh
 the running services:
 
 .. code-block:: bash
