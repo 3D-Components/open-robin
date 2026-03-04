@@ -51,6 +51,7 @@ interface LiveOpsProps {
     trustWarnTh: number;
     trustStopTh: number;
     startRobot: () => void;
+    startPending?: boolean;
     pauseRobot: () => void;
     resumeRobot: () => void;
     abortRobot: () => void;
@@ -94,6 +95,7 @@ export function LiveOps(props: LiveOpsProps) {
         trustWarnTh,
         trustStopTh,
         startRobot,
+        startPending,
         pauseRobot,
         resumeRobot,
         abortRobot,
@@ -164,6 +166,7 @@ export function LiveOps(props: LiveOpsProps) {
                                 trustWarnTh={trustWarnTh}
                                 trustStopTh={trustStopTh}
                                 onStart={startRobot}
+                                startPending={startPending}
                                 onPause={pauseRobot}
                                 onResume={resumeRobot}
                                 onAbort={abortRobot}
@@ -266,6 +269,7 @@ function RobotCard({
     trustWarnTh,
     trustStopTh,
     onStart,
+    startPending = false,
     onPause,
     onResume,
     onAbort,
@@ -276,6 +280,7 @@ function RobotCard({
     trustWarnTh: number;
     trustStopTh: number;
     onStart: () => void;
+    startPending?: boolean;
     onPause: () => void;
     onResume: () => void;
     onAbort: () => void;
@@ -296,8 +301,8 @@ function RobotCard({
 
     const primaryAction =
         robot.state === "Idle" ? (
-            <Button size="sm" onClick={onStart}>
-                <Play className="h-4 w-4" /> Start
+            <Button size="sm" onClick={onStart} disabled={startPending}>
+                <Play className="h-4 w-4" /> {startPending ? 'Preparing…' : 'Start'}
             </Button>
         ) : robot.state === "Running" ? (
             <Button size="sm" variant="secondary" onClick={onPause}>

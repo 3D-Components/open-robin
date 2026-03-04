@@ -11,7 +11,14 @@ from pathlib import Path
 import time
 import torch
 from robin.cli import RobinFiwareClient, OperationMode
-from robin.ai import ProcessGeometryMLP, load_model
+from robin.ai import (
+    ForwardConfidenceConfig,
+    ForwardConfidenceEstimator,
+    GeometryInverseOptimizer,
+    InverseOptimizationConfig,
+    ProcessGeometryMLP,
+    load_model,
+)
 from robin.profile_loader import load_profile
 
 
@@ -253,6 +260,17 @@ class AlertEngine:
         self.feature_order: Sequence[str] = MLP_FEATURE_ORDER
         self.active_model_path: Optional[Path] = None
         self.ai_model: Optional[ProcessGeometryMLP] = None
+        self.forward_confidence_config = ForwardConfidenceConfig.from_dict(
+            getattr(active_profile, 'forward_confidence', {}),
+        )
+        self.forward_confidence_estimator = ForwardConfidenceEstimator(
+            self.forward_confidence_config
+        )
+        self.inverse_optimizer: Optional[GeometryInverseOptimizer] = None
+        self.inverse_bounds: Dict[str, Tuple[float, float]] = {}
+        self.inverse_config = InverseOptimizationConfig.from_dict(
+            getattr(active_profile, 'inverse_optimizer', {}),
+        )
         self.default_tolerance = active_profile.default_tolerance
 
         profile_model = None
@@ -327,6 +345,67 @@ class AlertEngine:
             seen.add(key)
         return unique
 
+    @staticmethod
+    def _default_inverse_bound(feature: str) -> Tuple[float, float]:
+        defaults: Dict[str, Tuple[float, float]] = {
+            'wireSpeed': (1.0, 300.0),
+            'current': (1.0, 400.0),
+            'voltage': (0.1, 60.0),
+        }
+        return defaults.get(feature, (0.0, 1.0))
+
+    @staticmethod
+    def _coerce_bound(
+        raw_value: Any, default: Tuple[float, float]
+    ) -> Tuple[float, float]:
+        low, high = default
+
+        if isinstance(raw_value, dict):
+            min_value = raw_value.get('min')
+            max_value = raw_value.get('max')
+            if isinstance(min_value, (int, float)) and isinstance(
+                max_value, (int, float)
+            ):
+                low, high = float(min_value), float(max_value)
+        elif (
+            isinstance(raw_value, (list, tuple))
+            and len(raw_value) == 2
+            and isinstance(raw_value[0], (int, float))
+            and isinstance(raw_value[1], (int, float))
+        ):
+            low, high = float(raw_value[0]), float(raw_value[1])
+
+        if high < low:
+            low, high = high, low
+        if low == high:
+            high = low + 1.0
+        return low, high
+
+    def _resolve_inverse_bounds(self) -> Dict[str, Tuple[float, float]]:
+        raw_bounds = getattr(active_profile, 'inverse_bounds', {})
+        if not isinstance(raw_bounds, dict):
+            raw_bounds = {}
+
+        bounds: Dict[str, Tuple[float, float]] = {}
+        for feature in self.feature_order:
+            bounds[feature] = self._coerce_bound(
+                raw_bounds.get(feature),
+                self._default_inverse_bound(feature),
+            )
+        return bounds
+
+    def _refresh_inverse_optimizer(self) -> None:
+        self.inverse_config = InverseOptimizationConfig.from_dict(
+            getattr(active_profile, 'inverse_optimizer', {}),
+        )
+        self.inverse_bounds = self._resolve_inverse_bounds()
+        self.inverse_optimizer = GeometryInverseOptimizer(
+            feature_order=self.feature_order,
+            parameter_bounds=self.inverse_bounds,
+            predict_geometry=self.predict_geometry_from_params,
+            config=self.inverse_config,
+        )
+
     def _load_ai_model(
         self, override: Optional[Path] = None
     ) -> Optional[ProcessGeometryMLP]:
@@ -340,11 +419,13 @@ class AlertEngine:
                 self.active_model_path = candidate.resolve()
                 if model.config.feature_names:
                     self.feature_order = tuple(model.config.feature_names)
+                self._refresh_inverse_optimizer()
                 return model
             except Exception:
                 continue
 
         self.ai_model = None
+        self._refresh_inverse_optimizer()
         return None
 
     def load_model_from_path(self, path: Path) -> ProcessGeometryMLP:
@@ -360,6 +441,7 @@ class AlertEngine:
             self.feature_order = tuple(model.config.feature_names)
         else:
             self.feature_order = MLP_FEATURE_ORDER
+        self._refresh_inverse_optimizer()
         return model
 
     def _model_metadata(self, path: Path) -> Dict[str, Any]:
@@ -495,35 +577,80 @@ class AlertEngine:
     def predict_geometry_from_params(
         self, params: Dict[str, float]
     ) -> Dict[str, float]:
-        """Mock AI prediction - replace with actual RobTrack model"""
-        if self.ai_model is not None:
-            features = self._build_feature_vector(params)
-            predictions = self.ai_model.predict([features])
-            height, width = predictions[0].tolist()
-            print(f'🔍 AI model predictions: {height}, {width}')
-            return {
-                'height': float(max(height, 0.0)),
-                'width': float(max(width, 0.0)),
-            }
-        else:
+        """Predict geometry from process parameters using the active model."""
+        scored = self.predict_geometry_with_confidence(params)
+        return scored['prediction']
+
+    def predict_geometry_with_confidence(
+        self, params: Dict[str, float]
+    ) -> Dict[str, Any]:
+        """Predict geometry and attach dynamic confidence diagnostics."""
+        if self.ai_model is None:
             raise HTTPException(status_code=500, detail='AI model not loaded')
 
-    def recommend_params_for_geometry(
-        self, target_geometry: Dict[str, float]
-    ) -> Dict[str, float]:
-        """Mock inverse model - replace with actual RobTrack model"""
-        # Simplified inverse calculation
-        voltage = 20 + (target_geometry['height'] - 2.0) * 10
-        wire_speed = (target_geometry['height'] - 2.0) * 5
-        current = (target_geometry['width'] - 3.0) * 100 / 0.15
-
-        return {
-            'voltage': voltage,
-            'wireSpeed': wire_speed,
-            'current': current,
-            'travelSpeed': 10.0,
-            'confidence': 0.92,
+        features = self._build_feature_vector(params)
+        result = self.forward_confidence_estimator.estimate(
+            self.ai_model, features
+        )
+        height, width = result.prediction
+        prediction = {
+            'height': float(max(height, 0.0)),
+            'width': float(max(width, 0.0)),
         }
+        print(
+            '🔍 AI model predictions: '
+            f"{prediction['height']}, {prediction['width']} "
+            f'(confidence={result.confidence:.3f})'
+        )
+        return {
+            'prediction': prediction,
+            'confidence': float(result.confidence),
+            'uncertainty': {
+                'height_std': float(result.output_std[0]),
+                'width_std': float(result.output_std[1]),
+                'relative': float(result.relative_uncertainty),
+            },
+            'diagnostics': {
+                'input_distance': float(result.input_distance),
+                'mc_samples': int(result.mc_samples),
+            },
+        }
+
+    def recommend_params_for_geometry(
+        self,
+        target_geometry: Dict[str, float],
+        current_params: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, Any]:
+        """Solve inverse mapping with constrained optimization over the forward model."""
+        if self.inverse_optimizer is None:
+            self._refresh_inverse_optimizer()
+        if self.inverse_optimizer is None:
+            raise HTTPException(
+                status_code=500, detail='Inverse optimizer unavailable'
+            )
+
+        result = self.inverse_optimizer.solve(
+            target_geometry=target_geometry,
+            current_params=current_params,
+        )
+        recommended_params: Dict[str, Any] = {
+            feature: float(result.params.get(feature, 0.0))
+            for feature in self.feature_order
+        }
+        recommended_params['confidence'] = float(result.confidence)
+        recommended_params['predictedHeight'] = float(
+            result.predicted_geometry['height']
+        )
+        recommended_params['predictedWidth'] = float(
+            result.predicted_geometry['width']
+        )
+        recommended_params['optimization'] = {
+            'objective': float(result.objective),
+            'geometry_loss': float(result.geometry_loss),
+            'iterations': int(result.iterations),
+            'restarts': int(result.restarts),
+        }
+        return recommended_params
 
     def fetch_process_data(self, process_id: str) -> Dict:
         """Fetch process data from FIWARE Orion"""
@@ -1069,16 +1196,19 @@ async def select_ai_model(request: AIModelSelectionRequest):
 
 @app.post('/ai/models/predict')
 async def predict_geometry(request: AIModelPredictRequest):
-    """Run a forward pass on the active model (or heuristic fallback)."""
+    """Run a forward pass on the active model."""
     engine = ENGINE
     params = {
         'wireSpeed': request.wireSpeed,
         'current': request.current,
         'voltage': request.voltage,
     }
-    prediction = engine.predict_geometry_from_params(params)
+    scored = engine.predict_geometry_with_confidence(params)
     return {
-        'prediction': prediction,
+        'prediction': scored['prediction'],
+        'confidence': scored['confidence'],
+        'uncertainty': scored['uncertainty'],
+        'diagnostics': scored['diagnostics'],
         'feature_order': list(engine.feature_order),
         'using_ml_model': engine.ai_model is not None,
         'model_path': str(engine.active_model_path)
@@ -1548,14 +1678,17 @@ async def get_ai_recommendation(request: AIRecommendationRequest):
                     'status': 'error',
                 }
 
-            predicted_geometry = engine.predict_geometry_from_params(
+            scored_prediction = engine.predict_geometry_with_confidence(
                 request.input_params
             )
+            predicted_geometry = scored_prediction['prediction']
             recommendation = {
                 'process_id': request.process_id,
                 'mode': request.mode,
                 'predicted_geometry': predicted_geometry,
-                'confidence': 0.92,
+                'confidence': float(scored_prediction['confidence']),
+                'prediction_uncertainty': scored_prediction['uncertainty'],
+                'prediction_diagnostics': scored_prediction['diagnostics'],
                 'model_version': 'v2.1',
                 'recommendations': [
                     'Monitor height deviation closely',
@@ -1571,14 +1704,30 @@ async def get_ai_recommendation(request: AIRecommendationRequest):
                     'status': 'error',
                 }
 
-            recommended_params = engine.recommend_params_for_geometry(
-                request.target_geometry
+            if request.input_params is not None:
+                try:
+                    recommended_params = engine.recommend_params_for_geometry(
+                        request.target_geometry,
+                        current_params=request.input_params,
+                    )
+                except TypeError:
+                    # Backward-compatible fallback for patched/mocked call-sites
+                    # that still expose the old single-argument signature.
+                    recommended_params = engine.recommend_params_for_geometry(
+                        request.target_geometry
+                    )
+            else:
+                recommended_params = engine.recommend_params_for_geometry(
+                    request.target_geometry
+                )
+            recommendation_confidence = float(
+                recommended_params.get('confidence', 0.88)
             )
             recommendation = {
                 'process_id': request.process_id,
                 'mode': request.mode,
                 'recommended_params': recommended_params,
-                'confidence': 0.88,
+                'confidence': recommendation_confidence,
                 'model_version': 'v2.1',
                 'recommendations': [
                     'Apply recommended parameters gradually',

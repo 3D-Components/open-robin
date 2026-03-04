@@ -113,7 +113,7 @@ def get_ai_recommendation(
     api_url: str,
     input_params: Dict[str, float] | None = None,
     target_geometry: Dict[str, float] | None = None,
-) -> Dict[str, Any] | None:
+) -> Dict[str, Any]:
     payload: Dict[str, Any] = {'process_id': process_id, 'mode': mode}
     if input_params:
         payload['input_params'] = input_params
@@ -123,20 +123,37 @@ def get_ai_recommendation(
         response = requests.post(
             f'{api_url.rstrip('/')}/ai-recommendation',
             json=payload,
-            timeout=10,
+            timeout=30,
         )
         if response.status_code != 200:
-            return None
+            raise DemoError(
+                f'AI recommendation request failed ({response.status_code}) '
+                f'for mode={mode}, process_id={process_id}',
+            )
         body = response.json()
         if body.get('status') != 'success':
-            return None
+            raise DemoError(
+                f'AI recommendation returned error for mode={mode}, '
+                f'process_id={process_id}: {body.get("error") or body.get("message") or "unknown"}',
+            )
         recommendation = body.get('recommendation')
-        return recommendation if isinstance(recommendation, dict) else None
-    except Exception:
-        return None
+        if isinstance(recommendation, dict):
+            return recommendation
+        raise DemoError(
+            f'AI recommendation payload missing recommendation object for '
+            f'mode={mode}, process_id={process_id}',
+        )
+    except DemoError:
+        raise
+    except Exception as exc:
+        raise DemoError(
+            f'AI recommendation request failed for mode={mode}, process_id={process_id}: {exc}',
+        ) from exc
 
 
-def predict_geometry(input_params: Dict[str, float], api_url: str) -> Dict[str, float] | None:
+def predict_geometry(
+    input_params: Dict[str, float], api_url: str
+) -> Dict[str, float]:
     payload = {
         'wireSpeed': float(input_params.get('wireSpeed', 0.0)),
         'current': float(input_params.get('current', 0.0)),
@@ -146,21 +163,25 @@ def predict_geometry(input_params: Dict[str, float], api_url: str) -> Dict[str, 
         response = requests.post(
             f'{api_url.rstrip('/')}/ai/models/predict',
             json=payload,
-            timeout=10,
+            timeout=30,
         )
         if response.status_code != 200:
-            return None
+            raise DemoError(
+                f'AI model predict request failed ({response.status_code})',
+            )
         body = response.json()
         prediction = body.get('prediction')
         if not isinstance(prediction, dict):
-            return None
+            raise DemoError('AI model predict payload missing prediction object')
         height = prediction.get('height')
         width = prediction.get('width')
         if not isinstance(height, (int, float)) or not isinstance(width, (int, float)):
-            return None
+            raise DemoError('AI model predict payload missing numeric height/width')
         return {'height': float(height), 'width': float(width)}
-    except Exception:
-        return None
+    except DemoError:
+        raise
+    except Exception as exc:
+        raise DemoError(f'AI model predict request failed: {exc}') from exc
 
 
 def check_deviation(
@@ -434,18 +455,17 @@ def resolve_parameter_mode_expectation(
         input_params=input_params,
         api_url=api_url,
     )
-    predicted = recommendation.get('predicted_geometry') if recommendation else None
+    predicted = recommendation.get('predicted_geometry')
     if isinstance(predicted, dict):
         height = predicted.get('height')
         width = predicted.get('width')
         if isinstance(height, (int, float)) and isinstance(width, (int, float)):
             return {'height': float(height), 'width': float(width)}, 'ai-recommendation'
 
-    fallback = predict_geometry(input_params, api_url)
-    if fallback:
-        return fallback, 'ai-model-predict'
-
-    return {'height': 5.2, 'width': 3.8}, 'fallback-default'
+    raise DemoError(
+        f'Parameter-driven plan failed for process {process_id}: '
+        'AI recommendation did not include numeric predicted_geometry',
+    )
 
 
 def resolve_geometry_mode_plan(
@@ -460,9 +480,12 @@ def resolve_geometry_mode_plan(
         target_geometry=target_geometry,
         api_url=api_url,
     )
-    raw_params = recommendation.get('recommended_params') if recommendation else {}
+    raw_params = recommendation.get('recommended_params')
     if not isinstance(raw_params, dict):
-        raw_params = {}
+        raise DemoError(
+            f'Geometry-driven plan failed for process {process_id}: '
+            'AI recommendation missing recommended_params',
+        )
 
     reference_params = {
         'wireSpeed': extract_number(raw_params, ['wireSpeed', 'lineSpeedSetpoint', 'travelSpeed'], fallback_params['wireSpeed']),
@@ -471,10 +494,7 @@ def resolve_geometry_mode_plan(
     }
 
     predicted = predict_geometry(reference_params, api_url)
-    if predicted:
-        return reference_params, predicted, 'ai-model-from-ai-suggested-params'
-
-    return reference_params, target_geometry, 'geometry-target-fallback'
+    return reference_params, predicted, 'ai-model-from-ai-suggested-params'
 
 
 def run_single_mode(
@@ -655,28 +675,34 @@ def main() -> int:
     modes = ['parameter_driven', 'geometry_driven'] if args.mode == 'both' else [args.mode]
     summary: List[Tuple[str, str, int, int, int, int]] = []
 
-    for mode in modes:
-        process_id = args.process_id if len(modes) == 1 else f'{args.process_id}-{mode.replace("_driven", "")}'
-        print('-----------------------------------------------------------')
-        print(f'Starting mode: {mode} (process: {process_id})')
-        print('-----------------------------------------------------------')
+    try:
+        for mode in modes:
+            process_id = args.process_id if len(modes) == 1 else f'{args.process_id}-{mode.replace("_driven", "")}'
+            print('-----------------------------------------------------------')
+            print(f'Starting mode: {mode} (process: {process_id})')
+            print('-----------------------------------------------------------')
 
-        accepted, failed, streamed, alerts = run_single_mode(
-            process_id=process_id,
-            mode=mode,
-            duration=args.duration,
-            interval=args.interval,
-            tolerance=args.tolerance,
-            target_height=args.target_height,
-            target_width=args.target_width,
-            base_wire_speed=args.wire_speed,
-            base_current=args.current,
-            base_voltage=args.voltage,
-            api_url=args.api_url,
-            no_prompt=args.no_prompt,
-        )
-        summary.append((process_id, mode, accepted, failed, streamed, alerts))
+            accepted, failed, streamed, alerts = run_single_mode(
+                process_id=process_id,
+                mode=mode,
+                duration=args.duration,
+                interval=args.interval,
+                tolerance=args.tolerance,
+                target_height=args.target_height,
+                target_width=args.target_width,
+                base_wire_speed=args.wire_speed,
+                base_current=args.current,
+                base_voltage=args.voltage,
+                api_url=args.api_url,
+                no_prompt=args.no_prompt,
+            )
+            summary.append((process_id, mode, accepted, failed, streamed, alerts))
+            print()
+    except DemoError as exc:
         print()
+        print(f'❌ Demo aborted: {exc}')
+        print('No fallback was applied. Resolve the AI/backend issue and retry.')
+        return 1
 
     print('========================')
     print('Demo summary')

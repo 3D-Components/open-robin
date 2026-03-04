@@ -30,7 +30,7 @@ def test_create_geometry_target_payload(monkeypatch):
     assert seen['url'].endswith('/ngsi-ld/v1/entities')
     body = seen['json']
     assert body['id'] == 'urn:ngsi-ld:GeometryTarget:PX'
-    assert body['type'] == 'GeometryTarget'
+    assert body['type'] == 'urn:robin:GeometryTarget'
     assert body['targetHeight']['value'] == 5.0
     assert body['targetWidth']['value'] == 8.0
     assert body['processId']['object'].endswith(':Process:PX')
@@ -108,7 +108,7 @@ def test_create_ai_recommendation_payload(monkeypatch):
     )
     assert ok is True
     body = seen['json']
-    assert body['type'] == 'AIRecommendation'
+    assert body['type'] == 'urn:robin:AIRecommendation'
     assert 'recommendedParams' in body
     assert body['processId']['object'].endswith(':Process:PROC')
 
@@ -205,7 +205,7 @@ def test_create_alert_payload_and_success(monkeypatch):
     ok = client.create_alert(AlertData())
     assert ok is True
     body = seen['json']
-    assert body['type'] == 'Alert'
+    assert body['type'] == 'urn:robin:Alert'
     assert body['processId']['object'].endswith(':Process:PROC')
     assert body['deviationType']['value'] == 'height'
     assert body['expectedValue']['value']['height'] == 5.0

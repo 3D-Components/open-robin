@@ -94,7 +94,8 @@ contains:
 * **fields** - telemetry field display names and units
 * **ros2.topics** - ROS 2 topic names for geometry, process parameters, pose
 * **skills** - robot capabilities (service/action names, types, descriptions)
-* **ai** - feature order, model path, default tolerance, default mode
+* **ai** - feature order, model path, default tolerance, default mode,
+  inverse bounds, and inverse-optimizer settings
 * **dds** - DDS bridge topic mapping
 
 See ``config/profiles/welding.yaml`` for a complete example.

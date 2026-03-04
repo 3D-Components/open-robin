@@ -42,7 +42,10 @@ Operation Modes
 * AI suggests process parameters for that target
 * telemetry is streamed
 * alert engine checks measured geometry against expected geometry from AI-guided settings
-  (fallback: explicit target geometry if needed)
+* deviation checks in this mode use the fixed AI-guided/setpoint parameters rather than
+  per-sample live measured parameters
+* reason: geometry deviation should be evaluated against the chosen plan (target + AI
+  recommendation), without coupling the metric to control-loop jitter or parameter noise
 * warnings/alerts are generated on true deviation beyond tolerance
 
 Daily Workflow
