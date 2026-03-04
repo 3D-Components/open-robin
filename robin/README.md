@@ -70,7 +70,7 @@ graph LR
 ```
 
 - **Parameter-driven** - AI predicts expected geometry from process parameters, alerts on deviations
-- **Geometry-driven** - operator sets target geometry, system monitors actual vs. target
+- **Geometry-driven** - operator sets target geometry, API solves a constrained inverse problem and recommends parameters whose **forward-model prediction** matches the target
 
 ## AI Model Framework (`ai/`)
 
@@ -78,6 +78,7 @@ graph LR
 - Configurable architecture (hidden layers, activation)
 - Per-profile model checkpoints (`data/models/<profile>/process_geometry_mlp.pt`)
 - Feature normalization baked into each checkpoint
+- Geometry-driven recommendation via constrained inverse optimization over the same forward model
 - Model checkpointing and versioning
 - Trust scoring for operator confidence
 

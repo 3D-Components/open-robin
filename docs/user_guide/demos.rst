@@ -40,8 +40,12 @@ Dual-Mode Validation Logic
 2. AI suggests process parameters for that target.
 3. Telemetry is streamed.
 4. Alert processor compares measured geometry against the expected geometry from
-   AI-suggested parameters (falling back to target geometry if needed).
-5. Deviation alerts are generated when tolerance is exceeded.
+   AI-suggested parameters.
+5. In geometry-driven mode, deviation checks use fixed AI-guided/setpoint
+   parameters for the run (not per-sample live measured parameters).
+6. Reason: this keeps the deviation metric anchored to the planned operating
+   point and avoids conflating geometric quality with control-loop jitter.
+7. Deviation alerts are generated when tolerance is exceeded.
 
 Press Start to Begin
 --------------------

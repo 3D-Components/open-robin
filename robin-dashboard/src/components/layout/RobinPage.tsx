@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Chip } from '../ui/Chip';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
+import { Modal } from '../ui/Modal';
 import { LiveOps } from '../features/live-ops/LiveOps';
 import { RobotsTab } from '../features/robots/RobotsTab';
 import { ModelsTrustTab } from '../features/models/ModelsTrustTab';
@@ -21,6 +22,7 @@ import {
     setProcessMode,
     getAIRecommendation,
     type RobinMeasurement,
+    type AIRecommendationResponse,
 } from '../../hooks/useRobinAPI';
 import type {
     TabKey,
@@ -167,6 +169,39 @@ function mapRecommendationToControls(
     return { speed, current, voltage };
 }
 
+type StartPreviewPlan =
+    | {
+        mode: 'parameter_driven';
+        processId: string;
+        inputParams: { wireSpeed: number; current: number; voltage: number };
+        predictedGeometry: { height: number; width: number };
+        confidence: number | null;
+    }
+    | {
+        mode: 'geometry_driven';
+        processId: string;
+        targetGeometry: { height: number; width: number };
+        recommendedParams: { wireSpeed: number; current: number; voltage: number };
+        predictedGeometry: { height: number; width: number } | null;
+        confidence: number | null;
+    };
+
+function getRecommendationError(rec: AIRecommendationResponse): string {
+    return rec.error ?? rec.message ?? 'AI recommendation failed';
+}
+
+function assertRecommendationSuccess(
+    rec: AIRecommendationResponse,
+): AIRecommendationResponse & { status: 'success'; recommendation: NonNullable<AIRecommendationResponse['recommendation']> } {
+    if (rec.status !== 'success' || !rec.recommendation) {
+        throw new Error(getRecommendationError(rec));
+    }
+    return rec as AIRecommendationResponse & {
+        status: 'success';
+        recommendation: NonNullable<AIRecommendationResponse['recommendation']>;
+    };
+}
+
 export function RobinPage() {
     const [tab, setTab] = useState<TabKey>('live');
     const [sessionMode, setSessionMode] = useState<'Active Run' | 'Demo Mode'>(() => {
@@ -243,6 +278,8 @@ export function RobinPage() {
     const [alerts, setAlerts] = useState<Alert[]>([
         { id: 'alert-001', at: nowIso(), severity: 'Info', message: 'ROBIN UI started. Waiting for live data…', source: 'System' },
     ]);
+    const [startPlanning, setStartPlanning] = useState(false);
+    const [startPreviewPlan, setStartPreviewPlan] = useState<StartPreviewPlan | null>(null);
 
     const pushAlert = useCallback((sev: 'Info' | 'Warning' | 'Critical', msg: string, src: string) => {
         setAlerts((a) =>
@@ -293,7 +330,7 @@ export function RobinPage() {
             }
 
             try {
-                const rec = await getAIRecommendation({
+                const recRaw = await getAIRecommendation({
                     process_id: processId,
                     mode: 'geometry_driven',
                     target_geometry: {
@@ -301,9 +338,14 @@ export function RobinPage() {
                         width: ctrl.targetWidth,
                     },
                 });
+                const rec = assertRecommendationSuccess(recRaw);
+                const recommended = rec.recommendation.recommended_params as Record<string, unknown> | undefined;
+                if (!recommended || typeof recommended !== 'object') {
+                    throw new Error('AI response missing recommended parameters');
+                }
 
                 const mapped = mapRecommendationToControls(
-                    rec.recommendation?.recommended_params as Record<string, unknown> | undefined,
+                    recommended,
                     ctrl,
                 );
                 setProcessControls((prev) => ({
@@ -317,14 +359,15 @@ export function RobinPage() {
                     `AI suggested parameters: speed ${mapped.speed.toFixed(2)}, current ${mapped.current.toFixed(2)}, voltage ${mapped.voltage.toFixed(2)}`,
                     'AI Recommendation',
                 );
-            } catch {
-                pushAlert('Warning', 'Failed to fetch AI recommendation for geometry target', 'AI Recommendation');
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Failed to fetch AI recommendation for geometry target';
+                pushAlert('Warning', message, 'AI Recommendation');
             }
             return;
         }
 
         try {
-            const rec = await getAIRecommendation({
+            const recRaw = await getAIRecommendation({
                 process_id: processId,
                 mode: 'parameter_driven',
                 input_params: {
@@ -333,16 +376,21 @@ export function RobinPage() {
                     voltage: ctrl.voltage,
                 },
             });
-            const pred = rec.recommendation?.predicted_geometry;
-            if (pred) {
-                pushAlert(
-                    'Info',
-                    `AI predicts geometry ${pred.height.toFixed(2)} x ${pred.width.toFixed(2)} mm from current parameters`,
-                    'AI Recommendation',
-                );
+            const rec = assertRecommendationSuccess(recRaw);
+            const pred = rec.recommendation.predicted_geometry;
+            const height = toNumber(pred?.height);
+            const width = toNumber(pred?.width);
+            if (height === null || width === null) {
+                throw new Error('AI response missing predicted geometry');
             }
-        } catch {
-            pushAlert('Warning', 'Failed to fetch AI geometry prediction', 'AI Recommendation');
+            pushAlert(
+                'Info',
+                `AI predicts geometry ${height.toFixed(2)} x ${width.toFixed(2)} mm from current parameters`,
+                'AI Recommendation',
+            );
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to fetch AI geometry prediction';
+            pushAlert('Warning', message, 'AI Recommendation');
         }
     }, [processId, pushAlert, setProcessControls, sessionMode]);
 
@@ -501,16 +549,123 @@ export function RobinPage() {
         return metric === 'speed' ? last.speed : metric === 'current' ? last.current : metric === 'voltage' ? last.voltage : metric === 'profileHeight' ? last.profileHeight : last.profileWidth;
     }, [telemetry, metric]);
 
-    const startRobot = () => {
-        if (robot.state === 'E-Stop') {
-            pushAlert('Critical', `${robot.name} is in E-Stop. Reset required.`, robot.name);
-            return;
+    const confirmAndStart = useCallback((plan: StartPreviewPlan) => {
+        if (plan.mode === 'geometry_driven') {
+            setProcessControls((prev) => ({
+                ...prev,
+                speed: plan.recommendedParams.wireSpeed,
+                current: plan.recommendedParams.current,
+                voltage: plan.recommendedParams.voltage,
+            }));
         }
+
+        setStartPreviewPlan(null);
         setRobot((prev) => ({ ...prev, state: 'Running' as const, taskProgressPct: 0 }));
         pushAlert('Info', `${robot.name} started.`, robot.name);
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
+    }, [processId, pushAlert, robot.name]);
+
+    const buildStartPreview = useCallback(async (): Promise<StartPreviewPlan> => {
+        if (!processId) {
+            throw new Error('No process selected');
+        }
+
+        const mode: OperationMode = processMode ?? processControls.mode;
+
+        if (sessionMode !== 'Demo Mode') {
+            await setProcessMode(processId, mode);
+            if (mode === 'geometry_driven') {
+                await setTarget(
+                    processId,
+                    processControls.targetHeight,
+                    processControls.targetWidth,
+                );
+            }
+        }
+
+        if (mode === 'parameter_driven') {
+            const inputParams = {
+                wireSpeed: processControls.speed,
+                current: processControls.current,
+                voltage: processControls.voltage,
+            };
+            const rec = assertRecommendationSuccess(await getAIRecommendation({
+                process_id: processId,
+                mode: 'parameter_driven',
+                input_params: inputParams,
+            }));
+            const height = toNumber(rec.recommendation.predicted_geometry?.height);
+            const width = toNumber(rec.recommendation.predicted_geometry?.width);
+            if (height === null || width === null) {
+                throw new Error('AI response missing predicted geometry');
+            }
+
+            return {
+                mode,
+                processId,
+                inputParams,
+                predictedGeometry: { height, width },
+                confidence: toNumber(rec.recommendation.confidence),
+            };
+        }
+
+        const targetGeometry = {
+            height: processControls.targetHeight,
+            width: processControls.targetWidth,
+        };
+        const rec = assertRecommendationSuccess(await getAIRecommendation({
+            process_id: processId,
+            mode: 'geometry_driven',
+            target_geometry: targetGeometry,
+        }));
+        const recommended = rec.recommendation.recommended_params as Record<string, unknown> | undefined;
+        if (!recommended || typeof recommended !== 'object') {
+            throw new Error('AI response missing recommended parameters');
+        }
+        const mapped = mapRecommendationToControls(recommended, processControls);
+        const predictedHeight = toNumber(recommended.predictedHeight);
+        const predictedWidth = toNumber(recommended.predictedWidth);
+        const predictedGeometry =
+            predictedHeight === null || predictedWidth === null
+                ? null
+                : { height: predictedHeight, width: predictedWidth };
+
+        return {
+            mode,
+            processId,
+            targetGeometry,
+            recommendedParams: {
+                wireSpeed: mapped.speed,
+                current: mapped.current,
+                voltage: mapped.voltage,
+            },
+            predictedGeometry,
+            confidence: toNumber(rec.recommendation.confidence) ?? toNumber(recommended.confidence),
+        };
+    }, [processControls, processId, processMode, sessionMode]);
+
+    const startRobot = () => {
+        if (startPlanning) return;
+        if (robot.state === 'E-Stop') {
+            pushAlert('Critical', `${robot.name} is in E-Stop. Reset required.`, robot.name);
+            return;
+        }
+        setStartPlanning(true);
+        pushAlert('Info', 'Preparing AI pre-start plan…', 'AI Pre-Start');
+        void (async () => {
+            try {
+                const plan = await buildStartPreview();
+                setStartPreviewPlan(plan);
+                pushAlert('Info', 'AI pre-start plan is ready. Review and confirm.', 'AI Pre-Start');
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'AI pre-start planning failed';
+                pushAlert('Warning', `Start blocked: ${message}`, 'AI Pre-Start');
+            } finally {
+                setStartPlanning(false);
+            }
+        })();
     };
     const pauseRobot = () => {
         if (robot.state !== 'Running') return;
@@ -599,6 +754,7 @@ export function RobinPage() {
                             trustWarnTh={trustWarnTh}
                             trustStopTh={trustStopTh}
                             startRobot={startRobot}
+                            startPending={startPlanning}
                             pauseRobot={pauseRobot}
                             resumeRobot={resumeRobotHandler}
                             abortRobot={abortRobot}
@@ -643,6 +799,7 @@ export function RobinPage() {
                             trustWarnTh={trustWarnTh}
                             trustStopTh={trustStopTh}
                             startRobot={startRobot}
+                            startPending={startPlanning}
                             pauseRobot={pauseRobot}
                             resumeRobot={resumeRobotHandler}
                             abortRobot={abortRobot}
@@ -690,6 +847,79 @@ export function RobinPage() {
                     )}
                 </main>
             </div>
+
+            <Modal
+                open={startPreviewPlan !== null}
+                title="AI Pre-Start Confirmation"
+                confirmText="Proceed and Start"
+                onConfirm={() => {
+                    if (!startPreviewPlan) return;
+                    confirmAndStart(startPreviewPlan);
+                }}
+                onClose={() => setStartPreviewPlan(null)}
+                dangerHint="AI can make mistakes. Validate recommendations before proceeding."
+            >
+                {startPreviewPlan ? (
+                    <div className="space-y-3 text-sm">
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400">Process:</span>{' '}
+                            <span className="font-mono">{startPreviewPlan.processId}</span>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400">Mode:</span>{' '}
+                            <span className="font-medium">
+                                {startPreviewPlan.mode === 'parameter_driven' ? 'Parameter-driven' : 'Geometry-driven'}
+                            </span>
+                        </div>
+
+                        {startPreviewPlan.mode === 'parameter_driven' ? (
+                            <>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Selected parameters</div>
+                                    <div className="mt-1 font-mono">
+                                        wireSpeed={startPreviewPlan.inputParams.wireSpeed.toFixed(2)}, current={startPreviewPlan.inputParams.current.toFixed(2)}, voltage={startPreviewPlan.inputParams.voltage.toFixed(2)}
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">AI estimated geometry</div>
+                                    <div className="mt-1 font-mono">
+                                        height={startPreviewPlan.predictedGeometry.height.toFixed(2)} mm, width={startPreviewPlan.predictedGeometry.width.toFixed(2)} mm
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Selected geometry target</div>
+                                    <div className="mt-1 font-mono">
+                                        height={startPreviewPlan.targetGeometry.height.toFixed(2)} mm, width={startPreviewPlan.targetGeometry.width.toFixed(2)} mm
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">AI recommended parameters</div>
+                                    <div className="mt-1 font-mono">
+                                        wireSpeed={startPreviewPlan.recommendedParams.wireSpeed.toFixed(2)}, current={startPreviewPlan.recommendedParams.current.toFixed(2)}, voltage={startPreviewPlan.recommendedParams.voltage.toFixed(2)}
+                                    </div>
+                                </div>
+                                {startPreviewPlan.predictedGeometry ? (
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                        <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">AI predicted geometry from recommendation</div>
+                                        <div className="mt-1 font-mono">
+                                            height={startPreviewPlan.predictedGeometry.height.toFixed(2)} mm, width={startPreviewPlan.predictedGeometry.width.toFixed(2)} mm
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
+
+                        <div className="text-xs text-slate-600 dark:text-slate-400">
+                            {startPreviewPlan.confidence === null
+                                ? 'AI confidence: unavailable'
+                                : `AI confidence: ${startPreviewPlan.confidence.toFixed(3)}`}
+                        </div>
+                    </div>
+                ) : null}
+            </Modal>
         </div>
     );
 }

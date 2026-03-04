@@ -1,0 +1,12 @@
+services:
+  # macOS/Docker Desktop workaround:
+  # Orion runs in `network_mode: host` in the base compose, and bridge containers
+  # may not reach it through `host-gateway`. Route Orion traffic via the bridge
+  # gateway instead (set ORION_HOST_IP before `docker compose up`).
+  alert-processor:
+    extra_hosts:
+      - "orion-ld:${ORION_HOST_IP}"
+
+  mintaka:
+    environment:
+      MINTAKA_BROKER_URL: "http://${ORION_HOST_IP}:1026"

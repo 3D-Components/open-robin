@@ -32,6 +32,33 @@ _DEFAULT_AI = {
     'feature_order': ['wireSpeed', 'current', 'voltage'],
     'default_tolerance': 10.0,
     'default_mode': 'parameter_driven',
+    'forward_confidence': {
+        'mc_samples': 20,
+        'uncertainty_weight': 0.65,
+        'distance_weight': 0.35,
+        'uncertainty_scale': 0.08,
+        'distance_scale': 2.0,
+        'min_confidence': 0.05,
+        'max_confidence': 0.99,
+    },
+    'inverse_bounds': {
+        'wireSpeed': [1.0, 300.0],
+        'current': [1.0, 400.0],
+        'voltage': [0.1, 60.0],
+    },
+    'inverse_optimizer': {
+        'restarts': 24,
+        'max_iterations': 80,
+        'initial_step_ratio': 0.15,
+        'min_step_ratio': 0.002,
+        'step_decay': 0.5,
+        'regularization': 0.05,
+        'random_seed': 42,
+        'geometry_weights': {
+            'height': 1.0,
+            'width': 1.0,
+        },
+    },
 }
 
 
@@ -63,6 +90,27 @@ class Profile:
             'default_mode', _DEFAULT_AI['default_mode'],
         )
         self.model_path: Optional[str] = ai_raw.get('model_path')
+        raw_forward_confidence = ai_raw.get(
+            'forward_confidence', _DEFAULT_AI['forward_confidence'],
+        )
+        if isinstance(raw_forward_confidence, dict):
+            self.forward_confidence: Dict[str, Any] = raw_forward_confidence
+        else:
+            self.forward_confidence = dict(_DEFAULT_AI['forward_confidence'])
+
+        raw_bounds = ai_raw.get('inverse_bounds', _DEFAULT_AI['inverse_bounds'])
+        if isinstance(raw_bounds, dict):
+            self.inverse_bounds: Dict[str, Any] = raw_bounds
+        else:
+            self.inverse_bounds = dict(_DEFAULT_AI['inverse_bounds'])
+
+        raw_inverse_optimizer = ai_raw.get(
+            'inverse_optimizer', _DEFAULT_AI['inverse_optimizer'],
+        )
+        if isinstance(raw_inverse_optimizer, dict):
+            self.inverse_optimizer: Dict[str, Any] = raw_inverse_optimizer
+        else:
+            self.inverse_optimizer = dict(_DEFAULT_AI['inverse_optimizer'])
 
         self.dds: Dict[str, str] = data.get('dds', {})
 
