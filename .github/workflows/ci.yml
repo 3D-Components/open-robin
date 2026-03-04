@@ -27,7 +27,9 @@ jobs:
         run: poetry install --no-interaction --no-root --with dev
 
       - name: Run Python tests
-        run: poetry run pytest --cov=robin --cov=robin-ui --cov-report=xml:coverage-python.xml
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: poetry run python -m pytest --cov=robin --cov=robin-ui --cov-report=xml:coverage-python.xml
 
       - name: Upload Python coverage
         uses: codecov/codecov-action@v5
