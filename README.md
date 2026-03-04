@@ -1,4 +1,11 @@
 # ROBIN - Reusable Building Blocks for Robotic Process Intelligence
+[![codecov](https://codecov.io/gh/3D-Components/open-robin/branch/main/graph/badge.svg)](https://codecov.io/gh/3D-Components/open-robin)
+[![CI](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml/badge.svg)](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml)
+[![license](https://img.shields.io/github/license/3D-Components/open-robin)](https://github.com/3D-Components/open-robin/blob/main/LICENSE)
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![ROS 2](https://img.shields.io/badge/ROS-2-blue.svg)](https://docs.ros.org/en/jazzy/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.116+-green.svg)](https://fastapi.tiangolo.com/)
+[![FIWARE](https://img.shields.io/badge/FIWARE-enabled-orange.svg)](https://www.fiware.org/)
 
 ROBIN provides **two open-source modules** and a **documented integration pattern** for monitoring, quality control, and AI-assisted optimization of robotic manufacturing processes. The components are domain-agnostic: they work for welding, spray coating, machining, or any process where a robot produces measurable outputs that you want to track, alert on, and improve with AI.
 
