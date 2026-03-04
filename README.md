@@ -1,6 +1,6 @@
 # ROBIN - Reusable Building Blocks for Robotic Process Intelligence
-[![Python Coverage](https://codecov.io/gh/3D-Components/open-robin/branch/main/graph/badge.svg?flag=python)](https://codecov.io/gh/3D-Components/open-robin)
-[![TypeScript Coverage](https://codecov.io/gh/3D-Components/open-robin/branch/main/graph/badge.svg?flag=typescript)](https://codecov.io/gh/3D-Components/open-robin)
+[![Python Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=python&label=python)](https://codecov.io/gh/3D-Components/open-robin)
+[![TypeScript Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=typescript&label=typescript)](https://codecov.io/gh/3D-Components/open-robin)
 [![CI](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml/badge.svg)](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml)
 [![license](https://img.shields.io/github/license/3D-Components/open-robin)](https://github.com/3D-Components/open-robin/blob/main/LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
