@@ -24,6 +24,6 @@ python:
 
 # Optional but recommended, declare the formats you want to build
 formats:
-  - html
+  - htmlzip
   - pdf
-  - epub 
+  - epub
