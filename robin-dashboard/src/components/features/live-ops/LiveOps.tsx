@@ -471,6 +471,7 @@ function VisualizationPanel({
     robot: RobotCell;
 }) {
     const [showLayers, setShowLayers] = useState(false);
+    const [vizBackend, setVizBackend] = useState<'viser' | 'lichtblick'>('viser');
 
     const latestT = Math.max(0, timelineT);
     const maxT = Math.max(60, latestT + 1);
@@ -498,8 +499,24 @@ function VisualizationPanel({
                         Advanced Visualization
                     </span>
                 }
-                subtitle="Embedded 3D view (Viser)"
-                right={
+                subtitle={
+                    <div className="flex gap-1">
+                        {(['viser', 'lichtblick'] as const).map((b) => (
+                            <button
+                                key={b}
+                                onClick={() => setVizBackend(b)}
+                                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                                    vizBackend === b
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                }`}
+                            >
+                                {b === 'viser' ? 'Viser' : 'Lichtblick'}
+                            </button>
+                        ))}
+                    </div>
+                }
+                right={vizBackend === 'viser' ? (
                     <div className="flex flex-wrap items-center gap-2">
                         <div className="relative">
                             <Button
@@ -610,18 +627,32 @@ function VisualizationPanel({
                             )}
                         </Button>
                     </div>
-                }
+                ) : null}
             />
 
             <CardBody className="space-y-3">
                 <div className="relative h-[420px] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-                    <iframe
-                        src={import.meta.env.VITE_VISER_URL || "http://localhost:8081"}
-                        className="w-full h-full border-0"
-                        title="Viser 3D Viewer"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
-                    />
+                    {vizBackend === 'viser' ? (
+                        <iframe
+                            src={import.meta.env.VITE_VISER_URL || "http://localhost:8081"}
+                            className="w-full h-full border-0"
+                            title="Viser 3D Viewer"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+                        />
+                    ) : (
+                        <iframe
+                            src={(() => {
+                                const base = import.meta.env.VITE_LICHTBLICK_URL || 'http://localhost:8080';
+                                const wsUrl = import.meta.env.VITE_FOXGLOVE_WS_URL || 'ws://localhost:8765';
+                                return `${base}/?ds=foxglove-websocket&ds.url=${encodeURIComponent(wsUrl)}`;
+                            })()}
+                            className="w-full h-full border-0"
+                            title="Lichtblick 3D Viewer"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; cross-origin-isolated"
+                        />
+                    )}
 
+                    {vizBackend === 'viser' && (
                     <div className="absolute top-3 left-3 right-3 pointer-events-none">
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
@@ -646,7 +677,9 @@ function VisualizationPanel({
                             </div>
                         </div>
                     </div>
+                    )}
 
+                    {vizBackend === 'viser' && (
                     <div className="absolute bottom-3 left-3 right-3 pointer-events-auto">
                         <div className="rounded-xl border border-slate-200 bg-white/80 p-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
                             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -698,8 +731,10 @@ function VisualizationPanel({
                             </div>
                         </div>
                     </div>
+                    )}
                 </div>
 
+                {vizBackend === 'viser' && (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                     <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
                         <KV k="Mode" v={vizMode === "execution" ? "Robot execution" : domainTerms.depositionView} />
@@ -718,6 +753,7 @@ function VisualizationPanel({
                         <KV k="Scrub time" v={`${Math.round(timelineT)}s`} mono />
                     </div>
                 </div>
+                )}
             </CardBody>
         </Card>
     );
@@ -744,12 +780,14 @@ function TelemetryPanel({
     measurementSource: string;
     measurementPollMs: number;
 }) {
-    const sourceTone = measurementSource === 'mintaka' ? 'good' : measurementSource === 'orion' ? 'warn' : 'neutral';
+    const sourceTone = measurementSource === 'mintaka' || measurementSource === 'troe' ? 'good' : measurementSource === 'orion' ? 'warn' : 'neutral';
     const sourceLabel = measurementSource === 'mintaka'
         ? 'Mintaka stored data'
-        : measurementSource === 'orion'
-            ? 'Orion fallback data'
-            : 'No telemetry source';
+        : measurementSource === 'troe'
+            ? 'TROE live data'
+            : measurementSource === 'orion'
+                ? 'Orion fallback data'
+                : 'No telemetry source';
     const fmtTimestamp = (value: unknown) => {
         if (typeof value === 'string' && value) {
             const ts = Date.parse(value);
@@ -819,7 +857,7 @@ function TelemetryPanel({
                         <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={160}>
                             <LineChart data={telemetryChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="t" tick={{ fontSize: 12 }} tickFormatter={(v) => `${Number(v).toFixed(1)}s`} />
+                                <XAxis dataKey="absT" tick={{ fontSize: 12 }} tickFormatter={(v) => new Date(v * 1000).toLocaleTimeString([], { hour12: false })} />
                                 <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip
                                     labelFormatter={(_value, payload) =>

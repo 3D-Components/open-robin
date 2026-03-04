@@ -1,0 +1,21 @@
+# Request a new AI parameter recommendation for the active process.
+# Triggered by the "Ask for a new AI recommendation" button in the ROBIN dashboard.
+# ros4hri: maps to ai_skills/action/RequestRecommendation
+
+# ── Goal ──────────────────────────────────────────────────────────────────
+string process_id   # NGSI-LD process entity ID, e.g. "ros_bridge"
+string mode         # "geometry_driven" | "parameter_driven"
+
+---
+
+# ── Result ─────────────────────────────────────────────────────────────────
+bool   success
+string message
+string recommendation_json  # JSON-encoded recommended parameters
+                            # e.g. '{"weld_speed": 4.8, "wire_feed": 4.2}'
+
+---
+
+# ── Feedback ───────────────────────────────────────────────────────────────
+float32 progress_pct   # 0.0 → 100.0
+string  phase          # "FETCHING" | "PROCESSING" | "COMPLETE"

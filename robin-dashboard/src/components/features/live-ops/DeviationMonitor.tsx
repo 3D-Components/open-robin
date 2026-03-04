@@ -288,117 +288,73 @@ export function DeviationMonitor({
 
                 {/* Alert card */}
                 {hasDeviation && (
-                    <>
-                        <div
-                            className={`rounded-xl border p-3 ${
-                                isOverTolerance
-                                    ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30'
-                                    : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
-                            }`}
-                        >
-                            <div className="flex items-start gap-2">
-                                <AlertTriangle
-                                    className={`h-5 w-5 mt-0.5 shrink-0 ${
-                                        isOverTolerance ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                    <div
+                        className={`rounded-xl border p-3 ${
+                            isOverTolerance
+                                ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30'
+                                : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+                        }`}
+                    >
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle
+                                className={`h-5 w-5 mt-0.5 shrink-0 ${
+                                    isOverTolerance ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                                }`}
+                            />
+                            <div className="min-w-0">
+                                <div
+                                    className={`text-sm font-semibold ${
+                                        isOverTolerance ? 'text-red-900 dark:text-red-100' : 'text-amber-900 dark:text-amber-100'
                                     }`}
-                                />
-                                <div className="min-w-0">
-                                    <div
-                                        className={`text-sm font-semibold ${
-                                            isOverTolerance ? 'text-red-900 dark:text-red-100' : 'text-amber-900 dark:text-amber-100'
-                                        }`}
-                                    >
-                                        {isOverTolerance
-                                            ? 'Deviation exceeds tolerance!'
-                                            : 'Deviation detected'}
-                                    </div>
-                                    <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                >
+                                    {isOverTolerance
+                                        ? 'Deviation exceeds tolerance!'
+                                        : 'Deviation detected'}
+                                </div>
+                                <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                    <KV
+                                        k="Overall"
+                                        v={<span className="font-mono font-bold">{fmtPct(deviationResult!.deviation_percentage)}</span>}
+                                    />
+                                    <KV k="Tolerance" v={<span className="font-mono">{controls.tolerance}%</span>} />
+                                    {deviationResult?.measured_value && (
                                         <KV
-                                            k="Overall"
-                                            v={<span className="font-mono font-bold">{fmtPct(deviationResult!.deviation_percentage)}</span>}
+                                            k="Measured"
+                                            v={
+                                                <span className="font-mono">
+                                                    {fmt(deviationResult.measured_value.height, 2)} x{' '}
+                                                    {fmt(deviationResult.measured_value.width, 2)} mm
+                                                </span>
+                                            }
                                         />
-                                        <KV k="Tolerance" v={<span className="font-mono">{controls.tolerance}%</span>} />
-                                        {deviationResult?.measured_value && (
+                                    )}
+                                    {deviationResult?.expected_value && (
+                                        <KV
+                                            k="Expected"
+                                            v={
+                                                <span className="font-mono">
+                                                    {fmt(deviationResult.expected_value.height, 2)} x{' '}
+                                                    {fmt(deviationResult.expected_value.width, 2)} mm
+                                                </span>
+                                            }
+                                        />
+                                    )}
+                                    {deviationResult?.deviation_breakdown && (
+                                        <>
                                             <KV
-                                                k="Measured"
-                                                v={
-                                                    <span className="font-mono">
-                                                        {fmt(deviationResult.measured_value.height, 2)} x{' '}
-                                                        {fmt(deviationResult.measured_value.width, 2)} mm
-                                                    </span>
-                                                }
+                                                k="H deviation"
+                                                v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.height)}</span>}
                                             />
-                                        )}
-                                        {deviationResult?.expected_value && (
                                             <KV
-                                                k="Expected"
-                                                v={
-                                                    <span className="font-mono">
-                                                        {fmt(deviationResult.expected_value.height, 2)} x{' '}
-                                                        {fmt(deviationResult.expected_value.width, 2)} mm
-                                                    </span>
-                                                }
+                                                k="W deviation"
+                                                v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.width)}</span>}
                                             />
-                                        )}
-                                        {deviationResult?.deviation_breakdown && (
-                                            <>
-                                                <KV
-                                                    k="H deviation"
-                                                    v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.height)}</span>}
-                                                />
-                                                <KV
-                                                    k="W deviation"
-                                                    v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.width)}</span>}
-                                                />
-                                            </>
-                                        )}
-                                    </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
-
-                        <Divider />
-
-                        {/* Action buttons */}
-                        <div className="grid grid-cols-2 gap-2">
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onAction('manual_adjust')}
-                                title="Manually adjust parameters"
-                            >
-                                <SlidersHorizontal className="h-3.5 w-3.5" />
-                                Manual Adjust
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onAction('new_ai_recommendation')}
-                                title="Request new AI recommendation"
-                            >
-                                <Sparkles className="h-3.5 w-3.5" />
-                                AI Recommend
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onAction('add_data_finetune')}
-                                title="Add data and fine-tune model"
-                            >
-                                <Database className="h-3.5 w-3.5" />
-                                Fine-tune
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onAction('start_new_doe')}
-                                title="Start new design of experiments"
-                            >
-                                <FlaskConical className="h-3.5 w-3.5" />
-                                New DOE
-                            </Button>
-                        </div>
-                    </>
+                    </div>
                 )}
 
                 {!hasDeviation && deviationResult && (
@@ -409,6 +365,51 @@ export function DeviationMonitor({
                         </div>
                     </div>
                 )}
+
+                <Divider />
+
+                {/* Operator action buttons — always visible to allow manual intent publishing */}
+                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {hasDeviation ? 'Suggested Actions' : 'Operator Actions'}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onAction('manual_adjust')}
+                        title="Manually adjust parameters"
+                    >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        Manual Adjust
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onAction('new_ai_recommendation')}
+                        title="Request new AI recommendation"
+                    >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        AI Recommend
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onAction('add_data_finetune')}
+                        title="Add data and fine-tune model"
+                    >
+                        <Database className="h-3.5 w-3.5" />
+                        Fine-tune
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onAction('start_new_doe')}
+                        title="Start new design of experiments"
+                    >
+                        <FlaskConical className="h-3.5 w-3.5" />
+                        New DOE
+                    </Button>
+                </div>
             </CardBody>
         </Card>
     );

@@ -20,6 +20,7 @@ import {
     setTarget,
     setProcessMode,
     getAIRecommendation,
+    publishRosIntent,
     type RobinMeasurement,
 } from '../../hooks/useRobinAPI';
 import type {
@@ -354,7 +355,32 @@ export function RobinPage() {
             start_new_doe: 'Starting new Design of Experiments',
         };
         pushAlert('Info', labels[action], 'Deviation Monitor');
-    }, [pushAlert]);
+
+        // Publish ROS4HRI intent to welding_http_bridge (port 8766)
+        // Intent constants are defined in welding_msgs/msg/Intent.msg
+        const intentMap: Record<DeviationAction, [string, Record<string, unknown>]> = {
+            new_ai_recommendation: [
+                'REQUEST_AI_RECOMMENDATION',
+                { process_id: processId ?? '', mode: 'geometry_driven' },
+            ],
+            manual_adjust: [
+                'MANUAL_ADJUST',
+                { parameter_name: 'weld_speed', new_value: 5.0, unit: 'mm/s' },
+            ],
+            add_data_finetune: [
+                'FINE_TUNE_MODEL',
+                { process_id: processId ?? '', dataset_tag: 'operator_submit' },
+            ],
+            start_new_doe: [
+                'LAUNCH_NEW_DOE',
+                { seam_id: 'seam_01', weld_speed: 5.0, wire_feed: 4.0 },
+            ],
+        };
+        const [intentType, intentData] = intentMap[action];
+        publishRosIntent(intentType, intentData, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', `${intentType} intent published to /intents`, 'Intent Bridge'))
+            .catch(() => pushAlert('Warning', `Failed to publish ${intentType} intent`, 'Intent Bridge'));
+    }, [processId, pushAlert]);
 
     const [activeModel, setActiveModel] = useState<string>('—');
 
@@ -381,7 +407,7 @@ export function RobinPage() {
     const [replay, setReplay] = useState(false);
 
     const [telemetry, setTelemetry] = useState<MeasurementPoint[]>([]);
-    const [metric, setMetric] = useState<MetricType>('profileHeight');
+    const [metric, setMetric] = useState<MetricType>('speed');
     const [freezeCharts, setFreezeCharts] = useState(false);
 
     const simulationProgress = useMemo(() => {
@@ -488,6 +514,7 @@ export function RobinPage() {
     const telemetryChartData = useMemo(() => {
         return telemetry.map((p) => ({
             t: p.t,
+            absT: p.timestamp ? Date.parse(p.timestamp) / 1000 : p.t,
             timestamp: p.timestamp,
             value: metric === 'speed' ? p.speed : metric === 'current' ? p.current : metric === 'voltage' ? p.voltage : metric === 'profileHeight' ? p.profileHeight : p.profileWidth,
         }));
@@ -511,6 +538,14 @@ export function RobinPage() {
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
+        // Publish START_PROCESS intent → alert-processor → Orion-LD + welding_http_bridge
+        publishRosIntent('START_PROCESS', {
+            seam_id: 'seam_01',
+            weld_speed: 5.0,
+            wire_feed: 4.0,
+        }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'START_PROCESS intent published to /intents', 'Intent Bridge'))
+            .catch(() => pushAlert('Warning', 'Failed to publish START_PROCESS intent', 'Intent Bridge'));
     };
     const pauseRobot = () => {
         if (robot.state !== 'Running') return;
@@ -534,6 +569,10 @@ export function RobinPage() {
         if (processId) {
             stopProcess(processId, 'operator_abort').catch(() => {});
         }
+        // Publish ESTOP intent — cancels all active skill goals on the ROS2 side
+        publishRosIntent('ESTOP', { reason: 'operator_button' }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'ESTOP intent published to /intents', 'Intent Bridge'))
+            .catch(() => {});
     };
     const toggleParamFreeze = () => {
         setRobot((prev) => ({ ...prev, isParamFrozen: !prev.isParamFrozen }));

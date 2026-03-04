@@ -273,3 +273,6 @@ AMENT_IGNORE
 ros2_packages/.github/*
 node_modules
 Data_ROSBAGS/
+.claude/
+humble_workspace/.pixi/
+.env

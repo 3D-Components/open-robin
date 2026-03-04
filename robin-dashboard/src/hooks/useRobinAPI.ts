@@ -404,3 +404,35 @@ export async function createProcess(processId: string, mode: string = 'parameter
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// ROS4HRI Intent Bridge (welding_http_bridge on port 8766)
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish a ROS4HRI intent, routed through the alert-processor → Orion-LD → welding_http_bridge.
+ *
+ * Flow: React UI → BASE_URL/intent → alert-processor
+ *        ├── PATCH pendingIntent on urn:ngsi-ld:Process:{processId} in Orion-LD
+ *        └── POST  welding_http_bridge → /intents topic → welding_supervisor → skill servers
+ *
+ * Intent constants (from welding_msgs/msg/Intent.msg):
+ *   START_PROCESS              — "Start" button
+ *   REQUEST_AI_RECOMMENDATION  — "Ask for a new AI recommendation" button
+ *   MANUAL_ADJUST              — "Manual adjust" button
+ *   FINE_TUNE_MODEL            — "Fine-tune" button
+ *
+ * Errors are swallowed silently so a missing bridge never breaks the UI.
+ */
+export async function publishRosIntent(
+    intent: string,
+    data: Record<string, unknown> = {},
+    processId: string = 'ros_bridge',
+): Promise<void> {
+    const res = await fetch(`${BASE_URL}/intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intent, process_id: processId, data }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}

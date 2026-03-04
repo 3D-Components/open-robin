@@ -76,6 +76,28 @@ async def get_profile():
     return active_profile.as_dict()
 
 
+class PublishIntentRequest(BaseModel):
+    intent: str
+    process_id: str = 'ros_bridge'
+    data: Dict[str, Any] = {}
+
+
+@app.post('/intent')
+async def publish_intent(request: PublishIntentRequest):
+    """Persist operator intent in Orion-LD.
+
+    Orion-LD delivers the intent to the ROS pipeline via its NGSI-LD subscription
+    mechanism: PATCH pendingIntent → Orion-LD subscription notification →
+    welding_http_bridge (/orion-notify) → /intents ROS2 topic.
+    """
+    client = RobinFiwareClient()
+    try:
+        client.patch_process_intent(request.process_id, request.intent, request.data)
+    except Exception:
+        pass  # Never block the response if Orion-LD is unavailable
+    return {'status': 'published', 'intent': request.intent, 'process_id': request.process_id}
+
+
 @app.get('/health')
 async def health_check():
     """Health check endpoint with per-service connectivity and latency."""
@@ -923,6 +945,71 @@ class AlertEngine:
         except Exception:
             return []
 
+    def fetch_measurements_from_troe(
+        self, process_id: str, last_n: Optional[int] = None
+    ) -> List[Dict]:
+        """Direct TimescaleDB query for DDS compound telemetry.
+
+        Used when Mintaka cannot handle compound DDS attributes (subproperties=true).
+        Reads the compound jsonb column which contains the flat telemetry fields
+        stored by Orion-LD's DDS bridge.
+        """
+        try:
+            import psycopg2
+            import psycopg2.extras
+
+            host = os.getenv('TROE_HOST', 'timescaledb')
+            port = int(os.getenv('TROE_PORT', '5432'))
+            dbname = os.getenv('TROE_DB', 'orion')
+            user = os.getenv('TROE_USER', 'orion')
+            password = os.getenv('TROE_PWD', 'orionpass')
+
+            conn = psycopg2.connect(
+                host=host, port=port, dbname=dbname,
+                user=user, password=password, connect_timeout=5
+            )
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            limit_clause = f'LIMIT {int(last_n)}' if last_n else 'LIMIT 1000'
+            cur.execute(
+                f"""
+                SELECT compound, observedat FROM attributes
+                WHERE entityid = %s
+                  AND id = %s
+                  AND observedat IS NOT NULL
+                  AND compound IS NOT NULL
+                ORDER BY observedat DESC
+                {limit_clause}
+                """,
+                (
+                    f'urn:ngsi-ld:Process:{process_id}',
+                    'urn:robin:processTelemetry',
+                ),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            series = []
+            for row in rows:
+                compound = row[0]    # jsonb parsed as dict by psycopg2
+                observedat = row[1]  # datetime object
+                iso = observedat.isoformat()
+                ts_str = (iso[:-6] + 'Z') if iso.endswith('+00:00') else (iso + 'Z' if '+' not in iso and not iso.endswith('Z') else iso)
+                series.append({
+                    'timestamp': ts_str,
+                    'height': float(compound.get('height') or 0),
+                    'width': float(compound.get('width') or 0),
+                    'speed': float(compound.get('speed') or 0),
+                    'current': float(compound.get('current') or 0),
+                    'voltage': float(compound.get('voltage') or 0),
+                })
+            series.reverse()  # return in chronological order
+            print(f'TROE direct: {len(series)} rows for {process_id}')
+            return series
+        except Exception as e:
+            print(f'⚠️ TROE direct query failed: {e}')
+            return []
+
     def fetch_process_alerts(
         self, process_id: str, last_n: int | None = None
     ) -> List[Dict]:
@@ -1466,8 +1553,15 @@ async def get_process_measurements(process_id: str, last: int | None = None):
                 source = 'orion'
                 measurements = measurements_orion
             else:
-                source = 'none'
-                measurements = []
+                measurements_troe = engine.fetch_measurements_from_troe(
+                    process_id, last_n=last
+                )
+                if measurements_troe:
+                    source = 'troe'
+                    measurements = measurements_troe
+                else:
+                    source = 'none'
+                    measurements = []
 
         print(
             f'📊 Fetching measurements for process {process_id}: found {len(measurements)} measurements'

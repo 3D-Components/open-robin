@@ -71,6 +71,8 @@ services:
       - ./vulcanexus_ws/src:/workspace/ros2_packages/src
       # Mount this repo's ros2_packages for testing inside container
       - ./ros2_packages:/workspace/repo_ros2/ros2_packages
+      # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
+      - /home/virgilio/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 
@@ -150,8 +152,14 @@ services:
       - ./config:/app/config
       - ./data/models:/app/data/models
     environment:
+      ORION_URL: "http://orion-ld:1026"      # orion-ld resolves via extra_hosts → host-gateway
       MINTAKA_URL: http://mintaka:8080
       ROBIN_PROFILE: ${ROBIN_PROFILE:-welding}
+      TROE_HOST: timescaledb
+      TROE_PORT: "5432"
+      TROE_DB: orion
+      TROE_USER: orion
+      TROE_PWD: orionpass
       #NGSILD_TENANT: robin  # disable tenant header to match DDS/TROE default
     depends_on:
       - orion-ld
@@ -159,8 +167,18 @@ services:
     networks:
       - fiware-net
     extra_hosts:
-      - "orion-ld:host-gateway"   # Orion runs in host mode, map hostname for alert-processor
+      - "orion-ld:host-gateway"          # Orion runs in host mode, map hostname for alert-processor
     stop_grace_period: 5s  # Give uvicorn 5 seconds to shut down gracefully before SIGKILL
+
+  # Module 2b: Lichtblick 3D viewer (connects to foxglove-bridge on host at ws://localhost:8765)
+  lichtblick:
+    image: ghcr.io/lichtblick-suite/lichtblick:latest
+    container_name: lichtblick
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - fiware-net
 
   # Module 3: 3D Visualization (Viser)
   robin-viser:

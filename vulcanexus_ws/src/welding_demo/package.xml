@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+    schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>welding_demo</name>
+  <version>0.2.0</version>
+  <description>
+    Master launch package for the ROBIN welding HRI PoC.
+    Launches all skill nodes, the HTTP bridge, and the mission controller.
+  </description>
+  <maintainer email="dev@example.com">Developer</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>welding_msgs</exec_depend>
+  <exec_depend>welding_home_skill</exec_depend>
+  <exec_depend>welding_zone_skill</exec_depend>
+  <exec_depend>welding_seam_skill</exec_depend>
+  <exec_depend>welding_supervisor</exec_depend>
+  <exec_depend>welding_recommendation_skill</exec_depend>
+  <exec_depend>welding_manual_skill</exec_depend>
+  <exec_depend>welding_finetune_skill</exec_depend>
+  <exec_depend>welding_http_bridge</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

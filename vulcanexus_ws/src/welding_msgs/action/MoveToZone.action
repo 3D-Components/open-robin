@@ -1,0 +1,19 @@
+# Navigate to a named weld zone (A, B, or C).
+# ros4hri: maps to navigation_skills/action/NavigateToWaypoint
+
+# ── Goal ──────────────────────────────────────────────────────────────────
+string zone_id          # "A", "B", or "C"
+float32 approach_speed  # fraction of max speed, 0.0 → 1.0
+
+---
+
+# ── Result ─────────────────────────────────────────────────────────────────
+bool   success
+string message
+string final_zone       # confirmation of zone arrived
+
+---
+
+# ── Feedback ───────────────────────────────────────────────────────────────
+float32 progress_pct    # 0.0 → 100.0
+string  phase           # "APPROACHING" | "ALIGNING" | "ARRIVED"
