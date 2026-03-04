@@ -2,22 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main]
   pull_request:
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
-  test:
+  test-python:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
-        id: setup_python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -25,37 +23,64 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
 
-      - name: Cache virtualenv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
         run: poetry install --no-interaction --no-root --with dev
 
-      - name: Run pre-commit (lint/format)
-        uses: pre-commit/action@v3.0.1
-        env:
-          # Avoid running tests twice; pytest runs in next step
-          SKIP: pytest-check
+      - name: Run Python tests
+        run: poetry run pytest --cov=robin --cov=robin-ui --cov-report=xml:coverage-python.xml
+
+      - name: Upload Python coverage
+        uses: codecov/codecov-action@v5
         with:
-          extra_args: --all-files --show-diff-on-failure
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-python.xml
+          flags: python
+          name: python-coverage
 
-      - name: Run tests
-        run: poetry run pytest -q
+  test-typescript-coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - frontend: robin-dashboard
+            frontend_label: robin-dashboard
+          - frontend: robin-ui/frontend
+            frontend_label: robin-ui-frontend
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
-          cache-dependency-path: robin-dashboard/package-lock.json
+          cache-dependency-path: ${{ matrix.frontend }}/package-lock.json
 
-      - name: Install frontend dependencies
-        working-directory: robin-dashboard
+      - name: Install dependencies
+        working-directory: ${{ matrix.frontend }}
         run: npm ci
 
-      - name: Build frontend
-        working-directory: robin-dashboard
-        run: npm run build
+      - name: Install coverage runner
+        working-directory: ${{ matrix.frontend }}
+        run: npm install --no-save vitest@3.2.4 @vitest/coverage-v8@3.2.4
+
+      - name: Run TypeScript coverage (allow zero)
+        working-directory: ${{ matrix.frontend }}
+        run: |
+          npx vitest run --passWithNoTests \
+            --coverage.enabled \
+            --coverage.provider=v8 \
+            --coverage.reporter=lcov \
+            --coverage.reportsDirectory=coverage \
+            --coverage.all \
+            --coverage.include='src/**/*.ts' \
+            --coverage.include='src/**/*.tsx'
+
+      - name: Upload TypeScript coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ matrix.frontend }}/coverage/lcov.info
+          flags: typescript
+          name: typescript-coverage-${{ matrix.frontend_label }}
