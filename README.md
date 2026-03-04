@@ -2,6 +2,7 @@
 [![Python Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=python&label=python)](https://codecov.io/gh/3D-Components/open-robin)
 [![TypeScript Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=typescript&label=typescript)](https://codecov.io/gh/3D-Components/open-robin)
 [![CI](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml/badge.svg)](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml)
+[![Docs](https://readthedocs.org/projects/open-robin/badge/?version=latest)](https://open-robin.readthedocs.io/en/latest/?badge=latest)
 [![license](https://img.shields.io/github/license/3D-Components/open-robin)](https://github.com/3D-Components/open-robin/blob/main/LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![ROS 2](https://img.shields.io/badge/ROS-2-blue.svg)](https://docs.ros.org/en/jazzy/)
