@@ -8,6 +8,7 @@ export function Modal({
     children,
     confirmText = "Confirm",
     confirmVariant = "primary",
+    confirmDisabled = false,
     onConfirm,
     onClose,
     dangerHint,
@@ -17,6 +18,7 @@ export function Modal({
     children: React.ReactNode;
     confirmText?: string;
     confirmVariant?: "primary" | "secondary" | "danger";
+    confirmDisabled?: boolean;
     onConfirm: () => void;
     onClose: () => void;
     dangerHint?: string;
@@ -50,7 +52,7 @@ export function Modal({
                     <Button variant="secondary" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button variant={confirmVariant} onClick={onConfirm}>
+                    <Button variant={confirmVariant} onClick={onConfirm} disabled={confirmDisabled}>
                         {confirmText}
                     </Button>
                 </div>

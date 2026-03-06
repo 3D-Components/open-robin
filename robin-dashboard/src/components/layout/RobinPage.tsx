@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Chip } from '../ui/Chip';
+import { Button } from '../ui/Button';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { Modal } from '../ui/Modal';
@@ -186,6 +187,33 @@ type StartPreviewPlan =
         confidence: number | null;
     };
 
+type JobMonitoringState = {
+    active: boolean;
+    totalPoints: number;
+    warningPoints: number;
+};
+
+type JobReport = {
+    totalPoints: number;
+    warningPoints: number;
+    warningRate: number;
+    recommendNewDoe: boolean;
+};
+
+type ManualAdjustDraft = {
+    speed: number;
+    current: number;
+    voltage: number;
+};
+
+type AiRecommendationPlan = {
+    targetHeight: number;
+    targetWidth: number;
+    recommendedParams: { wireSpeed: number; current: number; voltage: number } | null;
+    predictedGeometry: { height: number; width: number } | null;
+    confidence: number | null;
+};
+
 function getRecommendationError(rec: AIRecommendationResponse): string {
     return rec.error ?? rec.message ?? 'AI recommendation failed';
 }
@@ -278,14 +306,84 @@ export function RobinPage() {
     const [alerts, setAlerts] = useState<Alert[]>([
         { id: 'alert-001', at: nowIso(), severity: 'Info', message: 'ROBIN UI started. Waiting for live data…', source: 'System' },
     ]);
+    const [jobMonitoring, setJobMonitoring] = useState<JobMonitoringState>({
+        active: false,
+        totalPoints: 0,
+        warningPoints: 0,
+    });
+    const [jobReport, setJobReport] = useState<JobReport | null>(null);
+    const jobMonitoringRef = useRef<JobMonitoringState>(jobMonitoring);
+    const prevRobotStateRef = useRef(initialRobot.state);
+    const lastMeasurementCountRef = useRef(0);
+    const lastMeasurementAtRef = useRef(Date.now());
+    const inactivityCompletionRequestedRef = useRef(false);
+    const operatorPauseHoldRef = useRef(false);
     const [startPlanning, setStartPlanning] = useState(false);
     const [startPreviewPlan, setStartPreviewPlan] = useState<StartPreviewPlan | null>(null);
+    const [manualAdjustDraft, setManualAdjustDraft] = useState<ManualAdjustDraft | null>(null);
+    const [aiRecommendationPlan, setAiRecommendationPlan] = useState<AiRecommendationPlan | null>(null);
+    const [aiRecommendationLoading, setAiRecommendationLoading] = useState(false);
+    const [aiRecommendationError, setAiRecommendationError] = useState<string | null>(null);
+    const [warningGateResetToken, setWarningGateResetToken] = useState(0);
 
     const pushAlert = useCallback((sev: 'Info' | 'Warning' | 'Critical', msg: string, src: string) => {
         setAlerts((a) =>
             [{ id: shortId('ALR'), at: nowIso(), severity: sev, message: msg, source: src }, ...a].slice(0, 8)
         );
     }, []);
+
+    useEffect(() => {
+        jobMonitoringRef.current = jobMonitoring;
+    }, [jobMonitoring]);
+
+    const beginJobMonitoring = useCallback(() => {
+        operatorPauseHoldRef.current = false;
+        lastMeasurementCountRef.current = measurementsData?.count ?? 0;
+        lastMeasurementAtRef.current = Date.now();
+        inactivityCompletionRequestedRef.current = false;
+        setJobMonitoring({ active: true, totalPoints: 0, warningPoints: 0 });
+        setJobReport(null);
+    }, [measurementsData?.count]);
+
+    const finalizeJobMonitoring = useCallback(() => {
+        const stats = jobMonitoringRef.current;
+        if (!stats.active) return;
+        inactivityCompletionRequestedRef.current = false;
+        const warningRate = stats.totalPoints > 0 ? stats.warningPoints / stats.totalPoints : 0;
+        setJobReport({
+            totalPoints: stats.totalPoints,
+            warningPoints: stats.warningPoints,
+            warningRate,
+            recommendNewDoe: stats.totalPoints > 0 && warningRate > 0.2,
+        });
+        setJobMonitoring((prev) => ({ ...prev, active: false }));
+    }, []);
+
+    const handleDeviationPointEvaluated = useCallback((warningFlagged: boolean) => {
+        setJobMonitoring((prev) => {
+            if (!prev.active) return prev;
+            return {
+                ...prev,
+                totalPoints: prev.totalPoints + 1,
+                warningPoints: prev.warningPoints + (warningFlagged ? 1 : 0),
+            };
+        });
+    }, []);
+
+    useEffect(() => {
+        operatorPauseHoldRef.current = false;
+        lastMeasurementCountRef.current = measurementsData?.count ?? 0;
+        lastMeasurementAtRef.current = Date.now();
+        inactivityCompletionRequestedRef.current = false;
+    }, [processId]);
+
+    useEffect(() => {
+        const count = measurementsData?.count ?? 0;
+        if (count !== lastMeasurementCountRef.current) {
+            lastMeasurementCountRef.current = count;
+            lastMeasurementAtRef.current = Date.now();
+        }
+    }, [measurementsData?.count]);
 
     useEffect(() => {
         pushAlert(
@@ -394,15 +492,116 @@ export function RobinPage() {
         }
     }, [processId, pushAlert, setProcessControls, sessionMode]);
 
-    const handleDeviationAction = useCallback((action: DeviationAction) => {
-        const labels: Record<DeviationAction, string> = {
-            manual_adjust: 'Manual parameter adjustment requested',
-            new_ai_recommendation: 'Requesting new AI recommendation',
-            add_data_finetune: 'Adding data for model fine-tuning',
-            start_new_doe: 'Starting new Design of Experiments',
+    const runGeometryRecommendation = useCallback(async (targetHeight: number, targetWidth: number) => {
+        if (!processId) {
+            throw new Error('No process selected');
+        }
+
+        const recRaw = await getAIRecommendation({
+            process_id: processId,
+            mode: 'geometry_driven',
+            target_geometry: {
+                height: targetHeight,
+                width: targetWidth,
+            },
+        });
+        const rec = assertRecommendationSuccess(recRaw);
+        const recommended = rec.recommendation.recommended_params as Record<string, unknown> | undefined;
+        if (!recommended || typeof recommended !== 'object') {
+            throw new Error('AI response missing recommended parameters');
+        }
+
+        const mapped = mapRecommendationToControls(recommended, processControls);
+        const predictedHeight =
+            toNumber(rec.recommendation.predicted_geometry?.height)
+            ?? toNumber(recommended.predictedHeight);
+        const predictedWidth =
+            toNumber(rec.recommendation.predicted_geometry?.width)
+            ?? toNumber(recommended.predictedWidth);
+        const predictedGeometry =
+            predictedHeight === null || predictedWidth === null
+                ? null
+                : { height: predictedHeight, width: predictedWidth };
+
+        return {
+            recommendedParams: {
+                wireSpeed: mapped.speed,
+                current: mapped.current,
+                voltage: mapped.voltage,
+            },
+            predictedGeometry,
+            confidence: toNumber(rec.recommendation.confidence) ?? toNumber(recommended.confidence),
         };
-        pushAlert('Info', labels[action], 'Deviation Monitor');
-    }, [pushAlert]);
+    }, [processControls, processId]);
+
+    const requestAiRecommendation = useCallback(async (targetHeight: number, targetWidth: number) => {
+        setAiRecommendationLoading(true);
+        setAiRecommendationError(null);
+        try {
+            const recommendation = await runGeometryRecommendation(targetHeight, targetWidth);
+            setAiRecommendationPlan((prev) => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    targetHeight,
+                    targetWidth,
+                    ...recommendation,
+                };
+            });
+            pushAlert(
+                'Info',
+                `AI suggested parameters: speed ${recommendation.recommendedParams.wireSpeed.toFixed(2)}, current ${recommendation.recommendedParams.current.toFixed(2)}, voltage ${recommendation.recommendedParams.voltage.toFixed(2)}`,
+                'AI Recommendation',
+            );
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to fetch AI recommendation for geometry target';
+            setAiRecommendationError(message);
+            setAiRecommendationPlan((prev) => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    targetHeight,
+                    targetWidth,
+                    recommendedParams: null,
+                    predictedGeometry: null,
+                    confidence: null,
+                };
+            });
+            pushAlert('Warning', message, 'AI Recommendation');
+        } finally {
+            setAiRecommendationLoading(false);
+        }
+    }, [pushAlert, runGeometryRecommendation]);
+
+    const handleDeviationAction = useCallback((action: DeviationAction) => {
+        if (action === 'manual_adjust') {
+            setManualAdjustDraft({
+                speed: processControls.speed,
+                current: processControls.current,
+                voltage: processControls.voltage,
+            });
+            pushAlert('Info', 'Manual adjust opened. Update parameters and apply to continue.', 'Deviation Monitor');
+            return;
+        }
+
+        if (action === 'new_ai_recommendation') {
+            const targetHeight = processControls.targetHeight;
+            const targetWidth = processControls.targetWidth;
+            setAiRecommendationPlan({
+                targetHeight,
+                targetWidth,
+                recommendedParams: null,
+                predictedGeometry: null,
+                confidence: null,
+            });
+            setAiRecommendationError(null);
+            pushAlert('Info', 'Preparing AI recommendation for geometry target…', 'Deviation Monitor');
+            void requestAiRecommendation(targetHeight, targetWidth);
+            return;
+        }
+
+        pushAlert('Info', 'Starting new Design of Experiments', 'Deviation Monitor');
+    }, [processControls, pushAlert, requestAiRecommendation]);
 
     const [activeModel, setActiveModel] = useState<string>('—');
 
@@ -455,19 +654,85 @@ export function RobinPage() {
     }, [simulationProgress]);
 
     const backendProcessStatus = processSnapshotData?.processStatus?.value ?? null;
+    const backendStopReason =
+        processSnapshotData?.stopReason?.value
+        ?? processSnapshotData?.stop_reason?.value
+        ?? null;
 
     useEffect(() => {
         if (!backendProcessStatus) return;
         setRobot((prev) => {
-            if (backendProcessStatus === 'active' && prev.state === 'Idle') {
+            const normalizedStopReason =
+                typeof backendStopReason === 'string'
+                    ? backendStopReason.trim()
+                    : '';
+            const isPauseStop = normalizedStopReason === 'operator_pause';
+            const shouldTreatAsPause =
+                operatorPauseHoldRef.current || isPauseStop;
+
+            if (backendProcessStatus === 'active') {
+                operatorPauseHoldRef.current = false;
+            }
+
+            if (
+                backendProcessStatus === 'active'
+                && (prev.state === 'Idle' || prev.state === 'Paused')
+            ) {
                 return { ...prev, state: 'Running' as const };
             }
-            if (backendProcessStatus === 'stopped' && prev.state === 'Running') {
+            if (
+                backendProcessStatus === 'stopped'
+                && shouldTreatAsPause
+                && (prev.state === 'Running' || prev.state === 'Paused')
+            ) {
+                return { ...prev, state: 'Paused' as const };
+            }
+            if (
+                backendProcessStatus === 'stopped'
+                && !shouldTreatAsPause
+                && (prev.state === 'Running' || prev.state === 'Paused')
+            ) {
+                operatorPauseHoldRef.current = false;
                 return { ...prev, state: 'Idle' as const };
             }
             return prev;
         });
-    }, [backendProcessStatus]);
+    }, [backendProcessStatus, backendStopReason]);
+
+    useEffect(() => {
+        const prev = prevRobotStateRef.current;
+        if (prev === 'Idle' && robot.state === 'Running') {
+            beginJobMonitoring();
+        }
+        if ((prev === 'Running' || prev === 'Paused') && robot.state === 'Idle') {
+            finalizeJobMonitoring();
+        }
+        prevRobotStateRef.current = robot.state;
+    }, [robot.state, beginJobMonitoring, finalizeJobMonitoring]);
+
+    useEffect(() => {
+        if (!jobMonitoring.active) return;
+        if (robot.state !== 'Running') return;
+        const measurementCount = measurementsData?.count ?? 0;
+        if (measurementCount <= 0) return;
+
+        const inactivityMs = Math.max(measurementPollMs * 4, 6000);
+        const id = setInterval(() => {
+            if (inactivityCompletionRequestedRef.current) return;
+            const elapsedMs = Date.now() - lastMeasurementAtRef.current;
+            if (elapsedMs < inactivityMs) return;
+
+            inactivityCompletionRequestedRef.current = true;
+            operatorPauseHoldRef.current = false;
+            pushAlert('Info', 'No new measurements detected; marking job as completed.', 'System');
+            setRobot((prev) => {
+                if (prev.state !== 'Running') return prev;
+                return { ...prev, state: 'Idle' as const, taskProgressPct: 100 };
+            });
+        }, 1000);
+
+        return () => clearInterval(id);
+    }, [jobMonitoring.active, robot.state, measurementsData?.count, measurementPollMs, pushAlert]);
 
     useEffect(() => {
         if (!measurementsData?.measurements?.length) return;
@@ -652,6 +917,7 @@ export function RobinPage() {
             pushAlert('Critical', `${robot.name} is in E-Stop. Reset required.`, robot.name);
             return;
         }
+        operatorPauseHoldRef.current = false;
         setStartPlanning(true);
         pushAlert('Info', 'Preparing AI pre-start plan…', 'AI Pre-Start');
         void (async () => {
@@ -669,6 +935,7 @@ export function RobinPage() {
     };
     const pauseRobot = () => {
         if (robot.state !== 'Running') return;
+        operatorPauseHoldRef.current = true;
         setRobot((prev) => ({ ...prev, state: 'Paused' as const }));
         pushAlert('Warning', `${robot.name} paused by operator.`, robot.name);
         if (processId) {
@@ -677,18 +944,99 @@ export function RobinPage() {
     };
     const resumeRobotHandler = () => {
         if (robot.state !== 'Paused') return;
+        // Keep pause-hold until backend reports active again.
+        operatorPauseHoldRef.current = true;
         setRobot((prev) => ({ ...prev, state: 'Running' as const }));
         pushAlert('Info', `${robot.name} resumed.`, robot.name);
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
     };
+    const applyManualAdjustAndContinue = useCallback(async () => {
+        if (!manualAdjustDraft) return;
+        const nextControls: ProcessControlsState = {
+            ...processControls,
+            mode: 'parameter_driven',
+            speed: manualAdjustDraft.speed,
+            current: manualAdjustDraft.current,
+            voltage: manualAdjustDraft.voltage,
+        };
+
+        setProcessControls(nextControls);
+        await handleControlsApply(nextControls);
+        setManualAdjustDraft(null);
+        setAiRecommendationError(null);
+        setWarningGateResetToken((prev) => prev + 1);
+
+        if (robot.state === 'Paused') {
+            resumeRobotHandler();
+        }
+    }, [handleControlsApply, manualAdjustDraft, processControls, robot.state, resumeRobotHandler]);
+
+    const applyAiRecommendationAndContinue = useCallback(async () => {
+        if (!aiRecommendationPlan) return;
+        if (!aiRecommendationPlan.recommendedParams) {
+            setAiRecommendationError('Generate an AI recommendation before applying.');
+            return;
+        }
+
+        const nextControls: ProcessControlsState = {
+            ...processControls,
+            mode: 'geometry_driven',
+            targetHeight: aiRecommendationPlan.targetHeight,
+            targetWidth: aiRecommendationPlan.targetWidth,
+            speed: aiRecommendationPlan.recommendedParams.wireSpeed,
+            current: aiRecommendationPlan.recommendedParams.current,
+            voltage: aiRecommendationPlan.recommendedParams.voltage,
+        };
+
+        setProcessControls(nextControls);
+
+        if (sessionMode !== 'Demo Mode' && processId) {
+            try {
+                await setProcessMode(processId, 'geometry_driven');
+                await setTarget(
+                    processId,
+                    aiRecommendationPlan.targetHeight,
+                    aiRecommendationPlan.targetWidth,
+                );
+            } catch {
+                pushAlert('Warning', 'Failed to persist AI recommendation on backend', 'AI Recommendation');
+            }
+        } else {
+            pushAlert(
+                'Info',
+                'Demo Mode: AI recommendation applied locally only. No backend write executed.',
+                'AI Recommendation',
+            );
+        }
+
+        pushAlert(
+            'Info',
+            `Applied AI recommendation: speed ${nextControls.speed.toFixed(2)}, current ${nextControls.current.toFixed(2)}, voltage ${nextControls.voltage.toFixed(2)}`,
+            'AI Recommendation',
+        );
+
+        setAiRecommendationPlan(null);
+        setAiRecommendationError(null);
+        setWarningGateResetToken((prev) => prev + 1);
+        if (robot.state === 'Paused') {
+            resumeRobotHandler();
+        }
+    }, [aiRecommendationPlan, processControls, processId, pushAlert, robot.state, sessionMode, resumeRobotHandler]);
+
     const abortRobot = () => {
+        operatorPauseHoldRef.current = false;
         setRobot((prev) => ({ ...prev, state: 'Idle' as const, taskProgressPct: 0, segmentIndex: 0 }));
         pushAlert('Critical', `${robot.name} aborted.`, robot.name);
         if (processId) {
             stopProcess(processId, 'operator_abort').catch(() => {});
         }
+    };
+    const stopRobot = () => {
+        // Temporary mock behavior: Stop currently maps to Abort.
+        // In the future, Stop and Abort will have different semantics.
+        abortRobot();
     };
     const toggleParamFreeze = () => {
         setRobot((prev) => ({ ...prev, isParamFrozen: !prev.isParamFrozen }));
@@ -757,6 +1105,7 @@ export function RobinPage() {
                             startPending={startPlanning}
                             pauseRobot={pauseRobot}
                             resumeRobot={resumeRobotHandler}
+                            stopRobot={stopRobot}
                             abortRobot={abortRobot}
                             toggleParamFreeze={toggleParamFreeze}
                             currentRun={currentRun}
@@ -789,6 +1138,9 @@ export function RobinPage() {
                             measurementCount={measurementsData?.count ?? 0}
                             onDeviationAlert={(severity, message) => pushAlert(severity, message, 'Deviation Monitor')}
                             onDeviationAction={handleDeviationAction}
+                            onDeviationPointEvaluated={handleDeviationPointEvaluated}
+                            onDeviationEscalation={pauseRobot}
+                            warningGateResetToken={warningGateResetToken}
                         />
                     )}
                     {tab === 'robots' && (
@@ -802,6 +1154,7 @@ export function RobinPage() {
                             startPending={startPlanning}
                             pauseRobot={pauseRobot}
                             resumeRobot={resumeRobotHandler}
+                            stopRobot={stopRobot}
                             abortRobot={abortRobot}
                             toggleParamFreeze={toggleParamFreeze}
                         />
@@ -917,6 +1270,243 @@ export function RobinPage() {
                                 ? 'AI confidence: unavailable'
                                 : `AI confidence: ${startPreviewPlan.confidence.toFixed(3)}`}
                         </div>
+                    </div>
+                ) : null}
+            </Modal>
+
+            <Modal
+                open={manualAdjustDraft !== null}
+                title="Manual Adjustment Confirmation"
+                confirmText="Apply and Continue"
+                onConfirm={() => {
+                    void applyManualAdjustAndContinue();
+                }}
+                onClose={() => setManualAdjustDraft(null)}
+            >
+                {manualAdjustDraft ? (
+                    <div className="space-y-3 text-sm">
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400">Process:</span>{' '}
+                            <span className="font-mono">{processId ?? '-'}</span>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Manual process parameters
+                            </div>
+                            <div className="mt-2 grid gap-2">
+                                <label className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.speed}</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={manualAdjustDraft.speed}
+                                            onChange={(e) => {
+                                                const next = Number(e.target.value);
+                                                if (Number.isNaN(next)) return;
+                                                setManualAdjustDraft((prev) => (prev ? { ...prev, speed: next } : prev));
+                                            }}
+                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <span className="text-xs text-slate-500 w-10">{domainTerms.speedUnit}</span>
+                                    </div>
+                                </label>
+                                <label className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.current}</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            value={manualAdjustDraft.current}
+                                            onChange={(e) => {
+                                                const next = Number(e.target.value);
+                                                if (Number.isNaN(next)) return;
+                                                setManualAdjustDraft((prev) => (prev ? { ...prev, current: next } : prev));
+                                            }}
+                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <span className="text-xs text-slate-500 w-10">{domainTerms.currentUnit}</span>
+                                    </div>
+                                </label>
+                                <label className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.voltage}</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            value={manualAdjustDraft.voltage}
+                                            onChange={(e) => {
+                                                const next = Number(e.target.value);
+                                                if (Number.isNaN(next)) return;
+                                                setManualAdjustDraft((prev) => (prev ? { ...prev, voltage: next } : prev));
+                                            }}
+                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <span className="text-xs text-slate-500 w-10">{domainTerms.voltageUnit}</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <div className="text-xs text-slate-600 dark:text-slate-400">
+                            This applies a parameter-driven override and continues the paused process.
+                        </div>
+                    </div>
+                ) : null}
+            </Modal>
+
+            <Modal
+                open={aiRecommendationPlan !== null}
+                title="AI Recommendation Confirmation"
+                confirmText="Apply and Continue"
+                confirmDisabled={aiRecommendationLoading || !aiRecommendationPlan?.recommendedParams}
+                onConfirm={() => {
+                    void applyAiRecommendationAndContinue();
+                }}
+                onClose={() => {
+                    setAiRecommendationPlan(null);
+                    setAiRecommendationError(null);
+                    setAiRecommendationLoading(false);
+                }}
+                dangerHint="AI can make mistakes. Validate recommendations before proceeding."
+            >
+                {aiRecommendationPlan ? (
+                    <div className="space-y-3 text-sm">
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400">Process:</span>{' '}
+                            <span className="font-mono">{processId ?? '-'}</span>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 dark:text-slate-400">Mode:</span>{' '}
+                            <span className="font-medium">Geometry-driven</span>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Geometry target
+                            </div>
+                            <div className="mt-2 grid gap-2">
+                                <label className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.profileHeight}</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={aiRecommendationPlan.targetHeight}
+                                            onChange={(e) => {
+                                                const next = Number(e.target.value);
+                                                if (Number.isNaN(next)) return;
+                                                setAiRecommendationPlan((prev) => (prev ? { ...prev, targetHeight: next } : prev));
+                                            }}
+                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <span className="text-xs text-slate-500 w-10">mm</span>
+                                    </div>
+                                </label>
+                                <label className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.profileWidth}</span>
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={aiRecommendationPlan.targetWidth}
+                                            onChange={(e) => {
+                                                const next = Number(e.target.value);
+                                                if (Number.isNaN(next)) return;
+                                                setAiRecommendationPlan((prev) => (prev ? { ...prev, targetWidth: next } : prev));
+                                            }}
+                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                        <span className="text-xs text-slate-500 w-10">mm</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div className="mt-3">
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={aiRecommendationLoading}
+                                    onClick={() => {
+                                        void requestAiRecommendation(
+                                            aiRecommendationPlan.targetHeight,
+                                            aiRecommendationPlan.targetWidth,
+                                        );
+                                    }}
+                                >
+                                    {aiRecommendationLoading ? 'Calculating…' : 'Get AI Recommendation'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {aiRecommendationError ? (
+                            <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200">
+                                {aiRecommendationError}
+                            </div>
+                        ) : null}
+
+                        {aiRecommendationPlan.recommendedParams ? (
+                            <>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        AI recommended parameters
+                                    </div>
+                                    <div className="mt-1 font-mono">
+                                        wireSpeed={aiRecommendationPlan.recommendedParams.wireSpeed.toFixed(2)}, current={aiRecommendationPlan.recommendedParams.current.toFixed(2)}, voltage={aiRecommendationPlan.recommendedParams.voltage.toFixed(2)}
+                                    </div>
+                                </div>
+                                {aiRecommendationPlan.predictedGeometry ? (
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                                        <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                            AI predicted geometry from recommendation
+                                        </div>
+                                        <div className="mt-1 font-mono">
+                                            height={aiRecommendationPlan.predictedGeometry.height.toFixed(2)} mm, width={aiRecommendationPlan.predictedGeometry.width.toFixed(2)} mm
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </>
+                        ) : null}
+
+                        <div className="text-xs text-slate-600 dark:text-slate-400">
+                            {aiRecommendationPlan.confidence === null
+                                ? 'AI confidence: unavailable'
+                                : `AI confidence: ${aiRecommendationPlan.confidence.toFixed(3)}`}
+                        </div>
+                    </div>
+                ) : null}
+            </Modal>
+
+            <Modal
+                open={jobReport !== null}
+                title="Job Report"
+                confirmText={jobReport?.recommendNewDoe ? 'Run New DOE' : 'Close Report'}
+                confirmVariant={jobReport?.recommendNewDoe ? 'primary' : 'secondary'}
+                onConfirm={() => {
+                    if (jobReport?.recommendNewDoe) {
+                        handleDeviationAction('start_new_doe');
+                    }
+                    setJobReport(null);
+                }}
+                onClose={() => setJobReport(null)}
+            >
+                {jobReport ? (
+                    <div className="space-y-3 text-sm">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                            <div>Total evaluated points: <span className="font-mono">{jobReport.totalPoints}</span></div>
+                            <div>Warning points: <span className="font-mono">{jobReport.warningPoints}</span></div>
+                            <div>Warning rate: <span className="font-mono">{(jobReport.warningRate * 100).toFixed(1)}%</span></div>
+                        </div>
+                        {jobReport.totalPoints === 0 ? (
+                            <div>No deviation points were evaluated during this job.</div>
+                        ) : jobReport.recommendNewDoe ? (
+                            <div>
+                                The job performance was not satisfactory. Warnings were raised for more than 20% of the points.
+                                We recommend running a new DOE.
+                            </div>
+                        ) : (
+                            <div>
+                                The job performance was satisfactory. Warnings were raised for {(jobReport.warningRate * 100).toFixed(1)}% of the points.
+                            </div>
+                        )}
                     </div>
                 ) : null}
             </Modal>

@@ -97,6 +97,9 @@ export interface ProcessSnapshotResponse {
     wireSpeed?: { value: number };
     current?: { value: number };
     voltage?: { value: number };
+    processStatus?: { value: string };
+    stopReason?: { value: string };
+    stop_reason?: { value: string };
     [key: string]: unknown;
 }
 

@@ -17,6 +17,7 @@ echo ""
 
 # Track validation status
 VALIDATION_PASSED=true
+ORION_REACHABLE_VIA=""
 
 # Function to check and report status
 check_requirement() {
@@ -50,6 +51,57 @@ check_port() {
         VALIDATION_PASSED=false
         return 1
     fi
+}
+
+# Validate Orion route from the same execution context used by demo scripts.
+# The robust demos call `python -m robin` inside `robin-alert-processor`.
+check_orion_from_alert_processor() {
+    if ! docker ps --format "{{.Names}}" | grep -q "^robin-alert-processor$"; then
+        return 1
+    fi
+
+    local reachable_url
+    reachable_url=$(docker exec robin-alert-processor python - <<'PY'
+import os
+import sys
+import urllib.request
+
+candidates = []
+orion_env = os.getenv("ORION_URL", "").rstrip("/")
+if orion_env:
+    candidates.append(orion_env)
+
+candidates.extend([
+    "http://orion-ld:1026",
+    "http://host.docker.internal:1026",
+    "http://127.0.0.1:1026",
+])
+
+seen = set()
+for base in candidates:
+    if base in seen:
+        continue
+    seen.add(base)
+    try:
+        urllib.request.urlopen(f"{base}/version", timeout=2)
+        print(base)
+        sys.exit(0)
+    except Exception:
+        pass
+
+sys.exit(1)
+PY
+)
+
+    if [ $? -eq 0 ]; then
+        if [ -z "$reachable_url" ]; then
+            reachable_url="http://orion-ld:1026"
+        fi
+        ORION_REACHABLE_VIA="robin-alert-processor -> ${reachable_url}"
+        return 0
+    fi
+
+    return 1
 }
 
 echo -e "${BLUE}1. System Requirements${NC}"
@@ -94,7 +146,12 @@ echo -e "${BLUE}3. Service Connectivity${NC}"
 echo -e "${BLUE}=======================${NC}"
 
 # Check service ports
-check_port "1026" "Orion Context Broker"
+if check_orion_from_alert_processor; then
+    echo -e "${GREEN}✅ Orion Context Broker is reachable (${ORION_REACHABLE_VIA})${NC}"
+else
+    echo -e "${RED}❌ Orion Context Broker is not reachable from robin-alert-processor${NC}"
+    VALIDATION_PASSED=false
+fi
 check_port "9090" "Mintaka"
 check_port "8001" "ROBIN Alert Processor"
 check_port "5174" "Dashboard"
@@ -104,8 +161,8 @@ echo -e "${BLUE}4. FIWARE Component Health${NC}"
 echo -e "${BLUE}===========================${NC}"
 
 # Test Orion Context Broker
-if curl -s "http://localhost:1026/version" > /dev/null; then
-    echo -e "${GREEN}✅ Orion Context Broker is responding${NC}"
+if check_orion_from_alert_processor; then
+    echo -e "${GREEN}✅ Orion Context Broker is responding via ${ORION_REACHABLE_VIA}${NC}"
 else
     echo -e "${RED}❌ Orion Context Broker is not responding${NC}"
     VALIDATION_PASSED=false

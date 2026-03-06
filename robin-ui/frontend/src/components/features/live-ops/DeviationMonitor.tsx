@@ -5,8 +5,6 @@ import {
     Crosshair,
     SlidersHorizontal,
     Sparkles,
-    Database,
-    FlaskConical,
     CheckCircle2,
     Loader2,
 } from 'lucide-react';
@@ -35,8 +33,13 @@ interface DeviationMonitorProps {
     processMode: OperationMode | null;
     onAlert: (severity: 'Info' | 'Warning' | 'Critical', message: string) => void;
     onAction: (action: DeviationAction) => void;
+    onPointEvaluated?: (warningFlagged: boolean) => void;
+    onWarningEscalation?: () => void;
+    warningGateResetToken?: number;
     pollIntervalMs?: number;
 }
+
+const WARNING_STREAK_THRESHOLD = 2;
 
 function fmt(v: number | null | undefined, decimals = 2, unit = ''): string {
     if (v === null || v === undefined || isNaN(v)) return '-';
@@ -49,6 +52,15 @@ function fmtPct(v: number | null | undefined): string {
     return `${v.toFixed(1)}%`;
 }
 
+function isWarningResult(result: DeviationCheckResponse, tolerance: number): boolean {
+    if (result.status === 'alert') return true;
+    if (result.status === 'error' || result.status === 'process_inactive' || result.status === 'no_data') {
+        return false;
+    }
+    if (result.deviation_percentage == null || Number.isNaN(result.deviation_percentage)) return false;
+    return result.deviation_percentage > tolerance;
+}
+
 export function DeviationMonitor({
     processId,
     controls,
@@ -57,13 +69,20 @@ export function DeviationMonitor({
     processMode,
     onAlert,
     onAction,
+    onPointEvaluated,
+    onWarningEscalation,
+    warningGateResetToken = 0,
     pollIntervalMs = 3000,
 }: DeviationMonitorProps) {
     const [deviationResult, setDeviationResult] = useState<DeviationCheckResponse | null>(null);
     const [checking, setChecking] = useState(false);
     const [statusMsg, setStatusMsg] = useState('Waiting for measurements…');
     const [lastCheckAt, setLastCheckAt] = useState<string | null>(null);
-    const prevDeviationRef = useRef<number | null>(null);
+    const lastEvaluatedPointRef = useRef<string | null>(null);
+    const warningStreakRef = useRef(0);
+    const warningEscalatedRef = useRef(false);
+    const [warningStreak, setWarningStreak] = useState(0);
+    const [warningEscalated, setWarningEscalated] = useState(false);
     const [snapshot, setSnapshot] = useState<MeasurementSnapshot | null>(null);
 
     const extractSnapshot = useCallback((measurements: RobinMeasurement[]): MeasurementSnapshot | null => {
@@ -109,34 +128,81 @@ export function DeviationMonitor({
         setChecking(true);
         try {
             const result = await checkDeviation(payload);
-            setDeviationResult(result);
             setLastCheckAt(new Date().toISOString());
 
-            if (result.deviation_percentage != null && result.deviation_percentage > 0) {
-                setStatusMsg(`Deviation detected (${fmtPct(result.deviation_percentage)})`);
-                if (
-                    prevDeviationRef.current === null ||
-                    Math.abs((result.deviation_percentage ?? 0) - prevDeviationRef.current) > 2
-                ) {
-                    onAlert(
-                        result.deviation_percentage > controls.tolerance ? 'Critical' : 'Warning',
-                        `Profile deviation ${fmtPct(result.deviation_percentage)} - H: ${fmtPct(result.deviation_breakdown?.height)}, W: ${fmtPct(result.deviation_breakdown?.width)}`,
+            if (result.status === 'process_inactive') {
+                setStatusMsg(
+                    warningEscalatedRef.current
+                        ? 'Paused for warning review'
+                        : 'Process inactive; waiting for resume',
+                );
+                return;
+            }
+
+            if (result.status === 'no_data') {
+                setStatusMsg('Waiting for measurements…');
+                return;
+            }
+
+            if (result.status !== 'error') {
+                setDeviationResult(result);
+            }
+
+            const warningFlagged = isWarningResult(result, controls.tolerance);
+
+            if (result.status !== 'error') {
+                const pointKey =
+                    snap.timestamp
+                    ?? `${latestMeasurements.length}:${snap.height}:${snap.width}`;
+                if (lastEvaluatedPointRef.current !== pointKey) {
+                    onPointEvaluated?.(warningFlagged);
+                    if (warningFlagged) {
+                        const nextStreak = warningStreakRef.current + 1;
+                        warningStreakRef.current = nextStreak;
+                        setWarningStreak(nextStreak);
+
+                        if (nextStreak >= WARNING_STREAK_THRESHOLD && !warningEscalatedRef.current) {
+                            warningEscalatedRef.current = true;
+                            setWarningEscalated(true);
+                            onAlert(
+                                (result.deviation_percentage ?? 0) > controls.tolerance ? 'Critical' : 'Warning',
+                                `Persistent deviation ${fmtPct(result.deviation_percentage)} detected in ${WARNING_STREAK_THRESHOLD} consecutive checks. Process paused for review.`,
+                            );
+                            onWarningEscalation?.();
+                        }
+                    } else {
+                        warningStreakRef.current = 0;
+                        warningEscalatedRef.current = false;
+                        setWarningStreak(0);
+                        setWarningEscalated(false);
+                    }
+                    lastEvaluatedPointRef.current = pointKey;
+                }
+            }
+
+            if (warningFlagged) {
+                if (warningEscalatedRef.current) {
+                    setStatusMsg(`Persistent deviation (${fmtPct(result.deviation_percentage)})`);
+                } else {
+                    setStatusMsg(
+                        `Potential deviation (${warningStreakRef.current}/${WARNING_STREAK_THRESHOLD})`,
                     );
                 }
-                prevDeviationRef.current = result.deviation_percentage ?? null;
             } else if (result.status === 'error') {
                 setStatusMsg(`Error: ${result.message ?? 'unknown'}`);
             } else {
                 setStatusMsg('Within tolerance');
-                prevDeviationRef.current = null;
+                warningStreakRef.current = 0;
+                warningEscalatedRef.current = false;
+                setWarningStreak(0);
+                setWarningEscalated(false);
             }
         } catch {
             setStatusMsg('Failed to check deviation');
-            setDeviationResult(null);
         } finally {
             setChecking(false);
         }
-    }, [processId, latestMeasurements, controls, processMode, onAlert, extractSnapshot]);
+    }, [processId, latestMeasurements, controls, processMode, onAlert, onPointEvaluated, onWarningEscalation, extractSnapshot]);
 
     useEffect(() => {
         if (!processId || !latestMeasurements?.length) {
@@ -150,16 +216,25 @@ export function DeviationMonitor({
     }, [processId, latestMeasurements, pollIntervalMs, runCheck]);
 
     useEffect(() => {
+        lastEvaluatedPointRef.current = null;
+        warningStreakRef.current = 0;
+        warningEscalatedRef.current = false;
+        setWarningStreak(0);
+        setWarningEscalated(false);
+        setDeviationResult(null);
+    }, [processId, warningGateResetToken]);
+
+    useEffect(() => {
         if (latestMeasurements?.length) {
             setSnapshot(extractSnapshot(latestMeasurements));
         }
     }, [latestMeasurements, extractSnapshot]);
 
-    const hasDeviation =
+    const hasDeviation = warningEscalated;
+    const isWithinTolerance =
+        deviationResult?.status !== 'error' &&
         deviationResult?.deviation_percentage != null &&
-        deviationResult.deviation_percentage > 0;
-    const isOverTolerance =
-        hasDeviation && (deviationResult!.deviation_percentage! > controls.tolerance);
+        deviationResult.deviation_percentage <= 0;
 
     const mode = processMode ?? controls.mode;
 
@@ -176,8 +251,8 @@ export function DeviationMonitor({
                 right={
                     <div className="flex items-center gap-2">
                         {checking && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
-                        <Chip tone={isOverTolerance ? 'bad' : hasDeviation ? 'warn' : 'good'}>
-                            {isOverTolerance ? 'ALERT' : hasDeviation ? 'Deviation' : 'OK'}
+                        <Chip tone={hasDeviation ? 'bad' : 'good'}>
+                            {hasDeviation ? 'ALERT' : 'OK'}
                         </Chip>
                     </div>
                 }
@@ -202,6 +277,9 @@ export function DeviationMonitor({
                                 {lastCheckAt ? new Date(lastCheckAt).toLocaleTimeString() : '-'}
                             </div>
                         </div>
+                    </div>
+                    <div className="mt-2 text-[11px] text-slate-500">
+                        Warning gate: {warningStreak}/{WARNING_STREAK_THRESHOLD} consecutive deviation points
                     </div>
                 </div>
 
@@ -280,28 +358,12 @@ export function DeviationMonitor({
                 {/* Alert card */}
                 {hasDeviation && (
                     <>
-                        <div
-                            className={`rounded-xl border p-3 ${
-                                isOverTolerance
-                                    ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30'
-                                    : 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
-                            }`}
-                        >
+                        <div className="rounded-xl border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/30">
                             <div className="flex items-start gap-2">
-                                <AlertTriangle
-                                    className={`h-5 w-5 mt-0.5 shrink-0 ${
-                                        isOverTolerance ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
-                                    }`}
-                                />
+                                <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
                                 <div className="min-w-0">
-                                    <div
-                                        className={`text-sm font-semibold ${
-                                            isOverTolerance ? 'text-red-900 dark:text-red-100' : 'text-amber-900 dark:text-amber-100'
-                                        }`}
-                                    >
-                                        {isOverTolerance
-                                            ? 'Deviation exceeds tolerance!'
-                                            : 'Deviation detected'}
+                                    <div className="text-sm font-semibold text-red-900 dark:text-red-100">
+                                        Deviation exceeds tolerance!
                                     </div>
                                     <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                                         <KV
@@ -370,29 +432,11 @@ export function DeviationMonitor({
                                 <Sparkles className="h-3.5 w-3.5" />
                                 AI Recommend
                             </Button>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onAction('add_data_finetune')}
-                                title="Add data and fine-tune model"
-                            >
-                                <Database className="h-3.5 w-3.5" />
-                                Fine-tune
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => onAction('start_new_doe')}
-                                title="Start new design of experiments"
-                            >
-                                <FlaskConical className="h-3.5 w-3.5" />
-                                New DOE
-                            </Button>
                         </div>
                     </>
                 )}
 
-                {!hasDeviation && deviationResult && (
+                {isWithinTolerance && deviationResult && (
                     <div className="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/30">
                         <div className="flex items-center gap-2 text-sm text-green-800 dark:text-green-200">
                             <CheckCircle2 className="h-4 w-4" />

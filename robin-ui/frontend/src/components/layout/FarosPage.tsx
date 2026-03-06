@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Chip } from '../ui/Chip';
 import { TopBar } from './TopBar';
 import { Sidebar } from './Sidebar';
+import { Modal } from '../ui/Modal';
 import { LiveOps } from '../features/live-ops/LiveOps';
 import { RobotsTab } from '../features/robots/RobotsTab';
 import { ModelsTrustTab } from '../features/models/ModelsTrustTab';
@@ -161,6 +162,19 @@ function apiToMeasurementPoints(measurements: RobinMeasurement[]): MeasurementPo
     }));
 }
 
+type JobMonitoringState = {
+    active: boolean;
+    totalPoints: number;
+    warningPoints: number;
+};
+
+type JobReport = {
+    totalPoints: number;
+    warningPoints: number;
+    warningRate: number;
+    recommendNewDoe: boolean;
+};
+
 export function FarosPage() {
     // Navigation
     const [tab, setTab] = useState<TabKey>('live');
@@ -169,7 +183,8 @@ export function FarosPage() {
     // ROBIN API hooks
     // -----------------------------------------------------------------------
     const [processId, setProcessId] = useState<string | null>('ros_bridge');
-    const { data: measurementsData } = useMeasurements(processId, 200, 2000);
+    const measurementPollMs = 2000;
+    const { data: measurementsData } = useMeasurements(processId, 200, measurementPollMs);
     const { data: healthData, error: healthError } = useHealth(5000);
     const { data: processListData } = useProcessList(10000);
     const { data: aiModelsData, refetch: refetchModels } = useAIModels();
@@ -239,6 +254,18 @@ export function FarosPage() {
     const [alerts, setAlerts] = useState<Alert[]>([
         { id: 'alert-001', at: nowIso(), severity: 'Info', message: 'ROBIN UI started. Waiting for live data…', source: 'System' },
     ]);
+    const [jobMonitoring, setJobMonitoring] = useState<JobMonitoringState>({
+        active: false,
+        totalPoints: 0,
+        warningPoints: 0,
+    });
+    const [jobReport, setJobReport] = useState<JobReport | null>(null);
+    const jobMonitoringRef = useRef<JobMonitoringState>(jobMonitoring);
+    const prevRobotAStateRef = useRef(robots.robotA.state);
+    const lastMeasurementCountRef = useRef(0);
+    const lastMeasurementAtRef = useRef(Date.now());
+    const inactivityCompletionRequestedRef = useRef(false);
+    const operatorPauseHoldRef = useRef(false);
 
     // Helper to push an alert
     const pushAlert = useCallback((sev: 'Info' | 'Warning' | 'Critical', msg: string, src: string) => {
@@ -246,6 +273,59 @@ export function FarosPage() {
             [{ id: shortId('ALR'), at: nowIso(), severity: sev, message: msg, source: src }, ...a].slice(0, 8)
         );
     }, []);
+
+    useEffect(() => {
+        jobMonitoringRef.current = jobMonitoring;
+    }, [jobMonitoring]);
+
+    const beginJobMonitoring = useCallback(() => {
+        operatorPauseHoldRef.current = false;
+        lastMeasurementCountRef.current = measurementsData?.count ?? 0;
+        lastMeasurementAtRef.current = Date.now();
+        inactivityCompletionRequestedRef.current = false;
+        setJobMonitoring({ active: true, totalPoints: 0, warningPoints: 0 });
+        setJobReport(null);
+    }, [measurementsData?.count]);
+
+    const finalizeJobMonitoring = useCallback(() => {
+        const stats = jobMonitoringRef.current;
+        if (!stats.active) return;
+        inactivityCompletionRequestedRef.current = false;
+        const warningRate = stats.totalPoints > 0 ? stats.warningPoints / stats.totalPoints : 0;
+        setJobReport({
+            totalPoints: stats.totalPoints,
+            warningPoints: stats.warningPoints,
+            warningRate,
+            recommendNewDoe: stats.totalPoints > 0 && warningRate > 0.2,
+        });
+        setJobMonitoring((prev) => ({ ...prev, active: false }));
+    }, []);
+
+    const handleDeviationPointEvaluated = useCallback((warningFlagged: boolean) => {
+        setJobMonitoring((prev) => {
+            if (!prev.active) return prev;
+            return {
+                ...prev,
+                totalPoints: prev.totalPoints + 1,
+                warningPoints: prev.warningPoints + (warningFlagged ? 1 : 0),
+            };
+        });
+    }, []);
+
+    useEffect(() => {
+        operatorPauseHoldRef.current = false;
+        lastMeasurementCountRef.current = measurementsData?.count ?? 0;
+        lastMeasurementAtRef.current = Date.now();
+        inactivityCompletionRequestedRef.current = false;
+    }, [processId]);
+
+    useEffect(() => {
+        const count = measurementsData?.count ?? 0;
+        if (count !== lastMeasurementCountRef.current) {
+            lastMeasurementCountRef.current = count;
+            lastMeasurementAtRef.current = Date.now();
+        }
+    }, [measurementsData?.count]);
 
     // Handle process controls apply
     const handleControlsApply = useCallback(async (ctrl: ProcessControlsState) => {
@@ -267,7 +347,6 @@ export function FarosPage() {
         const labels: Record<DeviationAction, string> = {
             manual_adjust: 'Manual parameter adjustment requested',
             new_ai_recommendation: 'Requesting new AI recommendation',
-            add_data_finetune: 'Adding data for model fine-tuning',
             start_new_doe: 'Starting new Design of Experiments',
         };
         pushAlert('Info', labels[action], 'Deviation Monitor');
@@ -330,7 +409,6 @@ export function FarosPage() {
                 ...prev,
                 robotA: {
                     ...prev.robotA,
-                    state: prev.robotA.state === 'Idle' ? 'Running' as const : prev.robotA.state,
                     taskProgressPct: Math.min(
                         100,
                         (measurementsData.count / 200) * 100
@@ -339,6 +417,89 @@ export function FarosPage() {
             }));
         }
     }, [measurementsData, freezeCharts]);
+
+    const backendProcessStatus = processSnapshotData?.processStatus?.value ?? null;
+    const backendStopReason =
+        processSnapshotData?.stopReason?.value
+        ?? processSnapshotData?.stop_reason?.value
+        ?? null;
+
+    useEffect(() => {
+        if (!backendProcessStatus) return;
+        setRobots((prev) => {
+            const normalizedStopReason =
+                typeof backendStopReason === 'string'
+                    ? backendStopReason.trim()
+                    : '';
+            const isPauseStop = normalizedStopReason === 'operator_pause';
+            const shouldTreatAsPause =
+                operatorPauseHoldRef.current || isPauseStop;
+
+            if (backendProcessStatus === 'active') {
+                operatorPauseHoldRef.current = false;
+            }
+            if (
+                backendProcessStatus === 'active'
+                && (prev.robotA.state === 'Idle' || prev.robotA.state === 'Paused')
+            ) {
+                return { ...prev, robotA: { ...prev.robotA, state: 'Running' as const } };
+            }
+            if (
+                backendProcessStatus === 'stopped' &&
+                shouldTreatAsPause &&
+                (prev.robotA.state === 'Running' || prev.robotA.state === 'Paused')
+            ) {
+                return { ...prev, robotA: { ...prev.robotA, state: 'Paused' as const } };
+            }
+            if (
+                backendProcessStatus === 'stopped' &&
+                !shouldTreatAsPause &&
+                (prev.robotA.state === 'Running' || prev.robotA.state === 'Paused')
+            ) {
+                operatorPauseHoldRef.current = false;
+                return { ...prev, robotA: { ...prev.robotA, state: 'Idle' as const } };
+            }
+            return prev;
+        });
+    }, [backendProcessStatus, backendStopReason]);
+
+    useEffect(() => {
+        const prev = prevRobotAStateRef.current;
+        const current = robots.robotA.state;
+        if (prev === 'Idle' && current === 'Running') {
+            beginJobMonitoring();
+        }
+        if ((prev === 'Running' || prev === 'Paused') && current === 'Idle') {
+            finalizeJobMonitoring();
+        }
+        prevRobotAStateRef.current = current;
+    }, [robots.robotA.state, beginJobMonitoring, finalizeJobMonitoring]);
+
+    useEffect(() => {
+        if (!jobMonitoring.active) return;
+        if (robots.robotA.state !== 'Running') return;
+        const measurementCount = measurementsData?.count ?? 0;
+        if (measurementCount <= 0) return;
+
+        const inactivityMs = Math.max(measurementPollMs * 4, 6000);
+        const id = setInterval(() => {
+            if (inactivityCompletionRequestedRef.current) return;
+            const elapsedMs = Date.now() - lastMeasurementAtRef.current;
+            if (elapsedMs < inactivityMs) return;
+
+            inactivityCompletionRequestedRef.current = true;
+            operatorPauseHoldRef.current = false;
+            pushAlert('Info', 'No new measurements detected; marking job as completed.', 'System');
+            setRobots((prev) => ({
+                ...prev,
+                robotA: prev.robotA.state === 'Running'
+                    ? { ...prev.robotA, state: 'Idle' as const, taskProgressPct: 100 }
+                    : prev.robotA,
+            }));
+        }, 1000);
+
+        return () => clearInterval(id);
+    }, [jobMonitoring.active, robots.robotA.state, measurementsData?.count, measurementPollMs, pushAlert]);
 
     // Alert when new measurement data arrives with interesting patterns
     useEffect(() => {
@@ -450,6 +611,9 @@ export function FarosPage() {
             pushAlert('Critical', `${rb.name} is in E-Stop. Reset required.`, rb.name);
             return;
         }
+        if (id === 'robotA') {
+            operatorPauseHoldRef.current = false;
+        }
         setRobots((prev) => ({
             ...prev,
             [id]: { ...prev[id], state: 'Running' as const, taskProgressPct: 2 },
@@ -463,6 +627,9 @@ export function FarosPage() {
     const pauseRobot = (id: RobotCell['id']) => {
         const rb = robots[id];
         if (rb.state !== 'Running') return;
+        if (id === 'robotA') {
+            operatorPauseHoldRef.current = true;
+        }
         setRobots((prev) => ({
             ...prev,
             [id]: { ...prev[id], state: 'Paused' as const },
@@ -475,6 +642,10 @@ export function FarosPage() {
     const resumeRobotHandler = (id: RobotCell['id']) => {
         const rb = robots[id];
         if (rb.state !== 'Paused') return;
+        if (id === 'robotA') {
+            // Keep pause-hold until backend reports active again.
+            operatorPauseHoldRef.current = true;
+        }
         setRobots((prev) => ({
             ...prev,
             [id]: { ...prev[id], state: 'Running' as const },
@@ -486,6 +657,9 @@ export function FarosPage() {
     };
     const abortRobot = (id: RobotCell['id']) => {
         const rb = robots[id];
+        if (id === 'robotA') {
+            operatorPauseHoldRef.current = false;
+        }
         setRobots((prev) => ({
             ...prev,
             [id]: { ...prev[id], state: 'Idle' as const, taskProgressPct: 0, segmentIndex: 0 },
@@ -601,6 +775,8 @@ export function FarosPage() {
                             measurementCount={measurementsData?.count ?? 0}
                             onDeviationAlert={(severity, message) => pushAlert(severity, message, 'Deviation Monitor')}
                             onDeviationAction={handleDeviationAction}
+                            onDeviationPointEvaluated={handleDeviationPointEvaluated}
+                            onDeviationEscalation={() => pauseRobot('robotA')}
                         />
                     )}
                     {tab === 'robots' && (
@@ -668,6 +844,42 @@ export function FarosPage() {
                     )}
                 </main>
             </div>
+
+            <Modal
+                open={jobReport !== null}
+                title="Job Report"
+                confirmText={jobReport?.recommendNewDoe ? 'Run New DOE' : 'Close Report'}
+                confirmVariant={jobReport?.recommendNewDoe ? 'primary' : 'secondary'}
+                onConfirm={() => {
+                    if (jobReport?.recommendNewDoe) {
+                        handleDeviationAction('start_new_doe');
+                    }
+                    setJobReport(null);
+                }}
+                onClose={() => setJobReport(null)}
+            >
+                {jobReport ? (
+                    <div className="space-y-3 text-sm">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
+                            <div>Total evaluated points: <span className="font-mono">{jobReport.totalPoints}</span></div>
+                            <div>Warning points: <span className="font-mono">{jobReport.warningPoints}</span></div>
+                            <div>Warning rate: <span className="font-mono">{(jobReport.warningRate * 100).toFixed(1)}%</span></div>
+                        </div>
+                        {jobReport.totalPoints === 0 ? (
+                            <div>No deviation points were evaluated during this job.</div>
+                        ) : jobReport.recommendNewDoe ? (
+                            <div>
+                                The job performance was not satisfactory. Warnings were raised for more than 20% of the points.
+                                We recommend running a new DOE.
+                            </div>
+                        ) : (
+                            <div>
+                                The job performance was satisfactory. Warnings were raised for {(jobReport.warningRate * 100).toFixed(1)}% of the points.
+                            </div>
+                        )}
+                    </div>
+                ) : null}
+            </Modal>
         </div>
     );
 }

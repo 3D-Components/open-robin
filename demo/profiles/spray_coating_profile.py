@@ -63,14 +63,52 @@ def run_robin(args: List[str], check: bool = True) -> subprocess.CompletedProces
     return run_command(cmd, check=check)
 
 
+def compose_command(*args: str) -> List[str]:
+    cmd = ['docker', 'compose']
+    if sys.platform == 'darwin':
+        cmd.extend(['-f', 'docker-compose.yaml', '-f', 'docker-compose.macos.override.yaml'])
+    cmd.extend(args)
+    return cmd
+
+
+def orion_reachable_from_alert_processor() -> bool:
+    result = run_robin(['status'], check=False)
+    combined = f'{result.stdout}\n{result.stderr}'.lower()
+    return 'orion context broker: connected' in combined
+
+
 def ensure_stack_running() -> None:
     run_command(['docker', '--version'])
     result = run_command(['docker', 'ps', '--format', '{{.Names}}'])
     names = {line.strip() for line in result.stdout.splitlines() if line.strip()}
     if CONTAINER_NAME not in names:
         print('Container not running. Starting docker compose stack...')
-        run_command(['docker', 'compose', 'up', '-d'])
+        run_command(compose_command('up', '-d'))
         time.sleep(5)
+
+    if not orion_reachable_from_alert_processor() and sys.platform == 'darwin':
+        print(
+            'Orion is not reachable from robin-alert-processor. '
+            'Recreating relevant services with macOS override...'
+        )
+        run_command(
+            compose_command(
+                'up',
+                '-d',
+                '--force-recreate',
+                'orion-ld',
+                'mintaka',
+                'alert-processor',
+            )
+        )
+        time.sleep(5)
+
+    if not orion_reachable_from_alert_processor():
+        raise DemoError(
+            'Orion is not reachable from robin-alert-processor. '
+            'Run `docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d --force-recreate orion-ld mintaka alert-processor` '
+            'and retry.'
+        )
 
 
 def maybe_create_process(process_id: str, mode: str) -> bool:
@@ -98,7 +136,7 @@ def create_geometry_target(process_id: str, thickness: float, width: float) -> b
 def set_process_mode(process_id: str, mode: str, api_url: str) -> bool:
     try:
         response = requests.post(
-            f'{api_url.rstrip('/')}/process/{process_id}/mode',
+            f"{api_url.rstrip('/')}/process/{process_id}/mode",
             json={'mode': mode},
             timeout=8,
         )
@@ -121,7 +159,7 @@ def get_ai_recommendation(
         payload['target_geometry'] = target_geometry
     try:
         response = requests.post(
-            f'{api_url.rstrip('/')}/ai-recommendation',
+            f"{api_url.rstrip('/')}/ai-recommendation",
             json=payload,
             timeout=10,
         )
@@ -144,7 +182,7 @@ def predict_geometry(input_params: Dict[str, float], api_url: str) -> Dict[str, 
     }
     try:
         response = requests.post(
-            f'{api_url.rstrip('/')}/ai/models/predict',
+            f"{api_url.rstrip('/')}/ai/models/predict",
             json=payload,
             timeout=10,
         )
@@ -180,7 +218,7 @@ def check_deviation(
     }
     try:
         response = requests.post(
-            f'{api_url.rstrip('/')}/check-deviation',
+            f"{api_url.rstrip('/')}/check-deviation",
             json=payload,
             timeout=10,
         )

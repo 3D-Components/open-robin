@@ -89,6 +89,8 @@ interface LiveOpsProps {
     measurementCount: number;
     onDeviationAlert: (severity: 'Info' | 'Warning' | 'Critical', message: string) => void;
     onDeviationAction: (action: DeviationAction) => void;
+    onDeviationPointEvaluated: (warningFlagged: boolean) => void;
+    onDeviationEscalation: () => void;
 }
 
 export function LiveOps(props: LiveOpsProps) {
@@ -134,6 +136,8 @@ export function LiveOps(props: LiveOpsProps) {
         measurementCount,
         onDeviationAlert,
         onDeviationAction,
+        onDeviationPointEvaluated,
+        onDeviationEscalation,
     } = props;
 
     return (
@@ -256,6 +260,8 @@ export function LiveOps(props: LiveOpsProps) {
                         processMode={processMode}
                         onAlert={onDeviationAlert}
                         onAction={onDeviationAction}
+                        onPointEvaluated={onDeviationPointEvaluated}
+                        onWarningEscalation={onDeviationEscalation}
                     />
 
                     <TelemetryPanel
