@@ -151,6 +151,13 @@ docker compose up -d        # start FIWARE + both modules + ROS 2 container
 ./demo/validate-setup.sh    # verify everything is healthy
 ```
 
+On macOS (Docker Desktop), use:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d
+./demo/validate-setup.sh
+```
+
 This is an **example integration**, not part of the modules themselves. You can deploy
 each module independently in your own infrastructure.
 

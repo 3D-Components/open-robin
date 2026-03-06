@@ -17,6 +17,7 @@ interface RobotsTabProps {
     startPending?: boolean;
     pauseRobot: () => void;
     resumeRobot: () => void;
+    stopRobot: () => void;
     abortRobot: () => void;
     toggleParamFreeze: () => void;
 }
@@ -31,6 +32,7 @@ export function RobotsTab({
     startPending = false,
     pauseRobot,
     resumeRobot,
+    stopRobot,
     abortRobot,
     toggleParamFreeze,
 }: RobotsTabProps) {
@@ -99,6 +101,9 @@ export function RobotsTab({
                                 </Button>
                                 <Button size="sm" variant={robot.isParamFrozen ? "primary" : "secondary"} onClick={toggleParamFreeze}>
                                     Parameter Freeze
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={stopRobot}>
+                                    Stop
                                 </Button>
                                 <Button size="sm" variant="danger" onClick={abortRobot}>
                                     Abort

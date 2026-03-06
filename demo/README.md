@@ -33,6 +33,13 @@ docker compose up -d
 ./demo/validate-setup.sh
 ```
 
+macOS (Docker Desktop) should use the override file:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d
+./demo/validate-setup.sh
+```
+
 Open the dashboard at <http://localhost:5174>.
 
 ## Demo 1: Welding (reference)

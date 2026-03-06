@@ -151,6 +151,7 @@ services:
       - ./data/models:/app/data/models
     environment:
       MINTAKA_URL: http://mintaka:8080
+      ORION_URL: ${ORION_URL:-http://orion-ld:1026}
       ROBIN_PROFILE: ${ROBIN_PROFILE:-welding}
       #NGSILD_TENANT: robin  # disable tenant header to match DDS/TROE default
     depends_on:
