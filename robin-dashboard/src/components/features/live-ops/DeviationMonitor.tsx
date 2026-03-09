@@ -375,40 +375,46 @@ export function DeviationMonitor({
                                         Deviation exceeds tolerance!
                                     </div>
                                     <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                                    {deviationResult?.measured_value && (
                                         <KV
-                                            k="Measured"
-                                            v={
-                                                <span className="font-mono">
-                                                    {fmt(deviationResult.measured_value.height, 2)} x{' '}
-                                                    {fmt(deviationResult.measured_value.width, 2)} mm
-                                                </span>
-                                            }
+                                            k="Overall"
+                                            v={<span className="font-mono font-bold">{fmtPct(deviationResult!.deviation_percentage)}</span>}
                                         />
-                                    )}
-                                    {deviationResult?.expected_value && (
-                                        <KV
-                                            k="Expected"
-                                            v={
-                                                <span className="font-mono">
-                                                    {fmt(deviationResult.expected_value.height, 2)} x{' '}
-                                                    {fmt(deviationResult.expected_value.width, 2)} mm
-                                                </span>
-                                            }
-                                        />
-                                    )}
-                                    {deviationResult?.deviation_breakdown && (
-                                        <>
+                                        <KV k="Tolerance" v={<span className="font-mono">{controls.tolerance}%</span>} />
+                                        {deviationResult?.measured_value && (
                                             <KV
-                                                k="H deviation"
-                                                v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.height)}</span>}
+                                                k="Measured"
+                                                v={
+                                                    <span className="font-mono">
+                                                        {fmt(deviationResult.measured_value.height, 2)} x{' '}
+                                                        {fmt(deviationResult.measured_value.width, 2)} mm
+                                                    </span>
+                                                }
                                             />
+                                        )}
+                                        {deviationResult?.expected_value && (
                                             <KV
-                                                k="W deviation"
-                                                v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.width)}</span>}
+                                                k="Expected"
+                                                v={
+                                                    <span className="font-mono">
+                                                        {fmt(deviationResult.expected_value.height, 2)} x{' '}
+                                                        {fmt(deviationResult.expected_value.width, 2)} mm
+                                                    </span>
+                                                }
                                             />
-                                        </>
-                                    )}
+                                        )}
+                                        {deviationResult?.deviation_breakdown && (
+                                            <>
+                                                <KV
+                                                    k="H deviation"
+                                                    v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.height)}</span>}
+                                                />
+                                                <KV
+                                                    k="W deviation"
+                                                    v={<span className="font-mono">{fmtPct(deviationResult.deviation_breakdown.width)}</span>}
+                                                />
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

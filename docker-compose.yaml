@@ -152,9 +152,8 @@ services:
       - ./config:/app/config
       - ./data/models:/app/data/models
     environment:
-      ORION_URL: "http://orion-ld:1026"      # orion-ld resolves via extra_hosts → host-gateway
-      MINTAKA_URL: http://mintaka:8080
       ORION_URL: ${ORION_URL:-http://orion-ld:1026}
+      MINTAKA_URL: http://mintaka:8080
       ROBIN_PROFILE: ${ROBIN_PROFILE:-welding}
       TROE_HOST: timescaledb
       TROE_PORT: "5432"
