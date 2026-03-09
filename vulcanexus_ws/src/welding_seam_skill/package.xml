@@ -5,9 +5,11 @@
   <name>welding_seam_skill</name>
   <version>0.1.0</version>
   <description>
-    Mock implementation of the "execute weld seam" skill.
-    Lifecycle action server that simulates executing a Cartesian weld trajectory.
-    Mock: 6 s with IGNITING → WELDING × 3 → FINISHING phase feedback.
+    "Execute weld seam" skill with simulation and hardware modes.
+    Lifecycle action server for executing a Cartesian weld trajectory.
+    Simulation mode (use_simulation:=true): 6 s mock with IGNITING → WELDING × 3 → FINISHING phases.
+    Hardware mode (use_simulation:=false): delegates to /weld_experiment on RobinPlanner
+    (robin_moveit_control), which sequences MoveItPy PTP/LIN motions + WeldingCoordinator arc.
     Also handles START_PROCESS intent (routed by the supervisor).
 
     ros4hri compliance: conceptually implements motion_skills/ExecuteCartesianTrajectory.
@@ -20,6 +22,8 @@
   <depend>rclpy</depend>
   <depend>welding_msgs</depend>
   <depend>lifecycle_msgs</depend>
+  <depend>robin_interfaces</depend>
+  <depend>geometry_msgs</depend>
 
   <export>
     <build_type>ament_python</build_type>

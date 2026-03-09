@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """
-WeldingHomeSkillNode: mock lifecycle action server for MOVE_TO_HOME.
+WeldingHomeSkillNode: lifecycle action server for MOVE_TO_HOME.
 
 ros4hri concept: maps to motion_skills/action/ExecuteJointTrajectory.
-Mock behaviour: publishes joint-by-joint progress over 3 s, then returns success.
+
+Modes (controlled by ROS2 parameter 'use_simulation', default True):
+  use_simulation=True  — mock behaviour: joint-by-joint progress over 3 s.
+  use_simulation=False — hardware mode: currently falls back to mock with a warning.
+                         Production integration requires a /move_home action server
+                         in robin_moveit_control (MoveItPy set_named_target('home')).
+
+To add hardware support:
+  1. Add a /move_home SimpleAction to robin_moveit_control/robin_planner.py
+  2. In on_configure (hardware mode): create ActionClient for /move_home
+  3. In _execute_hardware: send goal and relay feedback/result
 """
 from __future__ import annotations
 
@@ -20,7 +30,7 @@ from welding_msgs.action import MoveToHome
 
 
 class WeldingHomeSkillNode(LifecycleNode):
-    """Mock skill: moves robot to home position (simulated, 3 s)."""
+    """Skill: moves robot to home position."""
 
     ACTION_NAME     = 'welding_home_skill/execute'
     MOCK_DURATION_S = 3.0
@@ -31,9 +41,22 @@ class WeldingHomeSkillNode(LifecycleNode):
         self._action_server: ActionServer | None = None
         self._goal_lock = threading.Lock()
         self._current_goal_handle = None
+        self._use_simulation: bool = True
 
     def on_configure(self, state) -> TransitionCallbackReturn:
-        self.get_logger().info('welding_home_skill: configuring')
+        self.declare_parameter('use_simulation', True)
+        self._use_simulation = (
+            self.get_parameter('use_simulation').get_parameter_value().bool_value
+        )
+        mode = 'SIMULATION' if self._use_simulation else 'HARDWARE'
+        self.get_logger().info(f'welding_home_skill: configuring [{mode} mode]')
+        if not self._use_simulation:
+            self.get_logger().warning(
+                'welding_home_skill: hardware mode selected but /move_home action '
+                'server is not yet implemented in robin_moveit_control — '
+                'falling back to simulation behaviour. '
+                'Add a /move_home action to robin_planner.py to enable real motion.'
+            )
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state) -> TransitionCallbackReturn:
@@ -84,7 +107,8 @@ class WeldingHomeSkillNode(LifecycleNode):
         return CancelResponse.ACCEPT
 
     def _execute_callback(self, goal_handle) -> MoveToHome.Result:
-        self.get_logger().info('MOVE_TO_HOME: executing ...')
+        mode = '[sim]' if self._use_simulation else '[hw→sim fallback]'
+        self.get_logger().info(f'MOVE_TO_HOME {mode}: executing ...')
         feedback = MoveToHome.Feedback()
         result   = MoveToHome.Result()
         step_duration = self.MOCK_DURATION_S / len(self.JOINTS)
