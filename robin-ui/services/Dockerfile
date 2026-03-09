@@ -14,9 +14,9 @@ RUN pip install --no-cache-dir \
     numpy \
     scipy
 
-COPY faros/services/viser_server.py /app/viser_server.py
-COPY faros/frontend/public/assets/robots/robot_a /app/assets/robots/robot_a
-COPY faros/frontend/public/assets/motion /app/assets/motion
+COPY robin-ui/services/viser_server.py /app/viser_server.py
+COPY robin-ui/frontend/public/assets/robots/robot_a /app/assets/robots/robot_a
+COPY robin-ui/frontend/public/assets/motion /app/assets/motion
 
 ENV VISER_ASSETS_ROOT=/app/assets
 

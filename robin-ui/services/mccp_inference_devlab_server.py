@@ -12,11 +12,6 @@ exposes uncertainty-quantified predictions for the Inference DevLab tab.
 
 from __future__ import annotations
 
-from faros.inference.mccp_inference import (
-    load_artifacts,
-    predict,
-)
-
 import json
 import numpy as np
 import os
@@ -28,12 +23,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-# Ensure repo root is on sys.path so faros.inference is importable.
-_REPO_ROOT = (
-    Path(__file__).resolve().parents[2]
-)  # .../faros/services -> .../faros -> .../RobTrack
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+# Ensure the robin-ui package root is on sys.path so inference is importable.
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]  # .../robin-ui/services -> .../robin-ui
+if str(_PACKAGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PACKAGE_ROOT))
+
+from inference.mccp_inference import (
+    load_artifacts,
+    predict,
+)
 
 
 def _default_workspace_root() -> Path:

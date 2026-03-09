@@ -141,7 +141,6 @@ export type DeviationResponse = {
 export type DeviationAction =
     | "manual_adjust"
     | "new_ai_recommendation"
-    | "add_data_finetune"
     | "start_new_doe";
 
 // Latest measurement snapshot for KPI display

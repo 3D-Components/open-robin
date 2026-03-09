@@ -29,9 +29,9 @@ frontend inside a `QWebEngineView`.
 
 | Service | Technology | Default Ports | Source |
 |---------|-----------|--------------|--------|
-| React Frontend | React 19, Vite 7, TypeScript, Tailwind CSS 4 | 5174 | `faros/frontend/` |
-| Viser 3D Server | Python, Viser, WebSockets, Trimesh, YourDFPy | 8081 (HTTP), 8082 (WS) | `faros/services/viser_server.py` |
-| MCCP DevLab API | Python, ThreadingHTTPServer, TensorFlow/Keras | 8091 | `faros/services/mccp_inference_devlab_server.py` |
+| React Frontend | React 19, Vite 7, TypeScript, Tailwind CSS 4 | 5174 | `robin-ui/frontend/` |
+| Viser 3D Server | Python, Viser, WebSockets, Trimesh, YourDFPy | 8081 (HTTP), 8082 (WS) | `robin-ui/services/viser_server.py` |
+| MCCP DevLab API | Python, ThreadingHTTPServer, TensorFlow/Keras | 8091 | `robin-ui/services/mccp_inference_devlab_server.py` |
 | Qt Integration | PySide6, QWebEngineView | - | `src/gui/faros_page/` |
 
 ---
@@ -136,7 +136,7 @@ Auto-reconnects after 2 seconds on disconnect.
 
 ### 1.6 TypeScript Types
 
-Core domain types are defined in `faros/frontend/src/types/index.ts`:
+Core domain types are defined in `robin-ui/frontend/src/types/index.ts`:
 
 - `RobotState`: `"Idle" | "Running" | "Paused" | "Fault" | "E-Stop"`
 - `TrustGate`: `"OK" | "Warning" | "Stop"`
@@ -151,7 +151,7 @@ Core domain types are defined in `faros/frontend/src/types/index.ts`:
 ### 1.7 Build & Dev Server
 
 ```bash
-cd faros/frontend
+cd robin-ui/frontend
 npm install
 npm run dev        # Vite dev server on :5174
 npm run build      # Production build (tsc + vite build)
@@ -180,9 +180,9 @@ joint animation.
 
 On startup, the server loads:
 
-1. **Workpiece plate** - STL mesh at `faros/frontend/public/assets/motion/workpieces/`
-2. **Robot A (UR5)** - URDF + DAE meshes at `faros/frontend/public/assets/robots/robot_a/`
-3. **Robot B (UR3)** - URDF + DAE meshes at `faros/frontend/public/assets/robots/robot_b/`
+1. **Workpiece plate** - STL mesh at `robin-ui/frontend/public/assets/motion/workpieces/`
+2. **Robot A (UR5)** - URDF + DAE meshes at `robin-ui/frontend/public/assets/robots/robot_a/`
+3. **Robot B (UR3)** - URDF + DAE meshes at `robin-ui/frontend/public/assets/robots/robot_b/`
 4. **World frame + grid** - Reference axes and ground plane
 
 ### 2.3 Animation Loop
@@ -334,7 +334,7 @@ Server start
 
 ### 4.1 Pipeline
 
-Located in `faros/inference/mccp_inference.py`. The engine is also duplicated
+Located in `robin-ui/inference/mccp_inference.py`. The engine is also duplicated
 in `src/gui/faros_page/mccp_inference.py` for use by the in-process
 `InferenceService`.
 

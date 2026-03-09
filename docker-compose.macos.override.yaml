@@ -1,0 +1,24 @@
+services:
+  # macOS/Docker Desktop does not provide Linux host-network semantics needed by
+  # the base file's `network_mode: host` setup for Orion.
+  # On macOS, reset Orion to bridge networking (fiware-net) so services can
+  # communicate by service-name DNS.
+  orion-ld:
+    network_mode: !reset null
+    command: -dbhost mongo-db -logLevel DEBUG -troe
+    environment:
+      ORIONLD_TROE_HOST: "timescaledb"
+      ORIONLD_TROE_PORT: "5432"
+    ports:
+      - "1026:1026"
+    networks:
+      - fiware-net
+
+  alert-processor:
+    extra_hosts: !reset []
+    environment:
+      ORION_URL: "http://orion-ld:1026"
+
+  mintaka:
+    environment:
+      MINTAKA_BROKER_URL: "http://orion-ld:1026"

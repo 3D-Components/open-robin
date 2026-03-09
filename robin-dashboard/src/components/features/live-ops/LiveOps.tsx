@@ -51,8 +51,10 @@ interface LiveOpsProps {
     trustWarnTh: number;
     trustStopTh: number;
     startRobot: () => void;
+    startPending?: boolean;
     pauseRobot: () => void;
     resumeRobot: () => void;
+    stopRobot: () => void;
     abortRobot: () => void;
     toggleParamFreeze: () => void;
     currentRun: ProcessRun | null;
@@ -85,6 +87,9 @@ interface LiveOpsProps {
     measurementCount: number;
     onDeviationAlert: (severity: 'Info' | 'Warning' | 'Critical', message: string) => void;
     onDeviationAction: (action: DeviationAction) => void;
+    onDeviationPointEvaluated: (warningFlagged: boolean) => void;
+    onDeviationEscalation: () => void;
+    warningGateResetToken?: number;
 }
 
 export function LiveOps(props: LiveOpsProps) {
@@ -94,8 +99,10 @@ export function LiveOps(props: LiveOpsProps) {
         trustWarnTh,
         trustStopTh,
         startRobot,
+        startPending,
         pauseRobot,
         resumeRobot,
+        stopRobot,
         abortRobot,
         toggleParamFreeze,
         currentRun,
@@ -128,6 +135,9 @@ export function LiveOps(props: LiveOpsProps) {
         measurementCount,
         onDeviationAlert,
         onDeviationAction,
+        onDeviationPointEvaluated,
+        onDeviationEscalation,
+        warningGateResetToken = 0,
     } = props;
 
     return (
@@ -164,8 +174,10 @@ export function LiveOps(props: LiveOpsProps) {
                                 trustWarnTh={trustWarnTh}
                                 trustStopTh={trustStopTh}
                                 onStart={startRobot}
+                                startPending={startPending}
                                 onPause={pauseRobot}
                                 onResume={resumeRobot}
+                                onStop={stopRobot}
                                 onAbort={abortRobot}
                                 onFreeze={toggleParamFreeze}
                             />
@@ -234,6 +246,9 @@ export function LiveOps(props: LiveOpsProps) {
                         processMode={processMode}
                         onAlert={onDeviationAlert}
                         onAction={onDeviationAction}
+                        onPointEvaluated={onDeviationPointEvaluated}
+                        onWarningEscalation={onDeviationEscalation}
+                        warningGateResetToken={warningGateResetToken}
                     />
 
                     <TelemetryPanel
@@ -266,8 +281,10 @@ function RobotCard({
     trustWarnTh,
     trustStopTh,
     onStart,
+    startPending = false,
     onPause,
     onResume,
+    onStop,
     onAbort,
     onFreeze,
 }: {
@@ -276,8 +293,10 @@ function RobotCard({
     trustWarnTh: number;
     trustStopTh: number;
     onStart: () => void;
+    startPending?: boolean;
     onPause: () => void;
     onResume: () => void;
+    onStop: () => void;
     onAbort: () => void;
     onFreeze: () => void;
 }) {
@@ -296,8 +315,8 @@ function RobotCard({
 
     const primaryAction =
         robot.state === "Idle" ? (
-            <Button size="sm" onClick={onStart}>
-                <Play className="h-4 w-4" /> Start
+            <Button size="sm" onClick={onStart} disabled={startPending}>
+                <Play className="h-4 w-4" /> {startPending ? 'Preparing…' : 'Start'}
             </Button>
         ) : robot.state === "Running" ? (
             <Button size="sm" variant="secondary" onClick={onPause}>
@@ -341,6 +360,9 @@ function RobotCard({
                 </div>
                 <div className="flex items-center gap-2">
                     {primaryAction}
+                    <Button size="sm" variant="secondary" onClick={onStop}>
+                        Stop
+                    </Button>
                     <Button size="sm" variant="danger" onClick={onAbort}>
                         Abort
                     </Button>

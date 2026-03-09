@@ -10,8 +10,9 @@ import requests
 
 app = typer.Typer(help='ROBIN - Open Process Intelligence Core')
 
-# Use the docker-compose service name for Orion-LD to ensure DNS resolution inside containers
-ORION = 'http://orion-ld:1026'
+# Orion endpoint can be overridden per deployment/runtime.
+# Default keeps docker-compose service-name routing.
+ORION = os.getenv('ORION_URL', 'http://orion-ld:1026')
 # Prefer environment configuration; Mintaka listens on 8080 inside its container
 MTK = os.getenv('MINTAKA_URL', 'http://mintaka:8080')
 # Tenant is optional; when empty, no NGSILD-Tenant header is sent

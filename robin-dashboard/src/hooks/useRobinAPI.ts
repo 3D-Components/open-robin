@@ -157,6 +157,8 @@ export interface ProcessSnapshotResponse {
     current?: { value: number };
     voltage?: { value: number };
     processStatus?: { value: string };
+    stopReason?: { value: string };
+    stop_reason?: { value: string };
     simulationProgress?: { value: number };
     expectedDuration?: { value: number };
     [key: string]: unknown;

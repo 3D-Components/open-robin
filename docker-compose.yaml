@@ -154,6 +154,7 @@ services:
     environment:
       ORION_URL: "http://orion-ld:1026"      # orion-ld resolves via extra_hosts → host-gateway
       MINTAKA_URL: http://mintaka:8080
+      ORION_URL: ${ORION_URL:-http://orion-ld:1026}
       ROBIN_PROFILE: ${ROBIN_PROFILE:-welding}
       TROE_HOST: timescaledb
       TROE_PORT: "5432"
@@ -184,7 +185,7 @@ services:
   robin-viser:
     build:
       context: .
-      dockerfile: faros/services/Dockerfile
+      dockerfile: robin-ui/services/Dockerfile
     container_name: robin-viser
     ports:
       - "8081:8081"   # Viser 3D viewer

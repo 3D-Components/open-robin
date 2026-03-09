@@ -1,0 +1,36 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+      python:
+        target: auto
+        flags:
+          - python
+      typescript:
+        target: auto
+        flags:
+          - typescript
+    patch:
+      default:
+        target: auto
+
+flags:
+  python:
+    paths:
+      - robin/**/*.py
+      - robin-ui/**/*.py
+    carryforward: true
+  typescript:
+    paths:
+      - robin-dashboard/src/**/*.ts
+      - robin-dashboard/src/**/*.tsx
+      - robin-ui/frontend/src/**/*.ts
+      - robin-ui/frontend/src/**/*.tsx
+    carryforward: false
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false

@@ -276,3 +276,5 @@ Data_ROSBAGS/
 .claude/
 humble_workspace/.pixi/
 .env
+.venv-docs/
+.venv-test/

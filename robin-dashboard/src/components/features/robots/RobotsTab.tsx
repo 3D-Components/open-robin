@@ -14,8 +14,10 @@ interface RobotsTabProps {
     trustWarnTh: number;
     trustStopTh: number;
     startRobot: () => void;
+    startPending?: boolean;
     pauseRobot: () => void;
     resumeRobot: () => void;
+    stopRobot: () => void;
     abortRobot: () => void;
     toggleParamFreeze: () => void;
 }
@@ -27,8 +29,10 @@ export function RobotsTab({
     trustWarnTh,
     trustStopTh,
     startRobot,
+    startPending = false,
     pauseRobot,
     resumeRobot,
+    stopRobot,
     abortRobot,
     toggleParamFreeze,
 }: RobotsTabProps) {
@@ -86,8 +90,8 @@ export function RobotsTab({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button size="sm" onClick={startRobot}>
-                                    <Play className="h-4 w-4" /> Start
+                                <Button size="sm" onClick={startRobot} disabled={startPending}>
+                                    <Play className="h-4 w-4" /> {startPending ? 'Preparing…' : 'Start'}
                                 </Button>
                                 <Button size="sm" variant="secondary" onClick={pauseRobot}>
                                     <Pause className="h-4 w-4" /> Pause
@@ -97,6 +101,9 @@ export function RobotsTab({
                                 </Button>
                                 <Button size="sm" variant={robot.isParamFrozen ? "primary" : "secondary"} onClick={toggleParamFreeze}>
                                     Parameter Freeze
+                                </Button>
+                                <Button size="sm" variant="secondary" onClick={stopRobot}>
+                                    Stop
                                 </Button>
                                 <Button size="sm" variant="danger" onClick={abortRobot}>
                                     Abort
