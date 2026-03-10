@@ -100,8 +100,12 @@ class WeldingSupervisorNode(Node):
         # Publisher for DOE GUI launch notifications
         self._doe_launch_pub = self.create_publisher(String, '/doe/launch', 10)
 
-        # Track active goal handles so ESTOP can cancel them all
+        # Track active goal handles so ESTOP/STOP can cancel them all
         self._active_goal_handles: list = []
+        # Subset: only seam/start goals, so PAUSE can cancel only those
+        self._active_seam_goal_handles: list = []
+        # Last known work zone — used by RESUME to move robot back to work area
+        self._last_zone_id: str = 'A'
 
         self.get_logger().info(
             'WeldingSupervisorNode ready — listening on /intents'
@@ -143,6 +147,12 @@ class WeldingSupervisorNode(Node):
             self._dispatch_finetune(data)
         elif msg.intent == Intent.LAUNCH_NEW_DOE:
             self._dispatch_launch_doe(data)
+        elif msg.intent == Intent.PAUSE_PROCESS:
+            self._handle_pause(data)
+        elif msg.intent == Intent.RESUME_PROCESS:
+            self._handle_resume(data)
+        elif msg.intent == Intent.STOP_PROCESS:
+            self._handle_stop(data)
         else:
             self.get_logger().warning(f'Unknown intent type: {msg.intent!r}')
 
@@ -155,8 +165,9 @@ class WeldingSupervisorNode(Node):
 
     def _dispatch_move_zone(self, data: dict) -> None:
         goal = MoveToZone.Goal()
-        goal.zone_id       = str(data.get('zone', 'A'))
+        goal.zone_id        = str(data.get('zone', 'A'))
         goal.approach_speed = float(data.get('speed', 0.5))
+        self._last_zone_id  = goal.zone_id
         self._send_goal(self._zone_client, goal, Intent.MOVE_TO_ZONE)
 
     def _dispatch_execute_seam(self, data: dict) -> None:
@@ -179,6 +190,45 @@ class WeldingSupervisorNode(Node):
                 self.get_logger().error(f'  Cancel failed: {exc}')
         self._active_goal_handles.clear()
 
+    def _handle_pause(self, data: dict) -> None:
+        """PAUSE_PROCESS: cancel active seam goal, then move robot to home."""
+        self.get_logger().info('PAUSE_PROCESS: cancelling seam and moving to home')
+        for gh in list(self._active_seam_goal_handles):
+            try:
+                gh.cancel_goal_async()
+            except Exception as exc:
+                self.get_logger().error(f'  Pause cancel failed: {exc}')
+        self._active_seam_goal_handles.clear()
+        goal = MoveToHome.Goal()
+        goal.use_fast_speed = False
+        self._send_goal(self._home_client, goal, Intent.PAUSE_PROCESS)
+
+    def _handle_resume(self, data: dict) -> None:
+        """RESUME_PROCESS: move robot from home back to last active work zone."""
+        zone = data.get('zone_id') or self._last_zone_id
+        self.get_logger().info(f'RESUME_PROCESS: moving to zone {zone!r}')
+        goal = MoveToZone.Goal()
+        goal.zone_id        = str(zone)
+        goal.approach_speed = 0.3
+        self._send_goal(self._zone_client, goal, Intent.RESUME_PROCESS)
+
+    def _handle_stop(self, data: dict) -> None:
+        """STOP_PROCESS: cancel all active goals, then move robot to home (orderly shutdown)."""
+        reason = data.get('reason', 'operator_stop')
+        self.get_logger().info(
+            f'STOP_PROCESS (reason: {reason}): cancelling all goals and moving home'
+        )
+        for gh in list(self._active_goal_handles):
+            try:
+                gh.cancel_goal_async()
+            except Exception as exc:
+                self.get_logger().error(f'  Stop cancel failed: {exc}')
+        self._active_goal_handles.clear()
+        self._active_seam_goal_handles.clear()
+        goal = MoveToHome.Goal()
+        goal.use_fast_speed = False
+        self._send_goal(self._home_client, goal, Intent.STOP_PROCESS)
+
     # ── Dispatchers — ROBIN dashboard button intents ───────────────────────
 
     def _dispatch_start_process(self, data: dict) -> None:
@@ -187,7 +237,23 @@ class WeldingSupervisorNode(Node):
         goal.seam_id        = str(data.get('seam_id', 'seam_01'))
         goal.weld_speed     = float(data.get('weld_speed', 5.0))
         goal.wire_feed_rate = float(data.get('wire_feed', 4.0))
+        self._last_zone_id  = str(data.get('zone_id', self._last_zone_id))
         self._send_goal(self._seam_client, goal, Intent.START_PROCESS)
+        # Apply welding parameters to hardware (Fronius) before arc starts
+        hw_params = [
+            ('current', data.get('current'), 'A'),
+            ('voltage', data.get('voltage'), 'V'),
+        ]
+        for param_name, value, unit in hw_params:
+            if value is not None:
+                adj_goal = ManualAdjust.Goal()
+                adj_goal.parameter_name = param_name
+                adj_goal.new_value      = float(value)
+                adj_goal.unit           = unit
+                self._send_goal(
+                    self._manual_client, adj_goal,
+                    f'{Intent.START_PROCESS}→MANUAL_ADJUST',
+                )
 
     def _dispatch_recommendation(self, data: dict) -> None:
         goal = RequestAIRecommendation.Goal()
@@ -196,13 +262,36 @@ class WeldingSupervisorNode(Node):
         self._send_goal(
             self._recommendation_client, goal, Intent.REQUEST_AI_RECOMMENDATION
         )
+        # Apply the recommended parameters to hardware via manual_skill
+        params = data.get('parameters')
+        if params:
+            for p in params:
+                adj_goal = ManualAdjust.Goal()
+                adj_goal.parameter_name = str(p.get('parameter_name', ''))
+                adj_goal.new_value      = float(p.get('new_value', 0.0))
+                adj_goal.unit           = str(p.get('unit', ''))
+                self._send_goal(
+                    self._manual_client, adj_goal,
+                    f'{Intent.REQUEST_AI_RECOMMENDATION}→MANUAL_ADJUST',
+                )
 
     def _dispatch_manual_adjust(self, data: dict) -> None:
-        goal = ManualAdjust.Goal()
-        goal.parameter_name = str(data.get('parameter_name', 'weld_speed'))
-        goal.new_value      = float(data.get('new_value', 5.0))
-        goal.unit           = str(data.get('unit', 'mm/s'))
-        self._send_goal(self._manual_client, goal, Intent.MANUAL_ADJUST)
+        params = data.get('parameters')
+        if params:
+            # Multi-parameter format: dispatch one ManualAdjust goal per entry
+            for p in params:
+                goal = ManualAdjust.Goal()
+                goal.parameter_name = str(p.get('parameter_name', ''))
+                goal.new_value      = float(p.get('new_value', 0.0))
+                goal.unit           = str(p.get('unit', ''))
+                self._send_goal(self._manual_client, goal, Intent.MANUAL_ADJUST)
+        else:
+            # Legacy single-parameter format
+            goal = ManualAdjust.Goal()
+            goal.parameter_name = str(data.get('parameter_name', 'weld_speed'))
+            goal.new_value      = float(data.get('new_value', 5.0))
+            goal.unit           = str(data.get('unit', 'mm/s'))
+            self._send_goal(self._manual_client, goal, Intent.MANUAL_ADJUST)
 
     def _dispatch_finetune(self, data: dict) -> None:
         goal = FineTuneModel.Goal()
@@ -245,6 +334,8 @@ class WeldingSupervisorNode(Node):
 
         self.get_logger().info(f'{label}: goal ACCEPTED')
         self._active_goal_handles.append(goal_handle)
+        if label in (Intent.START_PROCESS, Intent.EXECUTE_SEAM):
+            self._active_seam_goal_handles.append(goal_handle)
 
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(
@@ -255,7 +346,11 @@ class WeldingSupervisorNode(Node):
         try:
             self._active_goal_handles.remove(goal_handle)
         except ValueError:
-            pass  # already removed by ESTOP
+            pass  # already removed by ESTOP/STOP
+        try:
+            self._active_seam_goal_handles.remove(goal_handle)
+        except ValueError:
+            pass  # not a seam goal or already removed
 
         result = future.result().result
         status = 'SUCCESS' if result.success else 'FAILED'

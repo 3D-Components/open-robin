@@ -24,6 +24,12 @@ string MANUAL_ADJUST             = "MANUAL_ADJUST"
 string FINE_TUNE_MODEL           = "FINE_TUNE_MODEL"
 # "New DOE" button — triggers launch of the external DOE configuration GUI
 string LAUNCH_NEW_DOE            = "LAUNCH_NEW_DOE"
+# "Pause" button — gracefully cancels active seam and moves robot to home position
+string PAUSE_PROCESS             = "PAUSE_PROCESS"
+# "Resume" button — moves robot from home back to last active work zone
+string RESUME_PROCESS            = "RESUME_PROCESS"
+# "Stop" button — cancels all active goals and moves robot to home (orderly shutdown)
+string STOP_PROCESS              = "STOP_PROCESS"
 
 # ── Source constants ───────────────────────────────────────────────────────
 string SOURCE_ROBOT   = "ROBOT"
@@ -50,6 +56,9 @@ string intent
 #   REQUEST_AI_RECOMMENDATION:'{"process_id": "ros_bridge", "mode": "geometry_driven"}'
 #   MANUAL_ADJUST:            '{"parameter_name": "weld_speed", "new_value": 5.0, "unit": "mm/s"}'
 #   FINE_TUNE_MODEL:          '{"process_id": "ros_bridge", "dataset_tag": "operator_submit"}'
+#   PAUSE_PROCESS:            '{"reason": "operator_pause"}'
+#   RESUME_PROCESS:           '{"reason": "operator_resume"}'
+#   STOP_PROCESS:             '{"reason": "operator_stop"}'
 string data
 
 # Who/what expressed the intent

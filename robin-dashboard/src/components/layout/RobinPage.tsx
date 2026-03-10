@@ -837,10 +837,12 @@ export function RobinPage() {
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
+        const params = plan.mode === 'parameter_driven' ? plan.inputParams : plan.recommendedParams;
         publishRosIntent('START_PROCESS', {
-            seam_id: 'seam_01',
-            weld_speed: 5.0,
-            wire_feed: 4.0,
+            seam_id: plan.processId,
+            weld_speed: params.wireSpeed,
+            current: params.current,
+            voltage: params.voltage,
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'START_PROCESS intent published to /intents', 'Intent Bridge'))
             .catch(() => pushAlert('Warning', 'Failed to publish START_PROCESS intent', 'Intent Bridge'));
@@ -955,6 +957,9 @@ export function RobinPage() {
         if (processId) {
             stopProcess(processId, 'operator_pause').catch(() => {});
         }
+        publishRosIntent('PAUSE_PROCESS', { reason: 'operator_pause' }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'PAUSE_PROCESS intent published', 'Intent Bridge'))
+            .catch(() => {});
     };
     const resumeRobotHandler = () => {
         if (robot.state !== 'Paused') return;
@@ -965,6 +970,9 @@ export function RobinPage() {
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
+        publishRosIntent('RESUME_PROCESS', { reason: 'operator_resume' }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'RESUME_PROCESS intent published', 'Intent Bridge'))
+            .catch(() => {});
     };
     const applyManualAdjustAndContinue = useCallback(async () => {
         if (!manualAdjustDraft) return;
@@ -980,7 +988,11 @@ export function RobinPage() {
         await handleControlsApply(nextControls);
         setManualAdjustDraft(null);
         publishRosIntent('MANUAL_ADJUST', {
-            parameter_name: 'weld_speed', new_value: nextControls.speed, unit: 'mm/s',
+            parameters: [
+                { parameter_name: 'weld_speed', new_value: nextControls.speed,   unit: 'mm/s' },
+                { parameter_name: 'current',    new_value: nextControls.current, unit: 'A' },
+                { parameter_name: 'voltage',    new_value: nextControls.voltage, unit: 'V' },
+            ],
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'MANUAL_ADJUST intent published', 'Intent Bridge'))
             .catch(() => {});
@@ -1038,7 +1050,13 @@ export function RobinPage() {
 
         setAiRecommendationPlan(null);
         publishRosIntent('REQUEST_AI_RECOMMENDATION', {
-            process_id: processId ?? '', mode: 'geometry_driven',
+            process_id: processId ?? '',
+            mode: 'geometry_driven',
+            parameters: [
+                { parameter_name: 'weld_speed', new_value: nextControls.speed,   unit: 'mm/s' },
+                { parameter_name: 'current',    new_value: nextControls.current, unit: 'A' },
+                { parameter_name: 'voltage',    new_value: nextControls.voltage, unit: 'V' },
+            ],
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'REQUEST_AI_RECOMMENDATION intent published', 'Intent Bridge'))
             .catch(() => {});
@@ -1062,9 +1080,15 @@ export function RobinPage() {
             .catch(() => {});
     };
     const stopRobot = () => {
-        // Temporary mock behavior: Stop currently maps to Abort.
-        // In the future, Stop and Abort will have different semantics.
-        abortRobot();
+        operatorPauseHoldRef.current = false;
+        setRobot((prev) => ({ ...prev, state: 'Idle' as const, taskProgressPct: 0, segmentIndex: 0 }));
+        pushAlert('Warning', `${robot.name} stopped by operator.`, robot.name);
+        if (processId) {
+            stopProcess(processId, 'operator_stop').catch(() => {});
+        }
+        publishRosIntent('STOP_PROCESS', { reason: 'operator_stop' }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'STOP_PROCESS intent published', 'Intent Bridge'))
+            .catch(() => {});
     };
     const toggleParamFreeze = () => {
         setRobot((prev) => ({ ...prev, isParamFrozen: !prev.isParamFrozen }));
