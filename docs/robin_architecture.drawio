@@ -1,206 +1,276 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36" version="29.6.1">
   <diagram id="robin-arch" name="ROBIN Architecture">
-    <mxGraphModel dx="4655" dy="1291" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+    <mxGraphModel dx="1199" dy="817" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="1700" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="R4WVCCm-WOgaxDaEexa--5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;" value="" vertex="1">
+          <mxGeometry height="350" width="1160" x="1310" y="90" as="geometry" />
+        </mxCell>
         <mxCell id="label-fiware" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;fontColor=#0050ef;" value="FIWARE / Context Broker Layer" vertex="1">
-          <mxGeometry height="30" width="320" x="410" y="60" as="geometry" />
+          <mxGeometry height="30" width="320" x="741" y="120" as="geometry" />
         </mxCell>
         <mxCell id="label-storage" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;fontColor=#d6b656;" value="Persistence Layer" vertex="1">
-          <mxGeometry height="25" width="320" x="300" y="545" as="geometry" />
+          <mxGeometry height="25" width="320" x="623" y="545" as="geometry" />
         </mxCell>
         <mxCell id="dashboard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=11;arcSize=10;" value="&lt;b&gt;React Dashboard&lt;/b&gt;&lt;br&gt;nginx · &lt;b&gt;port 5174&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;robin-dashboard&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="220" x="-120" y="60" as="geometry" />
+          <mxGeometry height="70" width="220" x="443" y="80" as="geometry" />
         </mxCell>
         <mxCell id="alertproc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=11;arcSize=10;" value="&lt;b&gt;Alert Processor&lt;/b&gt;&lt;br&gt;FastAPI · &lt;b&gt;port 8001&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;robin-alert-processor&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="220" x="-120" y="220" as="geometry" />
+          <mxGeometry height="70" width="157" x="474.5" y="210" as="geometry" />
         </mxCell>
         <mxCell id="orionld" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0050ef;fontFamily=Helvetica;fontSize=11;arcSize=10;strokeWidth=2;" value="&lt;b&gt;Orion-LD&lt;/b&gt;&lt;br&gt;NGSI-LD broker · &lt;b&gt;port 1026&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;fiware-orion · host network · DDS bridge&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="240" x="430" y="220" as="geometry" />
+          <mxGeometry height="70" width="209" x="830" y="210" as="geometry" />
         </mxCell>
         <mxCell id="mintaka" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0050ef;fontFamily=Helvetica;fontSize=11;arcSize=10;strokeWidth=2;" value="&lt;b&gt;Mintaka&lt;/b&gt;&lt;br&gt;Temporal queries · &lt;b&gt;port 9090&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;fiware-mintaka · fiware-net&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="220" x="110" y="345" as="geometry" />
+          <mxGeometry height="70" width="220" x="443" y="349" as="geometry" />
         </mxCell>
         <mxCell id="mongodb" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;size=10;" value="&lt;b&gt;MongoDB&lt;/b&gt;&lt;br&gt;Entity store · &lt;b&gt;port 27017&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;db-mongo · fiware-net&lt;/font&gt;" vertex="1">
-          <mxGeometry height="80" width="180" x="360" y="345" as="geometry" />
+          <mxGeometry height="80" width="180" x="703" y="345" as="geometry" />
         </mxCell>
         <mxCell id="timescale" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=11;size=10;" value="&lt;b&gt;TimescaleDB / TROE&lt;/b&gt;&lt;br&gt;Time-series store · &lt;b&gt;port 5432&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;fiware-timescaledb · fiware-net&lt;/font&gt;" vertex="1">
-          <mxGeometry height="80" width="200" x="360" y="460" as="geometry" />
+          <mxGeometry height="80" width="200" x="693" y="450" as="geometry" />
         </mxCell>
-        <mxCell id="vulcanexus-container" parent="1" style="swimlane;startSize=30;fillColor=#f0fff0;strokeColor=#82b366;fontStyle=1;fontSize=11;fontColor=#339933;arcSize=4;" value="Vulcanexus Container  (host network · ROS 2 Jazzy · DDS domain 0)" vertex="1">
-          <mxGeometry height="660" width="1150" x="1064" y="50" as="geometry">
+        <mxCell id="vulcanexus-container" parent="1" style="swimlane;startSize=30;fillColor=#f0fff0;strokeColor=#82b366;fontStyle=1;fontSize=11;fontColor=#339933;arcSize=4;" value=" " vertex="1">
+          <mxGeometry height="840" width="1190" x="1300" y="50" as="geometry">
             <mxRectangle height="30" width="380" x="1020" y="60" as="alternateBounds" />
           </mxGeometry>
+        </mxCell>
+        <mxCell id="R4WVCCm-WOgaxDaEexa--9" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;arcSize=2;" value="" vertex="1">
+          <mxGeometry height="340" width="1160" x="10" y="452" as="geometry" />
         </mxCell>
         <mxCell id="httpbridge" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=11;arcSize=10;" value="&lt;b&gt;Welding HTTP Bridge&lt;/b&gt;&lt;br&gt;aiohttp server · &lt;b&gt;port 8766&lt;/b&gt;&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;/health · /intent · /orion-notify&lt;/font&gt;" vertex="1">
           <mxGeometry height="70" width="240" x="30" y="70" as="geometry" />
         </mxCell>
         <mxCell id="intents-topic" parent="vulcanexus-container" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=11;" value="&lt;b&gt;/intents&lt;/b&gt;&lt;br&gt;welding_msgs/msg/Intent&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;ROS 2 DDS topic · QoS RELIABLE&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="240" x="450" y="70" as="geometry" />
-        </mxCell>
-        <mxCell id="supervisor" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=11;arcSize=10;" value="&lt;b&gt;Welding Supervisor&lt;/b&gt;&lt;br&gt;Intent → skill router&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;subscribes /intents&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="220" x="460" y="195" as="geometry" />
+          <mxGeometry height="70" width="240" x="440" y="70" as="geometry" />
         </mxCell>
         <mxCell id="doe-topic" parent="vulcanexus-container" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=11;dashed=1;" value="&lt;b&gt;/doe/launch&lt;/b&gt;&lt;br&gt;std_msgs/String (JSON)&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;DOE GUI trigger topic&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="130" x="30" y="195" as="geometry" />
+          <mxGeometry height="70" width="130" x="1020" y="195" as="geometry" />
         </mxCell>
-        <mxCell id="seam-skill" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Seam Skill&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;welding_seam_skill/execute&lt;/font&gt;" vertex="1">
-          <mxGeometry height="50" width="160" x="180" y="365" as="geometry" />
+        <mxCell id="supervisor" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=11;arcSize=10;" value="&lt;b&gt;Welding Supervisor&lt;/b&gt;&lt;br&gt;Intent → skill router · 6-thread executor&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 10px;&#39;&gt;welding_supervisor · subscribes /intents&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="240" x="440" y="195" as="geometry" />
         </mxCell>
-        <mxCell id="home-skill" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Home Skill&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;welding_home_skill/execute&lt;/font&gt;" vertex="1">
-          <mxGeometry height="50" width="160" x="380" y="365" as="geometry" />
+        <mxCell id="ros4hri-layer-label" parent="vulcanexus-container" style="text;html=1;strokeColor=#82b366;fillColor=#e8f5e9;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontStyle=1;fontSize=10;fontColor=#2e7d32;" value="►  ROS4HRI Intent Layer  ·  welding_msgs action interfaces  ·  Lifecycle nodes (sim / hw modes)" vertex="1">
+          <mxGeometry height="22" width="1160" x="10" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="manual-skill-in" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Manual Skill&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;welding_manual_skill/execute&lt;/font&gt;" vertex="1">
-          <mxGeometry height="50" width="160" x="630" y="365" as="geometry" />
+        <mxCell id="seam-skill" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Seam Skill&lt;/b&gt;&lt;br&gt;welding_seam_skill/execute&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;ExecuteSeam.action&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="170" x="45" y="325" as="geometry" />
         </mxCell>
-        <mxCell id="rec-skill-in" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;AI Rec. Skill&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;welding_recommendation_skill&lt;/font&gt;" vertex="1">
-          <mxGeometry height="50" width="170" x="850" y="365" as="geometry" />
+        <mxCell id="home-skill" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Home Skill&lt;/b&gt;&lt;br&gt;welding_home_skill/execute&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;MoveToHome.action&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="170" x="260" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="rec-skill-in" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;AI Rec. Skill&lt;/b&gt;&lt;br&gt;welding_recommendation_skill/execute&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;RequestAIRecommendation.action&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="200" x="900" y="325" as="geometry" />
         </mxCell>
         <mxCell id="robin-planner" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;RobinPlanner&lt;/b&gt;&lt;br&gt;robin_moveit_control&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/weld_experiment action&lt;br&gt;MoveItPy · Pilz PTP + LIN&lt;/font&gt;" vertex="1">
-          <mxGeometry height="75" width="200" x="160" y="460" as="geometry" />
+          <mxGeometry height="75" width="200" x="30" y="532" as="geometry" />
         </mxCell>
-        <mxCell id="welding-coordinator" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;WeldingCoordinator&lt;/b&gt;&lt;br&gt;robin_hardware_fronius&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/welding/start|stop|set_params&lt;br&gt;arc seq: Fronius + WAGO PLC&lt;/font&gt;" vertex="1">
-          <mxGeometry height="75" width="200" x="470" y="460" as="geometry" />
+        <mxCell id="welding-coordinator" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;WeldingCoordinator&lt;/b&gt;&lt;br&gt;robin_hardware_fronius&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/welding/start|stop|set_params&lt;br&gt;arc sequence: Fronius + WAGO PLC&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="210" x="340" y="532" as="geometry" />
         </mxCell>
-        <mxCell id="ur-driver" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;UR Driver&lt;/b&gt;&lt;br&gt;robin_hardware_ur&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;ur_robot_driver · RTDE&lt;br&gt;ros2_control HW interface&lt;/font&gt;" vertex="1">
-          <mxGeometry height="75" width="200" x="470" y="560" as="geometry" />
+        <mxCell id="opcua-bridge" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;OPC UA Bridge&lt;/b&gt;&lt;br&gt;robin_hardware_opcua (C++)&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/fronius/set_* · /wago/* (write)&lt;br&gt;/fronius/display_* (read, pub)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="220" x="640" y="685" as="geometry" />
         </mxCell>
-        <mxCell id="opcua-bridge" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;OPC UA Bridge&lt;/b&gt;&lt;br&gt;robin_hardware_opcua (C++)&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/fronius/set_* · /wago/*&lt;br&gt;ROS 2 srv → OPC UA write&lt;/font&gt;" vertex="1">
-          <mxGeometry height="75" width="200" x="870" y="460" as="geometry" />
+        <mxCell id="weld-data-node" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;WeldDataNode&lt;/b&gt;&lt;br&gt;robin_core_data&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/robin/data/progression (100 Hz)&lt;br&gt;/robin/data/fronius (100 Hz)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="200" x="340" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="ur-driver" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;UR Driver&lt;/b&gt;&lt;br&gt;robin_hardware_ur&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;ur_robot_driver · RTDE 500 Hz&lt;br&gt;ros2_control HW interface&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="210" x="25" y="685" as="geometry" />
         </mxCell>
         <mxCell id="e-bridge-intents" edge="1" parent="vulcanexus-container" source="httpbridge" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#339933;fontFamily=Helvetica;fontSize=10;" target="intents-topic" value="&lt;b&gt;ROS 2 publish&lt;/b&gt;&lt;br&gt;welding_msgs/msg/Intent&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;QoS: RELIABLE · depth 10&lt;/font&gt;">
-          <mxGeometry relative="1" y="-25" as="geometry">
+          <mxGeometry relative="1" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="e-intents-supervisor" edge="1" parent="vulcanexus-container" source="intents-topic" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#339933;fontFamily=Helvetica;fontSize=10;" target="supervisor" value="&lt;b&gt;ROS 2 subscribe&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;/intents&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.0909" y="50" as="geometry">
+          <mxGeometry relative="1" x="0.09" y="50" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-sup-doe" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#82b366;dashed=1;fontFamily=Helvetica;fontSize=10;" target="doe-topic" value="&lt;b&gt;LAUNCH_NEW_DOE&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;publish std_msgs/String&lt;/font&gt;">
-          <mxGeometry relative="1" x="-0.0425" y="-20" as="geometry">
+        <mxCell id="e-sup-doe" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#82b366;dashed=1;fontFamily=Helvetica;fontSize=10;" target="doe-topic" value="&lt;b&gt;LAUNCH_NEW_DOE&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;publish std_msgs/String&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.0303" as="geometry">
             <mxPoint as="offset" />
-            <Array as="points">
-              <mxPoint x="160" y="230" />
-            </Array>
+            <Array as="points" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-sup-seam" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" target="seam-skill" value="&lt;font style=&#39;font-size: 9px;&#39;&gt;START_PROCESS&lt;/font&gt;">
+        <mxCell id="e-sup-seam" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;" target="seam-skill" value="EXECUTE_SEAM / START_PROCESS">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="570" y="300" />
-              <mxPoint x="260" y="300" />
+              <mxPoint x="560" y="280" />
+              <mxPoint x="135" y="280" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-sup-manual" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;" target="manual-skill-in" value="&lt;font style=&#39;font-size: 9px;&#39;&gt;MANUAL_ADJUST&lt;/font&gt;">
+        <mxCell id="e-sup-home" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="home-skill" value="PAUSE / STOP / ESTOP→HOME">
+          <mxGeometry relative="1" x="0.059" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="560" y="300" />
+              <mxPoint x="345" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-sup-manual" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="manual-skill-in" value="MANUAL_ADJUST / START params">
+          <mxGeometry relative="1" x="0.0727" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="560" y="300" />
+              <mxPoint x="750" y="300" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-sup-rec" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;fontFamily=Helvetica;fontSize=9;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="rec-skill-in" value="REQUEST_AI_RECOMMENDATION">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="570" y="320" />
-              <mxPoint x="710" y="320" />
+              <mxPoint x="560" y="280" />
+              <mxPoint x="1000" y="280" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-seam-planner" edge="1" parent="vulcanexus-container" source="seam-skill" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="robin-planner" value="&lt;b&gt;/weld_experiment&lt;/b&gt;&lt;br&gt;WeldExperiment.action&lt;br&gt;(WeldBead[] + dry_run)">
-          <mxGeometry relative="1" x="0.6092" y="-60" as="geometry">
+        <mxCell id="e-seam-planner" edge="1" parent="vulcanexus-container" source="seam-skill" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="robin-planner" value="&lt;b&gt;/weld_experiment&lt;/b&gt;&lt;br&gt;WeldExperiment.action&lt;br&gt;&lt;i style=&#39;font-size: 9px;&#39;&gt;WeldBead[] + dry_run · skill→hw bridge&lt;/i&gt;">
+          <mxGeometry relative="1" x="-0.625" as="geometry">
             <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="130" y="420" />
+              <mxPoint x="130" y="420" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-home-planner" edge="1" parent="vulcanexus-container" source="home-skill" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;dashed=1;" target="robin-planner" value="&lt;font style=&#39;font-size: 9px;&#39;&gt;/move_home (planned)&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.0005" y="-8" as="geometry">
+        <mxCell id="e-home-planner" edge="1" parent="vulcanexus-container" source="home-skill" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;dashed=1;" target="robin-planner" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;/move_home not yet implemented&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.1111" y="10" as="geometry">
             <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="345" y="430" />
+              <mxPoint x="180" y="430" />
+            </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-manual-coordinator" edge="1" parent="vulcanexus-container" source="manual-skill-in" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="welding-coordinator" value="&lt;b&gt;/fronius/set_*&lt;/b&gt;&lt;br&gt;SetFloat32.srv">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e-manual-opcua" edge="1" parent="vulcanexus-container" source="manual-skill-in" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="opcua-bridge" value="&lt;b&gt;/fronius/set_current|voltage|wire_speed&lt;/b&gt;&lt;br&gt;SetFloat32.srv · direct (bypasses WeldingCoordinator)">
+          <mxGeometry relative="1" x="-0.7256" y="115" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="805" y="375" />
+              <mxPoint x="805" y="703" />
+            </Array>
+          </mxGeometry>
         </mxCell>
         <mxCell id="e-planner-coordinator" edge="1" parent="vulcanexus-container" source="robin-planner" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="welding-coordinator" value="&lt;b&gt;/welding/start|stop&lt;/b&gt;&lt;br&gt;StartWeld.srv / Trigger.srv">
+          <mxGeometry relative="1" x="-0.0909" y="18" as="geometry">
+            <mxPoint y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-planner-urdriver" edge="1" parent="vulcanexus-container" source="robin-planner" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="ur-driver" value="&lt;b&gt;MoveIt JointTrajectory&lt;/b&gt;&lt;br&gt;ros2_control · Pilz PTP + LIN&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;max 0.25 m/s Cartesian&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.1026" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-planner-datanod" edge="1" parent="vulcanexus-container" source="robin-planner" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=1;fontFamily=Helvetica;fontSize=9;" target="weld-data-node" value="&lt;font style=&#39;font-size: 9px;&#39;&gt;/robin/data/active_bead&lt;br&gt;/robin/data/is_welding&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.2571" y="70" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="260" y="588" />
+              <mxPoint x="260" y="722" />
+              <mxPoint x="340" y="722" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-coordinator-opcua" edge="1" parent="vulcanexus-container" source="manual-skill-in" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="opcua-bridge" value="&lt;b&gt;/fronius/set_current|voltage|wire_speed&lt;/b&gt;&lt;br&gt;/wago/gas_on|robot_ready|welding_start&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;SetFloat32.srv · SetBool.srv&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.7256" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="695" y="400" />
+              <mxPoint x="695" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e-opcua-datanod" edge="1" parent="vulcanexus-container" source="opcua-bridge" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=1;dashed=1;fontFamily=Helvetica;fontSize=9;" target="weld-data-node" value="&lt;font style=&#39;font-size: 9px;&#39;&gt;/fronius/display_current|voltage|wfs|power&lt;br&gt;std_msgs/Float32 (Fronius readings)&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.0373" y="-61" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="590" y="723" />
+              <mxPoint x="540" y="723" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="R4WVCCm-WOgaxDaEexa--1" edge="1" parent="vulcanexus-container" source="welding-coordinator" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="manual-skill-in" value="">
+          <mxGeometry relative="1" x="-0.06" y="30" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="445" y="430" />
+              <mxPoint x="530" y="430" />
+              <mxPoint x="530" y="350" />
+            </Array>
+            <mxPoint x="1755" y="528" as="sourcePoint" />
+            <mxPoint x="2300" y="528" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="manual-skill-in" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Manual Skill&lt;/b&gt;&lt;br&gt;welding_manual_skill/execute&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;ManualAdjust.action&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="220" x="640" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="garmo-node" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;Garmo Sensor Driver&lt;/b&gt;&lt;br&gt;robin_hardware_garmo&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/profilometer_activate srv&lt;br&gt;publishes /robin/pointcloud (42 fps)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="200" x="950" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="weld-profile-proc" parent="vulcanexus-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontFamily=Helvetica;fontSize=10;arcSize=10;strokeWidth=2;" value="&lt;b&gt;WeldProfileProcessor&lt;/b&gt;&lt;br&gt;robin_core_sensor&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;/robin/pointcloud → RANSAC + DBSCAN&lt;br&gt;→ /robin/weld_dimensions [w, h mm]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="200" x="950" y="532" as="geometry" />
+        </mxCell>
+        <mxCell id="e-garmo-profproc" edge="1" parent="vulcanexus-container" source="garmo-node" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#82b366;strokeWidth=1;fontFamily=Helvetica;fontSize=9;" target="weld-profile-proc" value="&lt;b&gt;/robin/pointcloud&lt;/b&gt;&lt;br&gt;sensor_msgs/PointCloud2 · 42 fps">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-planner-urdriver" edge="1" parent="vulcanexus-container" source="robin-planner" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="ur-driver" value="&lt;b&gt;MoveIt JointTrajectory&lt;/b&gt;&lt;br&gt;ros2_control · PTP + LIN&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;max 0.25 m/s Cartesian&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.0843" y="20" as="geometry">
-            <mxPoint as="offset" />
-            <Array as="points">
-              <mxPoint x="260" y="598" />
-              <mxPoint x="450" y="598" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="e-coordinator-opcua" edge="1" parent="vulcanexus-container" source="welding-coordinator" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#338a3e;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="opcua-bridge" value="&lt;b&gt;/fronius/set_current|voltage|wire_speed&lt;/b&gt;&lt;br&gt;/wago/gas_on|robot_ready|welding_start&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;SetFloat32.srv · Trigger.srv&lt;/font&gt;">
-          <mxGeometry relative="1" x="-0.0645" y="40" as="geometry">
-            <mxPoint as="offset" />
-            <Array as="points">
-              <mxPoint x="800" y="498" />
-              <mxPoint x="800" y="498" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="skills-label" parent="vulcanexus-container" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;" value="&lt;b&gt;ROS 2 Action Servers&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39; color=&#39;#6c6c6c&#39;&gt;send_goal_async / cancel_goal_async&lt;/font&gt;" vertex="1">
-          <mxGeometry height="30" width="220" x="650" y="215" as="geometry" />
-        </mxCell>
-        <mxCell id="Hql-YifVf4DE41BLZf9O-2" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="rec-skill-in" value="&lt;font style=&#39;font-size: 9px;&#39;&gt;MANUAL_ADJUST&lt;/font&gt;">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="570" y="300" />
-              <mxPoint x="935" y="300" />
-            </Array>
-            <mxPoint x="770" y="320" as="sourcePoint" />
-            <mxPoint x="910" y="420" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="Hql-YifVf4DE41BLZf9O-3" edge="1" parent="vulcanexus-container" source="supervisor" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;endFill=1;strokeColor=#82b366;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="home-skill" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;STOP_PROCESS&lt;/font&gt;">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="570" y="320" />
-              <mxPoint x="460" y="320" />
-            </Array>
-            <mxPoint x="860" y="330" as="sourcePoint" />
-            <mxPoint x="550" y="430" as="targetPoint" />
-          </mxGeometry>
+        <mxCell id="robin-hw-layer-label" parent="vulcanexus-container" style="text;html=1;strokeColor=#338a3e;fillColor=#c8e6c9;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontStyle=1;fontSize=10;fontColor=#1b5e20;" value="►  ROBIN Hardware Layer  ·  robin_interfaces actions + ROS services  ·  Launched by robin_core_bringup" vertex="1">
+          <mxGeometry height="22" width="1160" x="10" y="452" as="geometry" />
         </mxCell>
         <mxCell id="hw-container" parent="1" style="swimlane;startSize=30;fillColor=#ffeded;strokeColor=#b85450;fontStyle=1;fontSize=11;fontColor=#b85450;arcSize=4;" value="Physical Hardware  (Ethernet · field network)" vertex="1">
-          <mxGeometry height="160" width="900" x="1314" y="813" as="geometry" />
+          <mxGeometry height="160" width="1190" x="1300" y="898" as="geometry">
+            <mxRectangle height="30" width="260" x="1260" y="882" as="alternateBounds" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="ur10e" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;UR10e Robot&lt;/b&gt;&lt;br&gt;Universal Robots&lt;br&gt;&lt;font color=&quot;#6c6c6c&quot; style=&quot;font-size: 9px;&quot;&gt;RTDE · 500 Hz&lt;/font&gt;" vertex="1">
+        <mxCell id="ur10e" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;flipH=1;legacyAnchorPoints=0;" value="&lt;b&gt;UR10e Robot&lt;/b&gt;&lt;br&gt;Universal Robots&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;RTDE · 500 Hz&lt;/font&gt;" vertex="1">
           <mxGeometry height="90" width="180" x="40" y="45" as="geometry" />
         </mxCell>
-        <mxCell id="fronius-hw" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;Fronius CMT Welder&lt;/b&gt;&lt;br&gt;Welding torch + power source&lt;br&gt;&lt;font color=&quot;#6c6c6c&quot; style=&quot;font-size: 9px;&quot;&gt;OPC UA server&lt;/font&gt;" vertex="1">
-          <mxGeometry height="90" width="200" x="620" y="45" as="geometry" />
-        </mxCell>
-        <mxCell id="wago-hw" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;" value="&lt;b&gt;WAGO PLC&lt;/b&gt;&lt;br&gt;Gas valve · arc relay&lt;br&gt;&lt;font color=&quot;#6c6c6c&quot; style=&quot;font-size: 9px;&quot;&gt;OPC UA server&lt;/font&gt;" vertex="1">
+        <mxCell id="wago-hw" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;flipH=1;legacyAnchorPoints=0;" value="&lt;b&gt;WAGO PLC&lt;/b&gt;&lt;br&gt;Gas valve · arc relay&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;OPC UA server&lt;/font&gt;" vertex="1">
           <mxGeometry height="90" width="180" x="370" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="fronius-hw" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;flipH=1;legacyAnchorPoints=0;" value="&lt;b&gt;Fronius CMT Welder&lt;/b&gt;&lt;br&gt;Welding torch + power source&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;OPC UA server&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="706" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="garmo-hw" parent="hw-container" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Helvetica;fontSize=10;arcSize=10;flipH=1;legacyAnchorPoints=0;" value="&lt;b&gt;Garmo Profilometer&lt;/b&gt;&lt;br&gt;3D laser line sensor&lt;br&gt;&lt;font color=&#39;#6c6c6c&#39; style=&#39;font-size: 9px;&#39;&gt;TCP/IP · cmd:5020 · data:66&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="950" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="bringup-note" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontFamily=Helvetica;fontSize=10;align=left;arcSize=4;" value="&lt;b&gt;robin_core_bringup  launch hierarchy:&lt;/b&gt;&lt;br&gt;1. robin_hardware_ur  →  UR driver + ros2_control&lt;br&gt;2. robin_moveit_control  →  RobinPlanner (MoveItPy)&lt;br&gt;3. robin_hardware_garmo  →  Garmo sensor [delayed]&lt;br&gt;4. robin_core_sensor  →  WeldProfileProcessor&lt;br&gt;5. robin_hardware_opcua  →  OPC UA bridge (C++)&lt;br&gt;6. robin_hardware_fronius  →  WeldingCoordinator&lt;br&gt;7. robin_core_data  →  WeldDataNode (100 Hz)" vertex="1">
+          <mxGeometry height="130" width="310" x="971" y="745" as="geometry" />
         </mxCell>
         <mxCell id="e-dash-alertproc" edge="1" parent="1" source="dashboard" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#9673a6;fontFamily=Helvetica;fontSize=10;" target="alertproc" value="&lt;b&gt;HTTP REST&lt;/b&gt;&lt;br&gt;GET/POST · port 8001&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;/intent · /process/* · /health · /ai/*&lt;/font&gt;">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-alertproc-orion" edge="1" parent="1" source="alertproc" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=10;" target="orionld" value="&lt;b&gt;NGSI-LD REST&lt;/b&gt;&lt;br&gt;POST/PATCH/GET · port 1026&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;/ngsi-ld/v1/entities · /attrs&lt;br&gt;Process · Measurement · Alert · AIRec&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.0303" y="-25" as="geometry">
+          <mxGeometry relative="1" x="-0.0076" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-alertproc-mintaka" edge="1" parent="1" source="alertproc" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=10;" target="mintaka" value="&lt;b&gt;HTTP REST&lt;/b&gt;&lt;br&gt;GET · port 9090&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;/temporal/entities/{id}&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.3332" as="geometry">
+        <mxCell id="e-alertproc-mintaka" edge="1" parent="1" source="alertproc" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#6c8ebf;fontFamily=Helvetica;fontSize=10;" target="mintaka" value="&lt;b&gt;HTTP REST&lt;/b&gt;&lt;br&gt;GET · port 9090&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;/temporal/entities/{id}&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.0325" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="-10" y="380" />
+              <mxPoint x="552" y="320" />
+              <mxPoint x="553" y="345" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-alertproc-timescale" edge="1" parent="1" source="alertproc" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=55;endArrow=block;endFill=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;dashed=1;entryPerimeter=0;" target="timescale" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&lt;br&gt;psycopg2 · port 5432&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;DDS telemetry queries&lt;/font&gt;">
-          <mxGeometry relative="1" x="-0.6071" as="geometry">
+        <mxCell id="e-alertproc-timescale" edge="1" parent="1" source="alertproc" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=55;endArrow=block;endFill=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;dashed=1;entryPerimeter=0;" target="timescale" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&lt;br&gt;psycopg2 · port 5432&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;DDS telemetry queries&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.7321" y="-25" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="-65" y="515" />
+              <mxPoint x="420" y="255" />
+              <mxPoint x="420" y="505" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e-orion-mongo" edge="1" parent="1" source="orionld" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;entryPerimeter=0;" target="mongodb" value="&lt;b&gt;MongoDB wire&lt;/b&gt;&lt;br&gt;port 27017&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;entity read / write&lt;/font&gt;">
-          <mxGeometry relative="1" x="-0.4286" as="geometry">
+          <mxGeometry relative="1" x="-0.43" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="550" y="385" />
+              <mxPoint x="934" y="385" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -208,89 +278,104 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e-mintaka-timescale" edge="1" parent="1" source="mintaka" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=25;endArrow=block;endFill=1;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;entryPerimeter=0;" target="timescale" value="&lt;b&gt;JDBC PostgreSQL&lt;/b&gt;&lt;br&gt;port 5432&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;temporal reads&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.2067" as="geometry">
+          <mxGeometry relative="1" x="0.27" y="25" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-orion-bridge-notify" edge="1" parent="1" source="orionld" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#0050ef;strokeWidth=2;fontFamily=Helvetica;fontSize=10;" target="httpbridge" value="&lt;b&gt;NGSI-LD subscription&lt;/b&gt;&lt;br&gt;POST /orion-notify · port 8766&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;watchedAttributes: pendingIntent&lt;br&gt;format: normalized&lt;/font&gt;">
-          <mxGeometry relative="1" x="-0.4657" y="35" as="geometry">
+        <mxCell id="e-orion-bridge-notify" edge="1" parent="1" source="orionld" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#0050ef;strokeWidth=2;fontFamily=Helvetica;fontSize=10;" target="httpbridge" value="&lt;b&gt;NGSI-LD subscription&lt;/b&gt;&lt;br&gt;POST /orion-notify · port 8766&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;watchedAttributes: pendingIntent&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.47" y="35" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="960" y="255" />
-              <mxPoint x="960" y="155" />
+              <mxPoint x="1039" y="230" />
+              <mxPoint x="1260" y="230" />
+              <mxPoint x="1260" y="155" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e-dds-orion" edge="1" parent="1" source="vulcanexus-container" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;endArrow=block;endFill=1;startArrow=none;strokeColor=#339933;strokeWidth=2;fontFamily=Helvetica;fontSize=10;" target="orionld" value="&lt;b&gt;ROS 2 DDS Domain 0&lt;/b&gt;&lt;br&gt;rt/robin/telemetry → processTelemetry&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;config-dds.json · urn:robin:Process&lt;br&gt;Orion DDS bridge (internal)&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.4416" y="37" as="geometry">
+          <mxGeometry relative="1" x="0.5253" y="38" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="960" y="380" />
-              <mxPoint x="960" y="273" />
+              <mxPoint x="1260" y="470" />
+              <mxPoint x="1260" y="263" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-opcua-fronius" edge="1" parent="1" source="opcua-bridge" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="fronius-hw" value="&lt;b&gt;OPC UA&lt;/b&gt;&lt;br&gt;set current/voltage/wire_speed">
-          <mxGeometry relative="1" x="0.2083" y="70" as="geometry">
+        <mxCell id="e-opcua-fronius" edge="1" parent="1" source="opcua-bridge" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="fronius-hw" value="&lt;b&gt;OPC UA&lt;/b&gt;&lt;br&gt;set current / voltage / wire_speed">
+          <mxGeometry relative="1" x="-0.1045" y="1" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="2034" y="825" />
+              <mxPoint x="2105" y="880" />
+              <mxPoint x="2106" y="880" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e-opcua-wago" edge="1" parent="1" source="opcua-bridge" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="wago-hw" value="&lt;b&gt;OPC UA&lt;/b&gt;&lt;br&gt;gas_on · robot_ready · welding_start">
-          <mxGeometry relative="1" x="0.0973" as="geometry">
+          <mxGeometry relative="1" x="-0.109" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1984" y="760" />
-              <mxPoint x="1774" y="760" />
+              <mxPoint x="1995" y="860" />
+              <mxPoint x="1760" y="860" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-urdriver-ur10e" edge="1" parent="1" source="ur-driver" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="ur10e" value="&lt;b&gt;UR RTDE&lt;/b&gt;&lt;br&gt;joint positions + velocities&lt;br&gt;&lt;font style=&quot;font-size: 9px;&quot;&gt;500 Hz&lt;/font&gt;">
-          <mxGeometry relative="1" x="0.0115" as="geometry">
+        <mxCell id="e-urdriver-ur10e" edge="1" parent="1" source="ur-driver" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=2;fontFamily=Helvetica;fontSize=9;" target="ur10e" value="&lt;b&gt;UR RTDE&lt;/b&gt;&lt;br&gt;joint positions + velocities&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;500 Hz&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.2619" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1634" y="760" />
-              <mxPoint x="1444" y="760" />
+              <mxPoint x="1430" y="900" />
+              <mxPoint x="1430" y="900" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="intent-flow-label" parent="1" style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;perimeter=calloutPerimeter;size=15;position=0.5;arcSize=50;" value="&lt;b&gt;Intent delivery path:&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;Dashboard → POST /intent → Alert Processor&lt;br&gt;→ PATCH pendingIntent → Orion-LD&lt;br&gt;→ subscription notify → HTTP Bridge :8766&lt;br&gt;→ publish /intents (DDS) → Supervisor&lt;br&gt;→ skill action servers&lt;/font&gt;" vertex="1">
-          <mxGeometry height="110" width="260" x="774" y="526" as="geometry" />
+        <mxCell id="e-garmonode-garmohw" edge="1" parent="1" source="garmo-node" style="edgeStyle=orthogonalEdgeStyle;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;endArrow=block;endFill=1;strokeColor=#b85450;strokeWidth=2;fontFamily=Helvetica;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="garmo-hw" value="&lt;b&gt;TCP/IP&lt;/b&gt;&lt;br&gt;cmd port 5020 · data port 66&lt;br&gt;&lt;font style=&#39;font-size: 9px;&#39;&gt;42 fps point cloud stream&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.2619" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points" />
+            <mxPoint x="2350" y="755" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="intent-flow-label" parent="1" style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;perimeter=calloutPerimeter;size=15;position=0.5;arcSize=50;" value="&lt;b&gt;Intent delivery path:&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;Dashboard → POST /intent → Alert Processor&lt;br&gt;→ PATCH pendingIntent → Orion-LD&lt;br&gt;→ subscription notify → HTTP Bridge :8766&lt;br&gt;→ publish /intents (DDS) → Supervisor&lt;br&gt;→ skill action servers (send_goal_async)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="110" width="260" x="971" y="625" as="geometry" />
         </mxCell>
         <mxCell id="telemetry-flow-label" parent="1" style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;perimeter=calloutPerimeter;size=15;position=0.5;arcSize=50;" value="&lt;b&gt;Telemetry ingestion path:&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;ROS 2 welding nodes publish&lt;br&gt;rt/robin/telemetry (DDS domain 0)&lt;br&gt;→ Orion DDS bridge → processTelemetry&lt;br&gt;→ TimescaleDB (TROE) stores history&lt;br&gt;← Mintaka serves temporal queries&lt;/font&gt;" vertex="1">
-          <mxGeometry height="120" width="260" x="774" y="400" as="geometry" />
+          <mxGeometry height="120" width="260" x="681" y="620" as="geometry" />
         </mxCell>
-        <mxCell id="hw-flow-label" parent="1" style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;perimeter=calloutPerimeter;size=15;position=0.5;arcSize=50;" value="&lt;b&gt;Hardware execution path:&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;Seam Skill → /weld_experiment →&lt;br&gt;RobinPlanner (MoveItPy PTP+LIN)&lt;br&gt;→ UR RTDE → UR10e robot motion&lt;br&gt;→ /welding/start → WeldingCoordinator&lt;br&gt;→ /fronius/* + /wago/* → OPC UA Bridge&lt;br&gt;→ Fronius CMT arc + WAGO gas/arc relay&lt;/font&gt;" vertex="1">
-          <mxGeometry height="140" width="280" x="764" y="644.5" as="geometry" />
+        <mxCell id="hw-flow-label" parent="1" style="shape=callout;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=10;perimeter=calloutPerimeter;size=15;position=0.5;arcSize=50;" value="&lt;b&gt;Hardware execution path:&lt;/b&gt;&lt;br&gt;&lt;font style=&#39;font-size: 10px;&#39;&gt;SeamSkill → /weld_experiment →&lt;br&gt;RobinPlanner (MoveItPy PTP+LIN)&lt;br&gt;→ UR RTDE → UR10e robot motion&lt;br&gt;→ /welding/start → WeldingCoordinator&lt;br&gt;→ /fronius/* + /wago/* → OPC UA Bridge&lt;br&gt;→ Fronius CMT arc + WAGO gas/arc relay&lt;br&gt;&lt;br&gt;Sensor path: Garmo → /robin/pointcloud&lt;br&gt;→ WeldProfileProc → /robin/weld_dimensions&lt;/font&gt;" vertex="1">
+          <mxGeometry height="155" width="280" x="671" y="745" as="geometry" />
         </mxCell>
         <mxCell id="legend-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=4;" value="" vertex="1">
-          <mxGeometry height="270" width="230" x="-125" y="535" as="geometry" />
+          <mxGeometry height="300" width="230" x="400" y="600" as="geometry" />
         </mxCell>
         <mxCell id="legend-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=12;" value="&lt;b&gt;Legend&lt;/b&gt;" vertex="1">
-          <mxGeometry height="20" width="230" x="-125" y="540" as="geometry" />
+          <mxGeometry height="20" width="230" x="400" y="605" as="geometry" />
         </mxCell>
         <mxCell id="legend-dashboard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" value="React Dashboard (SPA)" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="570" as="geometry" />
+          <mxGeometry height="25" width="200" x="415" y="635" as="geometry" />
         </mxCell>
         <mxCell id="legend-api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" value="API / FIWARE service" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="603" as="geometry" />
+          <mxGeometry height="25" width="200" x="415" y="668" as="geometry" />
         </mxCell>
         <mxCell id="legend-fiware" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#0050ef;fontSize=10;strokeWidth=2;" value="FIWARE broker (NGSI-LD)" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="636" as="geometry" />
+          <mxGeometry height="25" width="200" x="415" y="701" as="geometry" />
         </mxCell>
         <mxCell id="legend-storage" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontSize=10;" value="Persistence / Storage" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="669" as="geometry" />
+          <mxGeometry height="25" width="200" x="415" y="734" as="geometry" />
         </mxCell>
-        <mxCell id="legend-ros2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="ROS 2 component (DDS)" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="702" as="geometry" />
+        <mxCell id="legend-ros2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="ROS 2 · ROS4HRI skill / bridge" vertex="1">
+          <mxGeometry height="25" width="200" x="415" y="767" as="geometry" />
         </mxCell>
-        <mxCell id="legend-ros2-hw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontSize=10;strokeWidth=2;" value="ROS 2 hardware driver" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="735" as="geometry" />
+        <mxCell id="legend-ros2-hw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#338a3e;fontSize=10;strokeWidth=2;" value="ROS 2 hardware driver (ROBIN)" vertex="1">
+          <mxGeometry height="25" width="200" x="415" y="800" as="geometry" />
         </mxCell>
         <mxCell id="legend-hw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" value="Physical hardware (field)" vertex="1">
-          <mxGeometry height="25" width="200" x="-110" y="768" as="geometry" />
+          <mxGeometry height="25" width="200" x="415" y="833" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-gap" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" value="⚠ Architecture gap / stub" vertex="1">
+          <mxGeometry height="25" width="200" x="415" y="866" as="geometry" />
+        </mxCell>
+        <mxCell id="gap-weld-dimensions" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontFamily=Helvetica;fontSize=9;arcSize=10;" value="&lt;b&gt;⚠ Architecture gap:&lt;/b&gt;&lt;br&gt;/robin/weld_dimensions&lt;br&gt;not yet consumed by any skill.&lt;br&gt;Candidate: SeamSkill HW mode&lt;br&gt;for closed-loop height control." vertex="1">
+          <mxGeometry height="80" width="200" x="1020" y="517.5" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
