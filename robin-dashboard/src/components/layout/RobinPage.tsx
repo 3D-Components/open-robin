@@ -9,7 +9,6 @@ import { RobotsTab } from '../features/robots/RobotsTab';
 import { ModelsTrustTab } from '../features/models/ModelsTrustTab';
 import { HistoryTab } from '../features/history/HistoryTab';
 import { SettingsTab } from '../features/settings/SettingsTab';
-import { useViserBridge } from '../../hooks/useViserBridge';
 import {
     useMeasurements,
     useHealth,
@@ -31,9 +30,6 @@ import type {
     RobotCell,
     ProcessRun,
     TrustAssessment,
-    VizMode,
-    CameraView,
-    LayerVisibility,
     MetricType,
     ConnStatus,
     MeasurementPoint,
@@ -301,8 +297,6 @@ export function RobinPage() {
 
     const [robot, setRobot] = useState<RobotCell>(initialRobot);
     const [currentRun, _setCurrentRun] = useState<ProcessRun | null>(null);
-
-    useViserBridge(robot);
 
     const [alerts, setAlerts] = useState<Alert[]>([
         { id: 'alert-001', at: nowIso(), severity: 'Info', message: 'ROBIN UI started. Waiting for live data…', source: 'System' },
@@ -621,17 +615,7 @@ export function RobinPage() {
 
     const [trustFeed, setTrustFeed] = useState<TrustAssessment[]>([]);
 
-    const [vizMode] = useState<VizMode>('execution');
-    const [layers, setLayers] = useState<LayerVisibility>({
-        robotModel: true,
-        torchPath: true,
-        workpiece: true,
-        profileSegments: true,
-        frames: false,
-    });
-    const [camera, setCamera] = useState<CameraView>('Isometric');
     const [timelineT, setTimelineT] = useState(0);
-    const [replay, setReplay] = useState(false);
 
     const [telemetry, setTelemetry] = useState<MeasurementPoint[]>([]);
     const [metric, setMetric] = useState<MetricType>('speed');
@@ -1162,15 +1146,7 @@ export function RobinPage() {
                             toggleParamFreeze={toggleParamFreeze}
                             currentRun={currentRun}
                             alerts={alerts}
-                            vizMode={vizMode}
-                            layers={layers}
-                            setLayers={setLayers}
-                            camera={camera}
-                            setCamera={setCamera}
                             timelineT={timelineT}
-                            setTimelineT={setTimelineT}
-                            replay={replay}
-                            setReplay={setReplay}
                             telemetryChartData={telemetryChartData}
                             metric={metric}
                             setMetric={setMetric}
@@ -1246,8 +1222,6 @@ export function RobinPage() {
                             setTrustStopTh={setTrustStopTh}
                             freezeCharts={freezeCharts}
                             setFreezeCharts={setFreezeCharts}
-                            replay={replay}
-                            setReplay={setReplay}
                         />
                     )}
                 </main>

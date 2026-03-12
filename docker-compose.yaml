@@ -69,8 +69,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
       # Mount workspace packages into the expected container path
       - ./vulcanexus_ws/src:/workspace/ros2_packages/src
-      # Mount this repo's ros2_packages for testing inside container
-      - ./ros2_packages:/workspace/repo_ros2/ros2_packages
       # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
       - /home/virgilio/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
     # Keep the container alive so we can exec into it
@@ -170,7 +168,7 @@ services:
       - "orion-ld:host-gateway"          # Orion runs in host mode, map hostname for alert-processor
     stop_grace_period: 5s  # Give uvicorn 5 seconds to shut down gracefully before SIGKILL
 
-  # Module 2b: Lichtblick 3D viewer (connects to foxglove-bridge on host at ws://localhost:8765)
+  # Module 2b: 3D Visualization (Lichtblick — connects to foxglove-bridge on host at ws://localhost:8765)
   lichtblick:
     image: ghcr.io/lichtblick-suite/lichtblick:latest
     container_name: lichtblick
@@ -179,17 +177,6 @@ services:
     restart: unless-stopped
     networks:
       - fiware-net
-
-  # Module 3: 3D Visualization (Viser)
-  robin-viser:
-    build:
-      context: .
-      dockerfile: robin-ui/services/Dockerfile
-    container_name: robin-viser
-    ports:
-      - "8081:8081"   # Viser 3D viewer
-      - "8082:8082"   # WebSocket bridge for dashboard
-    restart: unless-stopped
 
   # Module 2: Monitoring Dashboard
   robin-dashboard:

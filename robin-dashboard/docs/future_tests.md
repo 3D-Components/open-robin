@@ -107,43 +107,12 @@ integration) and listed roughly in priority order within each group.
 
 ---
 
-## 3. Viser 3D Server (`robin-ui/services/viser_server.py`)
+## 3. Lichtblick 3D Visualization
 
-### 3.1 Scene Loading
-
-| ID | Test | What to verify |
-|----|------|----------------|
-| VIS-01 | URDF loading (UR5, UR3) | Both robots loaded without errors; correct number of mesh nodes |
-| VIS-02 | Workpiece STL loading | Mesh added to scene |
-| VIS-03 | Missing mesh file | Warning logged, robot still partially loads (graceful skip) |
-| VIS-04 | Missing URDF file | `FileNotFoundError` or Viser error (expected - should be caught) |
-
-### 3.2 WebSocket Bridge
-
-| ID | Test | What to verify |
-|----|------|----------------|
-| VIS-05 | Valid JSON message | `latest_state` updated for both robots |
-| VIS-06 | Invalid JSON | Ignored silently (no crash) |
-| VIS-07 | Partial message (only `robotA`) | `robotA` updated, `robotB` unchanged |
-| VIS-08 | Connection close | Logged, server continues running |
-| VIS-09 | Rapid reconnect | New connection accepted; state updates resume |
-
-### 3.3 Animation Loop
-
-| ID | Test | What to verify |
-|----|------|----------------|
-| VIS-10 | Running state | `anim_time` advances; joint config changes each frame |
-| VIS-11 | Idle state | Joints smoothly return toward `INITIAL_CFG` |
-| VIS-12 | Paused state | Joint config frozen; `anim_time` does not advance |
-| VIS-13 | State transition Running → Idle | Robot returns to home pose over multiple frames |
-| VIS-14 | Different bead indices | `welding_loop_cfg` produces different trajectories for different `bead_index` values |
-| VIS-15 | Different robots | Phase offsets produce distinguishable motion for `robotA` vs `robotB` |
-
-### 3.4 Thread Safety
-
-| ID | Test | What to verify |
-|----|------|----------------|
-| VIS-16 | Concurrent WS write + animation read | No data corruption; lock ensures consistent snapshot |
+Lichtblick is deployed as a separate Docker container (see `docker-compose.yaml`)
+and does not require its own test suite within FAROS. Testing of the Lichtblick
+integration is covered by the iframe embed tests (FE-10) and E2E connectivity
+tests (E2E-02).
 
 ---
 
@@ -155,7 +124,7 @@ integration) and listed roughly in priority order within each group.
 |----|------|----------------|
 | QT-01 | Instantiation without WebEngine | `WEBENGINE_AVAILABLE=False` path: error label shown, no crash |
 | QT-02 | Instantiation with WebEngine | WebView created and loads URL |
-| QT-03 | Process autostart (all ports free) | All three subprocesses launched |
+| QT-03 | Process autostart (all ports free) | Both subprocesses launched (React, MCCP API) |
 | QT-04 | Process skip (ports occupied) | Ports in use → processes not started, info logged |
 | QT-05 | `FAROS_AUTO_START_*=0` | Respective process not started |
 | QT-06 | Cleanup on `closeEvent` | All processes terminated |
@@ -229,7 +198,7 @@ integration) and listed roughly in priority order within each group.
 | FE-07 | Robot abort button | State transitions to `"Idle"`, progress resets |
 | FE-08 | Alert generation | Trust threshold breach creates an alert entry |
 | FE-09 | Telemetry chart rendering | Recharts renders without error; data points appear |
-| FE-10 | Viser iframe load | iframe loads Viser URL; fallback shown on error |
+| FE-10 | Lichtblick iframe load | iframe loads Lichtblick URL; fallback shown on error |
 
 ### 5.3 Inference DevLab Tab
 
@@ -243,16 +212,7 @@ integration) and listed roughly in priority order within each group.
 | FE-16 | Run prediction - server error | Error chip with detail shown |
 | FE-17 | Loading state during prediction | Loading indicator visible while request in-flight |
 
-### 5.4 WebSocket Bridge
-
-| ID | Test | What to verify |
-|----|------|----------------|
-| FE-18 | Connection established | WebSocket opens to `ws://localhost:8082` |
-| FE-19 | Throttling | Messages sent at most every 200 ms |
-| FE-20 | Auto-reconnect | After disconnect, reconnects within ~2 s |
-| FE-21 | Message format | Payload matches `{ robotA: {...}, robotB: {...} }` schema |
-
-### 5.5 Models & Trust
+### 5.4 Models & Trust
 
 | ID | Test | What to verify |
 |----|------|----------------|
@@ -281,15 +241,15 @@ integration) and listed roughly in priority order within each group.
 
 | ID | Test | What to verify |
 |----|------|----------------|
-| E2E-01 | Full startup sequence | Qt app → spawns all 3 services → React loads in WebView |
-| E2E-02 | Robot start → Viser animation | Click start in React → WS message → Viser robot moves |
+| E2E-01 | Full startup sequence | Qt app → spawns 2 services (React, MCCP API) → React loads in WebView |
+| E2E-02 | Robot start → Lichtblick view | Click start in React → robot state updates; Lichtblick shows live data via foxglove-bridge |
 | E2E-03 | Inference round-trip | DevLab tab → POST /predict → MCCP engine → results in UI |
 | E2E-04 | Config change → prediction | Change workspace via /config → next predict uses new workspace |
-| E2E-05 | Graceful shutdown | Close main window → all 3 processes terminated cleanly |
-| E2E-06 | Service already running externally | Start Viser manually → open FAROS page → skips autostart, connects to existing |
+| E2E-05 | Graceful shutdown | Close main window → both processes terminated cleanly |
+| E2E-06 | Service already running externally | Start React manually → open FAROS page → skips autostart, connects to existing |
 | E2E-07 | Model hot-reload | Replace `.h5` on disk while server running → next predict loads new model |
 | E2E-08 | Network failure (MCCP API down) | React DevLab tab shows error; app does not crash |
-| E2E-09 | Network failure (Viser down) | ViserViewer shows connection error with retry; WebSocket reconnects |
+| E2E-09 | Network failure (Lichtblick down) | iframe shows connection error; app does not crash |
 
 ---
 
@@ -301,7 +261,6 @@ integration) and listed roughly in priority order within each group.
 |-------|-----------|-------|
 | Python inference | `pytest` | Unit tests with mocked TF model; fixture for sample `.h5` + `.pkl` |
 | Python HTTP API | `pytest` + `urllib` / `httpx` | Start server in fixture, hit endpoints |
-| Python Viser | `pytest` + `websockets` | Connect WS client, send messages, verify state |
 | Qt integration | `pytest-qt` | `QT_QPA_PLATFORM=offscreen`; mock subprocesses |
 | React components | Vitest + React Testing Library | Unit/component tests |
 | React E2E | Playwright or Cypress | Full browser tests against running dev server |
@@ -313,8 +272,7 @@ integration) and listed roughly in priority order within each group.
 2. **MCCP DevLab API** (API-*) - the HTTP contract the frontend depends on
 3. **Qt process management** (QT-01 through QT-10) - reliability of the desktop app
 4. **Frontend Inference DevLab** (FE-11 through FE-17) - the real-data integration point
-5. **Viser server** (VIS-*) - 3D visualisation correctness
-6. **Remaining frontend** (FE-*) - UI correctness
+5. **Remaining frontend** (FE-*) - UI correctness
 7. **End-to-end** (E2E-*) - full stack validation
 
 ### Test Data

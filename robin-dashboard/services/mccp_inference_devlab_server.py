@@ -23,8 +23,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-# Ensure the robin-ui package root is on sys.path so inference is importable.
-_PACKAGE_ROOT = Path(__file__).resolve().parents[1]  # .../robin-ui/services -> .../robin-ui
+# Ensure the robin-dashboard root is on sys.path so inference is importable.
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]  # .../robin-dashboard/services -> .../robin-dashboard
 if str(_PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(_PACKAGE_ROOT))
 

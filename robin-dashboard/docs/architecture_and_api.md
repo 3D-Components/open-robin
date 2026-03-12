@@ -15,22 +15,25 @@ frontend inside a `QWebEngineView`.
 │   ├── QWebEngineView  ──→  React App  (localhost:5174)       │
 │   ├── InferenceService  (in-process model cache)             │
 │   │   └── LocalFilesystemProvider                            │
-│   └── Subprocess Manager  ──→  spawns 3 child processes      │
+│   └── Subprocess Manager  ──→  spawns 2 child processes      │
 └───────────────┬──────────────────────────────────────────────┘
                 │
-     ┌──────────┼───────────────────┐
-     ▼          ▼                   ▼
-  React App   Viser Server       MCCP DevLab API
-  :5174       :8081 / :8082      :8091
-  (Vite)      (HTTP + WS)       (HTTP)
+     ┌──────────┴───────────────────┐
+     ▼                              ▼
+  React App                    MCCP DevLab API
+  :5174                        :8091
+  (Vite)                       (HTTP)
 ```
+
+3D visualization is provided by **Lichtblick** (deployed separately via Docker,
+see `docker-compose.yaml`). The dashboard embeds it via iframe at the configured
+`VITE_LICHTBLICK_URL`.
 
 ### Service Inventory
 
 | Service | Technology | Default Ports | Source |
 |---------|-----------|--------------|--------|
 | React Frontend | React 19, Vite 7, TypeScript, Tailwind CSS 4 | 5174 | `robin-ui/frontend/` |
-| Viser 3D Server | Python, Viser, WebSockets, Trimesh, YourDFPy | 8081 (HTTP), 8082 (WS) | `robin-ui/services/viser_server.py` |
 | MCCP DevLab API | Python, ThreadingHTTPServer, TensorFlow/Keras | 8091 | `robin-ui/services/mccp_inference_devlab_server.py` |
 | Qt Integration | PySide6, QWebEngineView | - | `src/gui/faros_page/` |
 
@@ -71,8 +74,7 @@ library is used.
 | Trust | `trustFeed`, `latestTrustA/B`, thresholds | Simulated interval (1 s) |
 | Telemetry | `telemetry[]`, `metric`, `showRobot` | Simulated interval (1 s) |
 | Alerts | `alerts[]` | Trust threshold breach events |
-| Connections | `connections` (ros, viser, mccp, mlops) | Random drift (~3 % / tick) |
-| Visualisation | `vizMode`, `layers`, `camera`, `timelineT` | User interaction |
+| Connections | `connections` (ros, mccp, mlops) | Random drift (~3 % / tick) |
 | Model routing | `routing` (PA/PC model assignments) | User selection |
 | Settings | `darkMode`, `sessionMode`, `freezeCharts` | User toggles |
 
@@ -84,9 +86,9 @@ library is used.
 ### 1.3 Tabs at a Glance
 
 **Live Ops** - Primary operator cockpit. Left panel: robot control cards
-(start / pause / resume / abort) and alerts feed. Centre: Viser 3D viewer
-embedded via iframe. Right: real-time telemetry charts (Recharts) and trust
-assessment panel.
+(start / pause / resume / abort) and alerts feed. Centre: Lichtblick 3D viewer
+embedded via iframe (connects to foxglove-websocket bridge). Right: real-time
+telemetry charts (Recharts) and trust assessment panel.
 
 **Robots** - Detailed per-robot view showing state, telemetry readings (speed,
 current, voltage, bead width/height), trust scores, and control buttons.
@@ -106,35 +108,20 @@ midpoints).
 **History** - Historical run summaries table (beads completed, trust averages)
 and full audit log. Export buttons for CSV/PDF (not yet implemented).
 
-**Settings** - Dark mode toggle, chart freeze, replay timeline, trust threshold
-sliders, and connection status simulation.
+**Settings** - Dark mode toggle, chart freeze, trust threshold sliders, and
+connection status simulation.
 
 ### 1.4 External Connections (Frontend)
 
 | Protocol | Target | Direction | Used by |
 |----------|--------|-----------|---------|
-| WebSocket | `ws://localhost:8082` | Frontend → Viser | `useViserBridge` hook |
 | HTTP GET | `http://localhost:8091/health` | Frontend → MCCP API | InferenceDevLabTab |
 | HTTP POST | `http://localhost:8091/config` | Frontend → MCCP API | InferenceDevLabTab |
 | HTTP POST | `http://localhost:8091/predict` | Frontend → MCCP API | InferenceDevLabTab |
-| iframe | `http://localhost:8081` | Embed | LiveOps (Viser viewer) |
+| iframe | `VITE_LICHTBLICK_URL` (default: `http://localhost:8080`) | Embed | LiveOps (3D viewer) |
 | iframe | `http://localhost:5173` | Embed | MLOpsTab (orchestrator) |
 
-### 1.5 Viser WebSocket Bridge
-
-The `useViserBridge` hook maintains a persistent WebSocket connection to the
-Viser server. It sends robot state updates throttled at **200 ms**:
-
-```json
-{
-  "robotA": { "state": "Running", "beadIndex": 3, "progressPct": 42.5 },
-  "robotB": { "state": "Idle",    "beadIndex": 0, "progressPct": 0.0 }
-}
-```
-
-Auto-reconnects after 2 seconds on disconnect.
-
-### 1.6 TypeScript Types
+### 1.5 TypeScript Types
 
 Core domain types are defined in `robin-ui/frontend/src/types/index.ts`:
 
@@ -148,7 +135,7 @@ Core domain types are defined in `robin-ui/frontend/src/types/index.ts`:
 - `TrustAssessment`: Runtime trust evaluation (confidence, gate, reasons)
 - `Alert`, `AuditLogEntry`, `RunSummary`, `PipelineRun`
 
-### 1.7 Build & Dev Server
+### 1.6 Build & Dev Server
 
 ```bash
 cd robin-ui/frontend
@@ -162,52 +149,26 @@ npm run lint       # ESLint
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_VISER_URL` | `http://localhost:8081` | Viser 3D server URL |
+| `VITE_LICHTBLICK_URL` | `http://localhost:8080` | Lichtblick 3D viewer URL |
 | `VITE_MLOPS_URL` | `http://localhost:5173` | MLOps Orchestrator URL |
 | `VITE_MCCP_API_URL` | `http://localhost:8091` | MCCP inference API URL |
 
 ---
 
-## 2. Viser 3D Server
+## 2. Lichtblick 3D Visualization
 
-### 2.1 Overview
+Lichtblick is the primary 3D visualization tool for ROBIN. It runs as a
+separate Docker container (see root `docker-compose.yaml`) and is embedded in
+the Live Ops tab via iframe.
 
-A Python server providing a browser-accessible 3D scene (via Viser) and a
-WebSocket bridge that accepts robot state from the React app to drive robot
-joint animation.
-
-### 2.2 Scene Composition
-
-On startup, the server loads:
-
-1. **Workpiece plate** - STL mesh at `robin-ui/frontend/public/assets/motion/workpieces/`
-2. **Robot A (UR5)** - URDF + DAE meshes at `robin-ui/frontend/public/assets/robots/robot_a/`
-3. **Robot B (UR3)** - URDF + DAE meshes at `robin-ui/frontend/public/assets/robots/robot_b/`
-4. **World frame + grid** - Reference axes and ground plane
-
-### 2.3 Animation Loop
-
-Runs at ~30 fps (`dt = 0.033 s`):
-
-- **Running**: Advances per-robot animation time and computes a looping
-  sinusoidal joint trajectory (`welding_loop_cfg`). Phase offsets differentiate
-  robots and bead indices.
-- **Idle**: Smoothly interpolates back to the initial (home) configuration with
-  exponential smoothing (`alpha = 0.1`).
-- **Paused**: Holds the current pose, no time advancement.
-
-### 2.4 WebSocket Protocol
-
-See [1.5 above](#15-viser-websocket-bridge). The server side uses `websockets`
-(asyncio) running in a daemon thread. State is transferred to the main loop via
-a thread-locked `latest_state` dictionary.
-
-### 2.5 Configuration
+The viewer connects to a **foxglove-websocket bridge** running on the host
+(`ws://localhost:8765` by default), which publishes ROS 2 topics including
+robot joint states, TF frames, and sensor data.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VISER_PORT` | `8081` | Viser HTTP port |
-| `VISER_WS_PORT` | `8082` | WebSocket bridge port |
+| `VITE_LICHTBLICK_URL` | `http://localhost:8080` | Lichtblick web UI URL |
+| `VITE_FOXGLOVE_WS_URL` | `ws://localhost:8765` | Foxglove WebSocket bridge URL |
 
 ---
 
@@ -394,7 +355,7 @@ import time.
 
 1. Creates a persistent `QWebEngineProfile` with local storage and cookies.
 2. Loads the React app URL in a `QWebEngineView`.
-3. Spawns the three background services (Viser, React, MCCP API).
+3. Spawns the two background services (React, MCCP API).
 4. Registers cleanup hooks (`aboutToQuit`, `atexit`).
 
 ### 5.2 Process Management
@@ -434,17 +395,15 @@ toolbar with Refresh and "Open in Browser" buttons.
 |----------|---------|-------|-------------|
 | `FAROS_HOST` | `localhost` | Qt | React app hostname |
 | `FAROS_PORT` | `5174` | Qt, React | React dev server port |
-| `VISER_PORT` | `8081` | Qt, Viser | Viser HTTP port |
-| `VISER_WS_PORT` | `8082` | Qt, Viser | Viser WebSocket port |
 | `MCCP_API_HOST` | `0.0.0.0` | MCCP API | API bind address |
 | `MCCP_API_PORT` | `8091` | Qt, MCCP API | API HTTP port |
 | `MCCP_WORKSPACE_ROOT` | *(none)* | MCCP API, Qt | Path to MLOps shared-workspace |
 | `MCCP_USE_GPU` | `0` | Inference | `1` to enable GPU inference |
-| `FAROS_AUTO_START_VISER` | `1` | Qt | `0` to disable Viser autostart |
 | `FAROS_AUTO_START_REACT` | `1` | Qt | `0` to disable React autostart |
 | `FAROS_AUTO_START_MCCP_DEVLAB` | `1` | Qt | `0` to disable MCCP API autostart |
 | `HOST_IP` | `localhost` | MLOps Widget | MLOps Orchestrator hostname |
-| `VITE_VISER_URL` | `http://localhost:8081` | React | Viser URL for iframe |
+| `VITE_LICHTBLICK_URL` | `http://localhost:8080` | React | Lichtblick 3D viewer URL |
+| `VITE_FOXGLOVE_WS_URL` | `ws://localhost:8765` | React | Foxglove WebSocket bridge URL |
 | `VITE_MLOPS_URL` | `http://localhost:5173` | React | MLOps URL for iframe |
 | `VITE_MCCP_API_URL` | `http://localhost:8091` | React | MCCP API base URL |
 
@@ -460,21 +419,10 @@ User clicks "Start Robot A" in LiveOps
   ▼
 FarosPage sets robots.robotA.state = "Running"
   │
-  ├──→ LiveOps re-renders control card
-  │
-  └──→ useViserBridge sends WS message (throttled 200 ms)
-         │
-         ▼
-       Viser WS handler updates latest_state['robotA']
-         │
-         ▼
-       Animation loop reads state under lock
-         │
-         ▼
-       welding_loop_cfg() → update_robot_pose() → FK → mesh transforms
-         │
-         ▼
-       Viser scene updated → visible in iframe
+  └──→ LiveOps re-renders control card
+
+3D visualization is driven by Lichtblick, which subscribes directly to
+ROS 2 topics via the foxglove-websocket bridge (ws://localhost:8765).
 ```
 
 ### 7.2 MCCP-UQ Inference (via DevLab)
@@ -508,7 +456,6 @@ InferenceDevLabTab renders prediction intervals
 FarosPage.__init__()
   │
   ├── _start_background_processes()
-  │     ├── [port check] → Popen(viser_server.py)
   │     ├── [port check] → Popen(npm run dev)
   │     └── [port check] → Popen(mccp_devlab_server.py)
   │
