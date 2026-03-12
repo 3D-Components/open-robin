@@ -14,10 +14,6 @@ setup(
         ('share/' + package_name + '/launch', [
             'launch/sensor.launch.py',
         ]),
-        # Install rviz configurations
-        ('share/' + package_name + '/rviz', [
-            'rviz/debug_garmo.rviz',
-        ]),
         ('share/' + package_name + '/urdf', [
             'urdf/garmo_garline_macro.xacro',
         ]),
@@ -31,7 +27,7 @@ setup(
     zip_safe=True,
     maintainer='Jayant',
     maintainer_email='jayant@mil-as.no',
-    description='TODO: Package description',
+    description='Garmo laser profilometer driver for the ROBIN platform',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

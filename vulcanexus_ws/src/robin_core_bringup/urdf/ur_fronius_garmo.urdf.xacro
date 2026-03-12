@@ -4,12 +4,20 @@
     
     <!-- Define arguments -->
     <xacro:arg name="tf_prefix" default=""/>
-    <xacro:arg name="garmo_origin_xyz" default="0.0 -0.032 -0.165"/>
+    <xacro:arg name="garmo_origin_xyz" default="0.0 -0.032 -0.15"/>
     <xacro:arg name="garmo_origin_rpy" default="${pi} 0 -${pi/2}"/>
     <xacro:arg name="welding_table_origin_xyz" default="-1.096 0.076 -0.193"/>
     <xacro:arg name="welding_table_origin_rpy" default="0 0 ${pi/2}"/>
     <xacro:arg name="robot_platform_origin_xyz" default="0.25 0.4 -0.5"/>
     <xacro:arg name="robot_platform_origin_rpy" default="0 0 0"/>
+    <xacro:arg name="stickout" default="0.015"/>  <!-- Wire stickout beyond contact tip (m) -->
+    <!-- Contact tip position relative to torch mesh origin (weld_torch frame) -->
+    <xacro:arg name="tip_x" default="0.00"/>       <!-- Lateral offset (m) -->
+    <xacro:arg name="tip_y" default="-0.095"/>      <!-- Cross-lateral offset (m) -->
+    <xacro:arg name="tip_z" default="0.63"/>        <!-- Along torch body (m) -->
+    <xacro:arg name="tip_roll" default="${-pi/6}"/> <!-- Wire angle: -30 deg around X -->
+    <xacro:arg name="tip_pitch" default="0"/>
+    <xacro:arg name="tip_yaw" default="0"/>
     <xacro:arg name="is_simulation" default="false"/>
 
     <!-- Include UR  -->
@@ -25,12 +33,14 @@
     <xacro:include filename="$(find robin_core_bringup)/urdf/scene_macro.xacro"/>
 
     <!-- Add Fronius weld torch -->
-    <xacro:fronius_weld_torch parent="tool0">
-        <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+    <xacro:fronius_weld_torch parent="tool0" stickout="$(arg stickout)"
+        tip_x="$(arg tip_x)" tip_y="$(arg tip_y)" tip_z="$(arg tip_z)"
+        tip_roll="$(arg tip_roll)" tip_pitch="$(arg tip_pitch)" tip_yaw="$(arg tip_yaw)">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
     </xacro:fronius_weld_torch>
 
     <!-- Add Garmo Garline laser sensor -->
-    <xacro:garmo_laser_sensor parent="weld_torch_tip">
+    <xacro:garmo_laser_sensor parent="contact_tip">
         <origin xyz="$(arg garmo_origin_xyz)" rpy="$(arg garmo_origin_rpy)"/>
     </xacro:garmo_laser_sensor>
 

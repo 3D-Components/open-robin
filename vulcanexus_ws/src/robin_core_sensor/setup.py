@@ -12,7 +12,6 @@ setup(
         ('share/' + package_name, ['package.xml']),
         # Install launch files so they are available via ament/share/<pkg>/launch
         ('share/' + package_name + '/launch', [
-            'launch/view_sensor.launch.py',
             'launch/process_data.launch.py',
         ]),
     ],

@@ -16,8 +16,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install Python executables
 install(PROGRAMS
   scripts/weld_data_node.py
-  scripts/geometry_republisher.py
-  scripts/telemetry_aggregator_node.py
+  scripts/plate_markers.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

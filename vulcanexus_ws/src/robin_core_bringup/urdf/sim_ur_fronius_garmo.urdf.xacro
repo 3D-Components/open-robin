@@ -7,7 +7,7 @@
     <xacro:arg name="garmo_origin_xyz" default="0.0 -0.032 -0.165"/>
     <xacro:arg name="garmo_origin_rpy" default="${pi} 0 -${pi/2}"/>
     <xacro:arg name="welding_table_origin_xyz" default="-1.096 0.076 -0.193"/>
-    <xacro:arg name="welding_table_origin_rpy" default="0 0 0"/>
+    <xacro:arg name="welding_table_origin_rpy" default="0 0 ${pi/2}"/>
     <xacro:arg name="robot_platform_origin_xyz" default="0.25 0.4 -0.5"/>
     <xacro:arg name="robot_platform_origin_rpy" default="0 0 0"/>
     <xacro:arg name="is_simulation" default="false"/>
@@ -26,11 +26,11 @@
 
     <!-- Add Fronius weld torch -->
     <xacro:fronius_weld_torch parent="tool0">
-        <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
     </xacro:fronius_weld_torch>
 
     <!-- Add Garmo Garline laser sensor -->
-    <xacro:garmo_laser_sensor parent="weld_torch_tip">
+    <xacro:garmo_laser_sensor parent="contact_tip">
         <origin xyz="$(arg garmo_origin_xyz)" rpy="$(arg garmo_origin_rpy)"/>
     </xacro:garmo_laser_sensor>
 
