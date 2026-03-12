@@ -507,7 +507,7 @@ class RobinFiwareClient:
     def create_alert(self, alert_data):
         """Create alert entity in Orion"""
         entity = {
-            'id': f'urn:ngsi-ld:Alert:{alert_data.process_id}-{int(time.time())}',
+            'id': f'urn:ngsi-ld:Alert:{alert_data.process_id}-{int(time.time() * 1000)}',
             'type': 'urn:robin:Alert',
             'processId': {
                 'type': 'Relationship',
@@ -545,7 +545,8 @@ class RobinFiwareClient:
             headers=self.headers,
             json=entity,
         )
-        return response.status_code in (200, 201)
+        # 409 means the entity already exists (race condition — alert was already recorded)
+        return response.status_code in (200, 201, 409)
 
 
 # CLI Commands

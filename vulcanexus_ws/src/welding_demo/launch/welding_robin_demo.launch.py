@@ -2,14 +2,14 @@
 """
 welding_robin_demo.launch.py — master launch for the ROBIN welding HRI PoC.
 
-Starts the full intent pipeline including the 3 new ROBIN dashboard skills
+Starts the full intent pipeline including the ROBIN dashboard skills
 and the HTTP bridge so the React dashboard can fire intents.
 
 Start order:
-  t=0s   → 3 original skill nodes  (home, zone, seam)
-           3 new skill nodes        (recommendation, manual, finetune)
+  t=0s   → 2 original skill nodes  (home, seam)
+           3 new skill nodes        (recommendation, manual, http_bridge)
            welding_http_bridge      (HTTP server on port 8766 for React UI)
-  t=2s   → welding_supervisor      (waits for all 6 action servers to appear)
+  t=2s   → welding_supervisor      (waits for all 5 action servers to appear)
 
 Intent flow:
   React dashboard button click
@@ -18,8 +18,7 @@ Intent flow:
                 └─► welding_supervisor
                       ├─► START_PROCESS             → welding_seam_skill
                       ├─► REQUEST_AI_RECOMMENDATION → welding_recommendation_skill
-                      ├─► MANUAL_ADJUST             → welding_manual_skill
-                      └─► FINE_TUNE_MODEL           → welding_finetune_skill
+                      └─► MANUAL_ADJUST             → welding_manual_skill
 
 To watch the intent stream:
     ros2 topic echo /intents
@@ -45,14 +44,6 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    zone_skill = Node(
-        package='welding_zone_skill',
-        executable='welding_zone_skill_node',
-        name='welding_zone_skill',
-        output='screen',
-        emulate_tty=True,
-    )
-
     seam_skill = Node(
         package='welding_seam_skill',
         executable='welding_seam_skill_node',
@@ -74,14 +65,6 @@ def generate_launch_description():
         package='welding_manual_skill',
         executable='welding_manual_skill_node',
         name='welding_manual_skill',
-        output='screen',
-        emulate_tty=True,
-    )
-
-    finetune_skill = Node(
-        package='welding_finetune_skill',
-        executable='welding_finetune_skill_node',
-        name='welding_finetune_skill',
         output='screen',
         emulate_tty=True,
     )
@@ -112,12 +95,10 @@ def generate_launch_description():
     return LaunchDescription([
         # Original skills
         home_skill,
-        zone_skill,
         seam_skill,
-        # New ROBIN dashboard skills
+        # ROBIN dashboard skills
         recommendation_skill,
         manual_skill,
-        finetune_skill,
         # HTTP bridge for React UI
         http_bridge,
         # Intent router (delayed)

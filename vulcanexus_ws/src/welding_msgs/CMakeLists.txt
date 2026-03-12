@@ -12,14 +12,12 @@ find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   # Message types
   "msg/Intent.msg"
-  # Existing action types (motion / weld)
+  # Action types (motion / weld)
   "action/MoveToHome.action"
-  "action/MoveToZone.action"
   "action/ExecuteSeam.action"
-  # New action types for ROBIN dashboard buttons
+  # Action types for ROBIN dashboard buttons
   "action/RequestAIRecommendation.action"
   "action/ManualAdjust.action"
-  "action/FineTuneModel.action"
   DEPENDENCIES builtin_interfaces
 )
 

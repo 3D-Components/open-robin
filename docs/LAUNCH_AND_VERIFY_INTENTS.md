@@ -61,8 +61,8 @@ ros2 launch welding_demo welding_robin_demo.launch.py
 ```
 
 This starts in one command:
-- `welding_home_skill`, `welding_zone_skill`, `welding_seam_skill`
-- `welding_recommendation_skill`, `welding_manual_skill`, `welding_finetune_skill`
+- `welding_home_skill`, `welding_seam_skill`
+- `welding_recommendation_skill`, `welding_manual_skill`
 - `welding_http_bridge` (HTTP server on port 8766)
 - `welding_supervisor` (intent router, delayed 2 s)
 

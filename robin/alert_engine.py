@@ -294,6 +294,10 @@ class AlertEngine:
             getattr(active_profile, 'inverse_optimizer', {}),
         )
         self.default_tolerance = active_profile.default_tolerance
+        # Cache for GeometryTarget "not found" results to avoid hitting Orion-LD
+        # on every dashboard poll when the entity doesn't exist yet.
+        # Maps process_id → (result, expiry_timestamp)
+        self._geo_target_cache: Dict[str, Tuple[Optional[Dict[str, float]], float]] = {}
 
         profile_model = None
         if active_profile.model_path:
@@ -691,7 +695,15 @@ class AlertEngine:
     def fetch_geometry_target(
         self, process_id: str
     ) -> Optional[Dict[str, float]]:
-        """Fetch geometry target from FIWARE Orion"""
+        """Fetch geometry target from FIWARE Orion.
+
+        Caches 'not found' (404) results for 30 s to avoid spamming Orion-LD
+        when the entity doesn't exist (e.g. in simulation / parameter-driven mode).
+        """
+        now = time.time()
+        cached_result, expiry = self._geo_target_cache.get(process_id, (None, 0.0))
+        if expiry > now:
+            return cached_result
         try:
             response = requests.get(
                 f'{self.client.orion_url}/ngsi-ld/v1/entities/urn:ngsi-ld:GeometryTarget:{process_id}',
@@ -700,10 +712,15 @@ class AlertEngine:
             )
             if response.status_code == 200:
                 data = response.json()
-                return {
+                result: Optional[Dict[str, float]] = {
                     'height': data.get('targetHeight', {}).get('value', 0.0),
                     'width': data.get('targetWidth', {}).get('value', 0.0),
                 }
+                # Clear any negative cache entry on success
+                self._geo_target_cache.pop(process_id, None)
+                return result
+            # Entity not found — cache the miss for 30 s
+            self._geo_target_cache[process_id] = (None, now + 30.0)
             return None
         except Exception:
             return None
@@ -809,20 +826,17 @@ class AlertEngine:
                     headers['NGSILD-Tenant'] = tenant
 
                 try:
-                    print(f'🔍 Mintaka query URL: {url}')
-                    print(f'🔍 Mintaka query params: {params}')
                     resp = requests.get(
                         url, headers=headers, params=params, timeout=10
                     )
-                    print(f'🔍 Mintaka response status: {resp.status_code}')
-                    body_preview = (
-                        resp.text[:500] if hasattr(resp, 'text') else ''
-                    )
-                    print(f'🔍 Mintaka response text: {body_preview}...')
                     if resp.status_code not in (200, 206):
-                        print(
-                            f'❌ Mintaka query failed with status {resp.status_code}: {body_preview}'
-                        )
+                        if resp.status_code != 404:
+                            body_preview = (
+                                resp.text[:500] if hasattr(resp, 'text') else ''
+                            )
+                            print(
+                                f'❌ Mintaka query failed with status {resp.status_code}: {body_preview}'
+                            )
                         return None
                     try:
                         data = resp.json()

@@ -15,12 +15,10 @@
 
   <exec_depend>welding_msgs</exec_depend>
   <exec_depend>welding_home_skill</exec_depend>
-  <exec_depend>welding_zone_skill</exec_depend>
   <exec_depend>welding_seam_skill</exec_depend>
   <exec_depend>welding_supervisor</exec_depend>
   <exec_depend>welding_recommendation_skill</exec_depend>
   <exec_depend>welding_manual_skill</exec_depend>
-  <exec_depend>welding_finetune_skill</exec_depend>
   <exec_depend>welding_http_bridge</exec_depend>
 
   <export>

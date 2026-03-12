@@ -313,6 +313,8 @@ export function RobinPage() {
     const lastMeasurementAtRef = useRef(Date.now());
     const inactivityCompletionRequestedRef = useRef(false);
     const operatorPauseHoldRef = useRef(false);
+    // Guards against duplicate intent publishes from rapid double-clicks.
+    const intentInFlightRef = useRef(false);
     const [startPlanning, setStartPlanning] = useState(false);
     const [startPreviewPlan, setStartPreviewPlan] = useState<StartPreviewPlan | null>(null);
     const [manualAdjustDraft, setManualAdjustDraft] = useState<ManualAdjustDraft | null>(null);
@@ -941,9 +943,8 @@ export function RobinPage() {
         if (processId) {
             stopProcess(processId, 'operator_pause').catch(() => {});
         }
-        publishRosIntent('PAUSE_PROCESS', { reason: 'operator_pause' }, processId ?? 'ros_bridge')
-            .then(() => pushAlert('Info', 'PAUSE_PROCESS intent published', 'Intent Bridge'))
-            .catch(() => {});
+        publishRosIntentOnce('PAUSE_PROCESS', { reason: 'operator_pause' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'PAUSE_PROCESS intent published', 'Intent Bridge');
     };
     const resumeRobotHandler = () => {
         if (robot.state !== 'Paused') return;
@@ -954,9 +955,8 @@ export function RobinPage() {
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
-        publishRosIntent('RESUME_PROCESS', { reason: 'operator_resume' }, processId ?? 'ros_bridge')
-            .then(() => pushAlert('Info', 'RESUME_PROCESS intent published', 'Intent Bridge'))
-            .catch(() => {});
+        publishRosIntentOnce('RESUME_PROCESS', { reason: 'operator_resume' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'RESUME_PROCESS intent published', 'Intent Bridge');
     };
     const applyManualAdjustAndContinue = useCallback(async () => {
         if (!manualAdjustDraft) return;
@@ -1051,6 +1051,15 @@ export function RobinPage() {
         }
     }, [aiRecommendationPlan, processControls, processId, publishRosIntent, pushAlert, robot.state, sessionMode, resumeRobotHandler]);
 
+    const publishRosIntentOnce = (intent: string, data: Record<string, unknown>, pid: string) => {
+        if (intentInFlightRef.current) return;
+        intentInFlightRef.current = true;
+        const resetAfterMs = 1500;
+        const reset = () => { intentInFlightRef.current = false; };
+        publishRosIntent(intent, data, pid).then(reset, reset);
+        setTimeout(reset, resetAfterMs);
+    };
+
     const abortRobot = () => {
         operatorPauseHoldRef.current = false;
         setRobot((prev) => ({ ...prev, state: 'Idle' as const, taskProgressPct: 0, segmentIndex: 0 }));
@@ -1059,9 +1068,8 @@ export function RobinPage() {
             stopProcess(processId, 'operator_abort').catch(() => {});
         }
         // Publish ESTOP intent — cancels all active skill goals on the ROS2 side
-        publishRosIntent('ESTOP', { reason: 'operator_button' }, processId ?? 'ros_bridge')
-            .then(() => pushAlert('Info', 'ESTOP intent published to /intents', 'Intent Bridge'))
-            .catch(() => {});
+        publishRosIntentOnce('ESTOP', { reason: 'operator_button' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'ESTOP intent published to /intents', 'Intent Bridge');
     };
     const stopRobot = () => {
         operatorPauseHoldRef.current = false;
@@ -1070,9 +1078,8 @@ export function RobinPage() {
         if (processId) {
             stopProcess(processId, 'operator_stop').catch(() => {});
         }
-        publishRosIntent('STOP_PROCESS', { reason: 'operator_stop' }, processId ?? 'ros_bridge')
-            .then(() => pushAlert('Info', 'STOP_PROCESS intent published', 'Intent Bridge'))
-            .catch(() => {});
+        publishRosIntentOnce('STOP_PROCESS', { reason: 'operator_stop' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'STOP_PROCESS intent published', 'Intent Bridge');
     };
     const toggleParamFreeze = () => {
         setRobot((prev) => ({ ...prev, isParamFrozen: !prev.isParamFrozen }));

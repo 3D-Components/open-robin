@@ -7,10 +7,11 @@
   <description>
     Intent-to-skill mission controller for the ROBIN welding HRI PoC.
     Subscribes to /intents and dispatches to the corresponding skill
-    action servers. Handles all 8 intent types:
-      - MOVE_TO_HOME, MOVE_TO_ZONE, EXECUTE_SEAM, ESTOP (original)
+    action servers. Handles intent types:
+      - MOVE_TO_HOME, EXECUTE_SEAM, ESTOP (original)
       - START_PROCESS, REQUEST_AI_RECOMMENDATION, MANUAL_ADJUST,
-        FINE_TUNE_MODEL (ROBIN dashboard buttons)
+        PAUSE_PROCESS, RESUME_PROCESS, STOP_PROCESS, LAUNCH_NEW_DOE
+        (ROBIN dashboard buttons)
 
     Implements the same MissionController pattern as ErgoBot_AI's
     llm_supervisor/mission_controller.py.

@@ -6,9 +6,9 @@
   <version>0.2.0</version>
   <description>
     Intent message and action definitions for the ROBIN welding HRI PoC.
-    Includes the original motion/weld intents (MOVE_TO_HOME, MOVE_TO_ZONE,
-    EXECUTE_SEAM, ESTOP) and the four new ROBIN dashboard button intents
-    (START_PROCESS, REQUEST_AI_RECOMMENDATION, MANUAL_ADJUST, FINE_TUNE_MODEL).
+    Includes motion/weld intents (MOVE_TO_HOME, EXECUTE_SEAM, ESTOP) and
+    ROBIN dashboard button intents (START_PROCESS, REQUEST_AI_RECOMMENDATION,
+    MANUAL_ADJUST, PAUSE_PROCESS, RESUME_PROCESS, STOP_PROCESS).
 
     Mirrors the hri_actions_msgs/msg/Intent structure used in ErgoBot_AI.
   </description>

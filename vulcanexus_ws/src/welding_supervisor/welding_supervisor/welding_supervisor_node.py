@@ -13,7 +13,6 @@ Architecture:
        ▼
   intent_callback()
        ├─► MOVE_TO_HOME             ──► welding_home_skill/execute      (action)
-       ├─► MOVE_TO_ZONE             ──► welding_zone_skill/execute      (action)
        ├─► EXECUTE_SEAM             ──► welding_seam_skill/execute      (action)
        ├─► ESTOP                    ──► cancel_goal_async() on all handles
        │
@@ -21,10 +20,9 @@ Architecture:
        ├─► START_PROCESS            ──► welding_seam_skill/execute      (reuses seam)
        ├─► REQUEST_AI_RECOMMENDATION──► welding_recommendation_skill/execute
        ├─► MANUAL_ADJUST            ──► welding_manual_skill/execute
-       ├─► FINE_TUNE_MODEL          ──► welding_finetune_skill/execute
        └─► LAUNCH_NEW_DOE           ──► publish on /doe/launch (String, JSON)
 
-Threading: ReentrantCallbackGroup + MultiThreadedExecutor(6 threads) allows
+Threading: ReentrantCallbackGroup + MultiThreadedExecutor(4 threads) allows
 action client callbacks (goal response, result, feedback) to fire concurrently
 with the intent subscriber without deadlocking.
 """
@@ -39,10 +37,8 @@ from std_msgs.msg import String
 
 from welding_msgs.action import (
     ExecuteSeam,
-    FineTuneModel,
     ManualAdjust,
     MoveToHome,
-    MoveToZone,
     RequestAIRecommendation,
 )
 from welding_msgs.msg import Intent
@@ -53,11 +49,9 @@ class WeldingSupervisorNode(Node):
 
     # Action server names — must match what skill nodes advertise
     HOME_ACTION           = 'welding_home_skill/execute'
-    ZONE_ACTION           = 'welding_zone_skill/execute'
     SEAM_ACTION           = 'welding_seam_skill/execute'
     RECOMMENDATION_ACTION = 'welding_recommendation_skill/execute'
     MANUAL_ACTION         = 'welding_manual_skill/execute'
-    FINETUNE_ACTION       = 'welding_finetune_skill/execute'
 
     def __init__(self):
         super().__init__('welding_supervisor')
@@ -79,9 +73,6 @@ class WeldingSupervisorNode(Node):
         self._home_client = ActionClient(
             self, MoveToHome, self.HOME_ACTION, callback_group=cb
         )
-        self._zone_client = ActionClient(
-            self, MoveToZone, self.ZONE_ACTION, callback_group=cb
-        )
         self._seam_client = ActionClient(
             self, ExecuteSeam, self.SEAM_ACTION, callback_group=cb
         )
@@ -93,9 +84,6 @@ class WeldingSupervisorNode(Node):
         self._manual_client = ActionClient(
             self, ManualAdjust, self.MANUAL_ACTION, callback_group=cb
         )
-        self._finetune_client = ActionClient(
-            self, FineTuneModel, self.FINETUNE_ACTION, callback_group=cb
-        )
 
         # Publisher for DOE GUI launch notifications
         self._doe_launch_pub = self.create_publisher(String, '/doe/launch', 10)
@@ -104,8 +92,6 @@ class WeldingSupervisorNode(Node):
         self._active_goal_handles: list = []
         # Subset: only seam/start goals, so PAUSE can cancel only those
         self._active_seam_goal_handles: list = []
-        # Last known work zone — used by RESUME to move robot back to work area
-        self._last_zone_id: str = 'A'
 
         self.get_logger().info(
             'WeldingSupervisorNode ready — listening on /intents'
@@ -130,8 +116,6 @@ class WeldingSupervisorNode(Node):
 
         if msg.intent == Intent.MOVE_TO_HOME:
             self._dispatch_move_home(data)
-        elif msg.intent == Intent.MOVE_TO_ZONE:
-            self._dispatch_move_zone(data)
         elif msg.intent == Intent.EXECUTE_SEAM:
             self._dispatch_execute_seam(data)
         elif msg.intent == Intent.ESTOP:
@@ -143,8 +127,6 @@ class WeldingSupervisorNode(Node):
             self._dispatch_recommendation(data)
         elif msg.intent == Intent.MANUAL_ADJUST:
             self._dispatch_manual_adjust(data)
-        elif msg.intent == Intent.FINE_TUNE_MODEL:
-            self._dispatch_finetune(data)
         elif msg.intent == Intent.LAUNCH_NEW_DOE:
             self._dispatch_launch_doe(data)
         elif msg.intent == Intent.PAUSE_PROCESS:
@@ -162,13 +144,6 @@ class WeldingSupervisorNode(Node):
         goal = MoveToHome.Goal()
         goal.use_fast_speed = bool(data.get('fast', False))
         self._send_goal(self._home_client, goal, Intent.MOVE_TO_HOME)
-
-    def _dispatch_move_zone(self, data: dict) -> None:
-        goal = MoveToZone.Goal()
-        goal.zone_id        = str(data.get('zone', 'A'))
-        goal.approach_speed = float(data.get('speed', 0.5))
-        self._last_zone_id  = goal.zone_id
-        self._send_goal(self._zone_client, goal, Intent.MOVE_TO_ZONE)
 
     def _dispatch_execute_seam(self, data: dict) -> None:
         goal = ExecuteSeam.Goal()
@@ -204,13 +179,11 @@ class WeldingSupervisorNode(Node):
         self._send_goal(self._home_client, goal, Intent.PAUSE_PROCESS)
 
     def _handle_resume(self, data: dict) -> None:
-        """RESUME_PROCESS: move robot from home back to last active work zone."""
-        zone = data.get('zone_id') or self._last_zone_id
-        self.get_logger().info(f'RESUME_PROCESS: moving to zone {zone!r}')
-        goal = MoveToZone.Goal()
-        goal.zone_id        = str(zone)
-        goal.approach_speed = 0.3
-        self._send_goal(self._zone_client, goal, Intent.RESUME_PROCESS)
+        """RESUME_PROCESS: move robot to home so operator can re-trigger the seam."""
+        self.get_logger().info('RESUME_PROCESS: moving to home')
+        goal = MoveToHome.Goal()
+        goal.use_fast_speed = False
+        self._send_goal(self._home_client, goal, Intent.RESUME_PROCESS)
 
     def _handle_stop(self, data: dict) -> None:
         """STOP_PROCESS: cancel all active goals, then move robot to home (orderly shutdown)."""
@@ -237,7 +210,6 @@ class WeldingSupervisorNode(Node):
         goal.seam_id        = str(data.get('seam_id', 'seam_01'))
         goal.weld_speed     = float(data.get('weld_speed', 5.0))
         goal.wire_feed_rate = float(data.get('wire_feed', 4.0))
-        self._last_zone_id  = str(data.get('zone_id', self._last_zone_id))
         self._send_goal(self._seam_client, goal, Intent.START_PROCESS)
         # Apply welding parameters to hardware (Fronius) before arc starts
         hw_params = [
@@ -292,12 +264,6 @@ class WeldingSupervisorNode(Node):
             goal.new_value      = float(data.get('new_value', 5.0))
             goal.unit           = str(data.get('unit', 'mm/s'))
             self._send_goal(self._manual_client, goal, Intent.MANUAL_ADJUST)
-
-    def _dispatch_finetune(self, data: dict) -> None:
-        goal = FineTuneModel.Goal()
-        goal.process_id  = str(data.get('process_id', ''))
-        goal.dataset_tag = str(data.get('dataset_tag', 'operator_submit'))
-        self._send_goal(self._finetune_client, goal, Intent.FINE_TUNE_MODEL)
 
     def _dispatch_launch_doe(self, data: dict) -> None:
         """Publish a launch notification for the external DOE configuration GUI."""
@@ -368,7 +334,7 @@ def main(args=None):
     node = WeldingSupervisorNode()
 
     # MultiThreadedExecutor is required for ReentrantCallbackGroup to work
-    executor = MultiThreadedExecutor(num_threads=6)
+    executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
 
     try:
