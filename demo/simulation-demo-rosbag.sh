@@ -7,7 +7,7 @@ PROCESS_ID="ros_bridge"
 ENTITY_ID="urn:ngsi-ld:Process:${PROCESS_ID}"
 ORION_URL="${ORION_URL:-http://127.0.0.1:1026}"
 BAG_NAME="exp001_rosbag_real"
-BAG_HOST_PATH="Data_ROSBAGS/${BAG_NAME}"
+BAG_HOST_PATH="data/rosbags/${BAG_NAME}"
 BAG_CONTAINER_PATH="/workspace/ros2_packages/${BAG_NAME}"
 CONTAINER="vulcanexus-bridge"
 
@@ -176,6 +176,7 @@ docker exec -it "${CONTAINER}" bash -lc "\
   export ROS_DOMAIN_ID=10 && \
   cd /workspace/ros2_packages && source ws_setup.sh && \
   ros2 bag play ${BAG_CONTAINER_PATH} --loop \
+    --topics /robin/data/fronius /robin/weld_dimensions \
     --remap /robot_description:=/robot_description_from_bag \
     --remap /tf_static:=/tf_static_from_bag"
 

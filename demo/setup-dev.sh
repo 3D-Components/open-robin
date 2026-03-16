@@ -5,33 +5,22 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ROBIN_BAG="/home/virgilio/exp001_rosbag_real"
-DATA_DIR="${REPO_ROOT}/Data_ROSBAGS"
+DATA_DIR="${REPO_ROOT}/data/rosbags"
+BAG="${DATA_DIR}/exp001_rosbag_real"
 CONTAINER="vulcanexus-bridge"
 
 echo "============================================"
 echo "  open-robin dev setup"
 echo "============================================"
 
-# 1. Symlink rosbag (fix broken symlink if present)
-mkdir -p "${DATA_DIR}"
-LINK="${DATA_DIR}/exp001_rosbag_real"
-if [ -L "${LINK}" ] && [ ! -e "${LINK}" ]; then
-  echo "[FIX] Removing broken symlink: ${LINK}"
-  rm "${LINK}"
+# 1. Verify rosbag is present
+echo "Checking rosbag..."
+if [ ! -d "${BAG}" ]; then
+  echo "[ERROR] Rosbag not found at: ${BAG}"
+  echo "  Place the exp001_rosbag_real directory inside data/rosbags/ in the repo."
+  exit 1
 fi
-if [ ! -e "${LINK}" ]; then
-  if [ ! -d "${ROBIN_BAG}" ]; then
-    echo "[ERROR] Rosbag not found at: ${ROBIN_BAG}"
-    echo "  Please ensure exp001_rosbag_real exists at that path."
-    exit 1
-  fi
-  ln -s "${ROBIN_BAG}" "${LINK}"
-  echo "[OK] Symlinked rosbag:"
-  echo "     ${LINK} -> ${ROBIN_BAG}"
-else
-  echo "[OK] Rosbag symlink already exists."
-fi
+echo "[OK] Rosbag found at ${BAG}"
 
 # 2. Build ROS2 workspace if container is running
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then

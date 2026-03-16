@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/FindSurface.srv"
   "srv/CalibrateStickout.srv"
   "srv/CalibratePlatePlane.srv"
+  "msg/ProcessTelemetry.msg"
   "msg/WelderData.msg"
   "msg/BeadGeometry.msg"
   "msg/WeldProgression.msg"

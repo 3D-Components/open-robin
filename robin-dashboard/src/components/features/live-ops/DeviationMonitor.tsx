@@ -37,6 +37,7 @@ interface DeviationMonitorProps {
     onWarningEscalation?: () => void;
     warningGateResetToken?: number;
     pollIntervalMs?: number;
+    dataStaleThresholdMs?: number;
 }
 
 const WARNING_STREAK_THRESHOLD = 2;
@@ -73,6 +74,7 @@ export function DeviationMonitor({
     onWarningEscalation,
     warningGateResetToken = 0,
     pollIntervalMs = 3000,
+    dataStaleThresholdMs = 30_000,
 }: DeviationMonitorProps) {
     const [deviationResult, setDeviationResult] = useState<DeviationCheckResponse | null>(null);
     const [checking, setChecking] = useState(false);
@@ -103,6 +105,18 @@ export function DeviationMonitor({
 
         const snap = extractSnapshot(latestMeasurements);
         if (!snap || snap.height === null || snap.width === null) return;
+
+        // If the latest data point is older than the threshold, show idle state and bail
+        if (snap.timestamp) {
+            const ageMs = Date.now() - new Date(snap.timestamp).getTime();
+            if (ageMs > dataStaleThresholdMs) {
+                const ageSec = Math.round(ageMs / 1000);
+                setStatusMsg(`No active data (last seen ${ageSec}s ago)`);
+                setChecking(false);
+                return;
+            }
+        }
+
         setSnapshot(snap);
 
         const mode: OperationMode = processMode ?? controls.mode;
@@ -207,7 +221,7 @@ export function DeviationMonitor({
         } finally {
             setChecking(false);
         }
-    }, [processId, latestMeasurements, controls, processMode, onAlert, onPointEvaluated, onWarningEscalation, extractSnapshot]);
+    }, [processId, latestMeasurements, controls, processMode, onAlert, onPointEvaluated, onWarningEscalation, extractSnapshot, dataStaleThresholdMs]);
 
     useEffect(() => {
         if (!processId || !latestMeasurements?.length) {

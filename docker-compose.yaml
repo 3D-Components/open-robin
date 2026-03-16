@@ -70,7 +70,8 @@ services:
       # Mount workspace packages into the expected container path
       - ./vulcanexus_ws/src:/workspace/ros2_packages/src
       # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
-      - /home/virgilio/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
+      - ./data/rosbags/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
+      - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 

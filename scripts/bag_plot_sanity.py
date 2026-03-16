@@ -65,10 +65,13 @@ def read_bag(bag_path: str):
         msg_count += 1
 
         if topic_name == '/robin/data/fronius':
-            msg_type = get_message(topic_types[topic_name])
-            msg = deserialize_message(data, msg_type)
+            # The bag's WelderData bytes are CDR-compatible with FroniusSample
+            # (same layout: bead_id, progression, current, voltage,
+            # wire_feed_speed, power — all float32).  Deserialise as
+            # FroniusSample to get correctly named fields.
+            from robin_interfaces.msg import FroniusSample
+            msg = deserialize_message(data, FroniusSample)
 
-            # Convert ROS timestamp to datetime
             ts = datetime.fromtimestamp(
                 msg.header.stamp.sec + msg.header.stamp.nanosec / 1e9
             )
@@ -80,19 +83,35 @@ def read_bag(bag_path: str):
             fronius_data['power'].append(msg.power)
 
         elif topic_name == '/robin/weld_dimensions':
-            msg_type = get_message(topic_types[topic_name])
-            msg = deserialize_message(data, msg_type)
+            # Old bags carry an extra leading "string bead_id" field before
+            # the float32 geometry fields; parse via struct to handle both.
+            import struct
 
-            if len(msg.data) >= 2:
-                width = msg.data[0]
-                height = msg.data[1]
+            try:
+                off = 4   # skip CDR header
+                off += 8  # stamp.sec + stamp.nanosec
+                (fid_len,) = struct.unpack_from('<I', data, off)
+                off += 4 + fid_len
+                off = (off + 3) & ~3  # align to 4 bytes
+                remaining = len(data) - off
+                if remaining == 12:
+                    height, width, _ = struct.unpack_from('<fff', data, off)
+                elif remaining >= 16:
+                    (bid_len,) = struct.unpack_from('<I', data, off)
+                    off += 4 + bid_len
+                    off = (off + 3) & ~3
+                    height, width, _ = struct.unpack_from('<fff', data, off)
+                else:
+                    continue
+            except Exception:
+                continue
 
-                # Use bag timestamp since Float32MultiArray has no header
-                ts = datetime.fromtimestamp(timestamp_ns / 1e9)
+            # Use bag-level timestamp (BeadGeometry header stamp may be zero)
+            ts = datetime.fromtimestamp(timestamp_ns / 1e9)
 
-                geometry_data['timestamps'].append(ts)
-                geometry_data['width'].append(width)
-                geometry_data['height'].append(height)
+            geometry_data['timestamps'].append(ts)
+            geometry_data['width'].append(width)
+            geometry_data['height'].append(height)
 
     print(f'Total messages read: {msg_count}')
     print(f"Fronius samples: {len(fronius_data['timestamps'])}")
