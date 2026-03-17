@@ -45,6 +45,8 @@ sleep 10
 # 1b) Build ROS2 workspace if not already built
 if ! docker exec "${CONTAINER}" test -d /workspace/ros2_packages/install/robin_core_data 2>/dev/null; then
   echo "ROS2 workspace not built — building packages (includes mesh assets for Lichtblick)..."
+  docker exec --user root "${CONTAINER}" \
+    chown -R "$(id -u):$(id -g)" /workspace/ros2_packages/install
   docker exec "${CONTAINER}" bash -lc "
     source /opt/ros/jazzy/setup.bash &&
     source /opt/vulcanexus/jazzy/setup.bash &&

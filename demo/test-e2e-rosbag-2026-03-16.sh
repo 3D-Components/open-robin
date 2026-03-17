@@ -74,6 +74,23 @@ echo "  Waiting 10s for Orion-LD restart..."
 sleep 10
 echo "  Containers ready."
 
+# ---- 1b. Build ROS2 workspace if install/ is missing --------------------
+if ! docker exec "${CONTAINER}" test -d /workspace/ros2_packages/install/robin_core_data 2>/dev/null; then
+  echo
+  echo "[1b/9] ROS2 workspace not built — running colcon build (~3 min, one-time)..."
+  docker exec --user root "${CONTAINER}" \
+    chown -R "$(id -u):$(id -g)" /workspace/ros2_packages/install
+  docker exec "${CONTAINER}" bash -lc "
+    source /opt/ros/jazzy/setup.bash &&
+    source /opt/vulcanexus/jazzy/setup.bash &&
+    cd /workspace/ros2_packages &&
+    colcon build --symlink-install \
+      --packages-up-to robin_core_bringup robin_core_data \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release
+  "
+  echo "  Build complete."
+fi
+
 # ---- 2. Verify bag is accessible inside container -----------------------
 echo
 echo "[2/9] Verifying bag mount at ${BAG_CONTAINER_PATH}..."

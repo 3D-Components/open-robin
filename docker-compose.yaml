@@ -72,6 +72,8 @@ services:
       # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
       - ./data/rosbags/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
       - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro
+      # Persist colcon build artifacts across container recreation / host reboots
+      - ros2_ws_install:/workspace/ros2_packages/install
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 
@@ -201,3 +203,4 @@ networks:
 volumes:
   mongo-db: {}
   timescale-data: {}
+  ros2_ws_install: {}
