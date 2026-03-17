@@ -275,7 +275,7 @@ def main():
     if not Path(bag_path).exists():
         print(f'Error: Bag not found at {bag_path}')
         print(f'Trying alternative path...')
-        alt_path = 'Data_ROSBAGS/exp001_rosbag_real'
+        alt_path = 'data/rosbags/exp001_rosbag_real'
         if Path(alt_path).exists():
             bag_path = alt_path
         else:
