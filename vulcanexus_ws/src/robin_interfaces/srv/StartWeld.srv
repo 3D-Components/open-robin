@@ -1,8 +1,20 @@
 # StartWeld.srv - Start welding with parameters
-# Request: welding parameters
-float32 current      # Welding current in Amps
-float32 voltage      # Welding voltage in Volts  
-float32 wire_speed   # Wire feed speed in m/min
+# Supports synergetic mode: set one primary parameter and let the welder
+# adjust the others, or override all three manually.
+
+# Primary parameter selection (which parameter drives synergy)
+uint8 PRIMARY_CURRENT=0
+uint8 PRIMARY_VOLTAGE=1
+uint8 PRIMARY_WIRE_FEED_SPEED=2
+
+uint8 primary_parameter           # Which parameter to set as primary
+
+# Welding parameters
+# The primary_value is always sent. The other fields are only sent
+# to the welder if non-zero, allowing synergy to control them.
+float32 current      # Welding current in Amps (0.0 = let synergy decide)
+float32 voltage      # Welding voltage in Volts (0.0 = let synergy decide)
+float32 wire_speed   # Wire feed speed in m/min (0.0 = let synergy decide)
 ---
 # Response: success status
 bool success

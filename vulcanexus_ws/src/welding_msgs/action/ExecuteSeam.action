@@ -1,0 +1,22 @@
+# Execute a weld seam Cartesian trajectory.
+# ros4hri: maps to motion_skills/action/ExecuteCartesianTrajectory
+# Also used by START_PROCESS intent (routes to welding_seam_skill).
+
+# ── Goal ──────────────────────────────────────────────────────────────────
+string  seam_id         # seam program ID, e.g. "seam_01"
+float32 weld_speed      # mm/s
+float32 wire_feed_rate  # m/min
+
+---
+
+# ── Result ─────────────────────────────────────────────────────────────────
+bool    success
+string  message
+float32 seam_length_mm  # total weld length executed
+
+---
+
+# ── Feedback ───────────────────────────────────────────────────────────────
+float32 progress_pct    # 0.0 → 100.0
+float32 current_speed   # instantaneous weld speed (mm/s)
+string  phase           # "IGNITING" | "WELDING" | "FINISHING"

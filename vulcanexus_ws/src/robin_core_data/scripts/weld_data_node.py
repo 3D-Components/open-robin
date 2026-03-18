@@ -12,7 +12,7 @@ by matching progression values rather than timestamps.
 Subscribes to:
 - /fronius/display_* - Raw Fronius welder data
 - /robin/data/active_bead - Active bead info (start/end points)
-- TF (base_link -> weld_torch_tip)
+- TF (base_link -> wire_tip)
 
 Publishes:
 - /robin/data/progression - Current progression along active bead
@@ -44,7 +44,7 @@ class WeldDataNode(Node):
         self.declare_parameter('wire_feed_topic', '/fronius/display_wfs')
         self.declare_parameter('power_topic', '/fronius/display_power')
         self.declare_parameter('base_frame', 'base_link')
-        self.declare_parameter('tcp_frame', 'weld_torch_tip')
+        self.declare_parameter('tcp_frame', 'wire_tip')
         
         # Get parameters
         self.publish_rate = self.get_parameter('publish_rate').value
@@ -231,7 +231,7 @@ class WeldDataNode(Node):
         
         # Calculate progression
         progression = 0.0
-        if self._is_welding and self._bead_length > 0:
+        if self._active_bead_id and self._bead_length > 0:
             progression = self._calculate_progression(tcp_pos)
         
         # Publish progression message

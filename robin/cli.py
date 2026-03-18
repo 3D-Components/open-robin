@@ -154,6 +154,52 @@ class RobinFiwareClient:
                 f'Failed to stop process {process_id}: {response.text}',
             )
 
+    def patch_process_intent(self, process_id: str, intent: str, data: dict) -> bool:
+        """Write the pending intent to the Process entity in Orion-LD.
+
+        Orion-LD 1.x has separate operations for adding vs updating attributes:
+        - PATCH /attrs updates existing attributes (returns 204 on success, 207 if attr missing)
+        - POST  /attrs appends new attributes (returns 204 on success)
+
+        Strategy:
+        1. PATCH to update (fast path for subsequent intents)
+        2. If 207 (attribute missing) → POST to append it (first intent ever)
+        3. If 404 (entity missing) → create a minimal entity stub
+        """
+        entity_id = f'{self.PROCESS_ENTITY_ID_PREFIX}{process_id}'
+        now = datetime.now(timezone.utc).isoformat()
+        intent_prop = {
+            'type': 'Property',
+            'value': {'intent': intent, 'data': data, 'source': 'dashboard'},
+            'observedAt': now,
+        }
+        attrs_url = f'{self.orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs'
+
+        response = requests.patch(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+
+        if response.status_code == 204:
+            return True
+
+        if response.status_code == 207:
+            # Attribute doesn't exist yet — append it, then PATCH to guarantee subscription fires
+            # (Orion-LD does not fire watchedAttributes subscriptions on POST /attrs, only on PATCH)
+            requests.post(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+            patch_resp = requests.patch(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+            return patch_resp.status_code == 204
+
+        if response.status_code == 404:
+            # Entity doesn't exist yet — create a minimal stub, then PATCH to fire subscription
+            # (Orion-LD does not fire subscriptions on entity creation, only on PATCH)
+            requests.post(
+                f'{self.orion_url}/ngsi-ld/v1/entities',
+                headers=self.headers,
+                json={'id': entity_id, 'type': 'urn:robin:Process', 'pendingIntent': intent_prop},
+            )
+            patch_resp = requests.patch(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+            return patch_resp.status_code == 204
+
+        return False
+
     def resume_process(self, process_id: str):
         """Resume a stopped process"""
         entity_id = f'{self.PROCESS_ENTITY_ID_PREFIX}{process_id}'
@@ -461,7 +507,7 @@ class RobinFiwareClient:
     def create_alert(self, alert_data):
         """Create alert entity in Orion"""
         entity = {
-            'id': f'urn:ngsi-ld:Alert:{alert_data.process_id}-{int(time.time())}',
+            'id': f'urn:ngsi-ld:Alert:{alert_data.process_id}-{int(time.time() * 1000)}',
             'type': 'urn:robin:Alert',
             'processId': {
                 'type': 'Relationship',
@@ -499,7 +545,8 @@ class RobinFiwareClient:
             headers=self.headers,
             json=entity,
         )
-        return response.status_code in (200, 201)
+        # 409 means the entity already exists (race condition — alert was already recorded)
+        return response.status_code in (200, 201, 409)
 
 
 # CLI Commands

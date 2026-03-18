@@ -1,0 +1,17 @@
+# Move robot to the safe home position.
+# ros4hri: maps to motion_skills/action/ExecuteJointTrajectory
+
+# ── Goal ──────────────────────────────────────────────────────────────────
+bool use_fast_speed   # true → move at maximum velocity
+
+---
+
+# ── Result ─────────────────────────────────────────────────────────────────
+bool   success
+string message
+
+---
+
+# ── Feedback ───────────────────────────────────────────────────────────────
+float32 progress_pct    # 0.0 → 100.0
+string  current_joint   # joint currently being moved

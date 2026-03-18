@@ -9,7 +9,6 @@ import { RobotsTab } from '../features/robots/RobotsTab';
 import { ModelsTrustTab } from '../features/models/ModelsTrustTab';
 import { HistoryTab } from '../features/history/HistoryTab';
 import { SettingsTab } from '../features/settings/SettingsTab';
-import { useViserBridge } from '../../hooks/useViserBridge';
 import {
     useMeasurements,
     useHealth,
@@ -22,6 +21,7 @@ import {
     setTarget,
     setProcessMode,
     getAIRecommendation,
+    publishRosIntent,
     type RobinMeasurement,
     type AIRecommendationResponse,
 } from '../../hooks/useRobinAPI';
@@ -30,9 +30,6 @@ import type {
     RobotCell,
     ProcessRun,
     TrustAssessment,
-    VizMode,
-    CameraView,
-    LayerVisibility,
     MetricType,
     ConnStatus,
     MeasurementPoint,
@@ -301,8 +298,6 @@ export function RobinPage() {
     const [robot, setRobot] = useState<RobotCell>(initialRobot);
     const [currentRun, _setCurrentRun] = useState<ProcessRun | null>(null);
 
-    useViserBridge(robot);
-
     const [alerts, setAlerts] = useState<Alert[]>([
         { id: 'alert-001', at: nowIso(), severity: 'Info', message: 'ROBIN UI started. Waiting for live data…', source: 'System' },
     ]);
@@ -318,6 +313,8 @@ export function RobinPage() {
     const lastMeasurementAtRef = useRef(Date.now());
     const inactivityCompletionRequestedRef = useRef(false);
     const operatorPauseHoldRef = useRef(false);
+    // Guards against duplicate intent publishes from rapid double-clicks.
+    const intentInFlightRef = useRef(false);
     const [startPlanning, setStartPlanning] = useState(false);
     const [startPreviewPlan, setStartPreviewPlan] = useState<StartPreviewPlan | null>(null);
     const [manualAdjustDraft, setManualAdjustDraft] = useState<ManualAdjustDraft | null>(null);
@@ -601,7 +598,12 @@ export function RobinPage() {
         }
 
         pushAlert('Info', 'Starting new Design of Experiments', 'Deviation Monitor');
-    }, [processControls, pushAlert, requestAiRecommendation]);
+        publishRosIntent('LAUNCH_NEW_DOE', {
+            seam_id: 'seam_01', weld_speed: 5.0, wire_feed: 4.0,
+        }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'LAUNCH_NEW_DOE intent published', 'Intent Bridge'))
+            .catch(() => {});
+    }, [processControls, processId, pushAlert, requestAiRecommendation]);
 
     const [activeModel, setActiveModel] = useState<string>('—');
 
@@ -615,20 +617,10 @@ export function RobinPage() {
 
     const [trustFeed, setTrustFeed] = useState<TrustAssessment[]>([]);
 
-    const [vizMode] = useState<VizMode>('execution');
-    const [layers, setLayers] = useState<LayerVisibility>({
-        robotModel: true,
-        torchPath: true,
-        workpiece: true,
-        profileSegments: true,
-        frames: false,
-    });
-    const [camera, setCamera] = useState<CameraView>('Isometric');
     const [timelineT, setTimelineT] = useState(0);
-    const [replay, setReplay] = useState(false);
 
     const [telemetry, setTelemetry] = useState<MeasurementPoint[]>([]);
-    const [metric, setMetric] = useState<MetricType>('profileHeight');
+    const [metric, setMetric] = useState<MetricType>('speed');
     const [freezeCharts, setFreezeCharts] = useState(false);
 
     const simulationProgress = useMemo(() => {
@@ -801,6 +793,7 @@ export function RobinPage() {
     const telemetryChartData = useMemo(() => {
         return telemetry.map((p) => ({
             t: p.t,
+            absT: p.timestamp ? Date.parse(p.timestamp) / 1000 : p.t,
             timestamp: p.timestamp,
             value: metric === 'speed' ? p.speed : metric === 'current' ? p.current : metric === 'voltage' ? p.voltage : metric === 'profileHeight' ? p.profileHeight : p.profileWidth,
         }));
@@ -830,7 +823,16 @@ export function RobinPage() {
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
-    }, [processId, pushAlert, robot.name]);
+        const params = plan.mode === 'parameter_driven' ? plan.inputParams : plan.recommendedParams;
+        publishRosIntent('START_PROCESS', {
+            seam_id: plan.processId,
+            weld_speed: params.wireSpeed,
+            current: params.current,
+            voltage: params.voltage,
+        }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'START_PROCESS intent published to /intents', 'Intent Bridge'))
+            .catch(() => pushAlert('Warning', 'Failed to publish START_PROCESS intent', 'Intent Bridge'));
+    }, [processId, publishRosIntent, pushAlert, robot.name]);
 
     const buildStartPreview = useCallback(async (): Promise<StartPreviewPlan> => {
         if (!processId) {
@@ -941,6 +943,8 @@ export function RobinPage() {
         if (processId) {
             stopProcess(processId, 'operator_pause').catch(() => {});
         }
+        publishRosIntentOnce('PAUSE_PROCESS', { reason: 'operator_pause' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'PAUSE_PROCESS intent published', 'Intent Bridge');
     };
     const resumeRobotHandler = () => {
         if (robot.state !== 'Paused') return;
@@ -951,6 +955,8 @@ export function RobinPage() {
         if (processId) {
             resumeProcess(processId).catch(() => {});
         }
+        publishRosIntentOnce('RESUME_PROCESS', { reason: 'operator_resume' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'RESUME_PROCESS intent published', 'Intent Bridge');
     };
     const applyManualAdjustAndContinue = useCallback(async () => {
         if (!manualAdjustDraft) return;
@@ -965,13 +971,22 @@ export function RobinPage() {
         setProcessControls(nextControls);
         await handleControlsApply(nextControls);
         setManualAdjustDraft(null);
+        publishRosIntent('MANUAL_ADJUST', {
+            parameters: [
+                { parameter_name: 'weld_speed', new_value: nextControls.speed,   unit: 'mm/s' },
+                { parameter_name: 'current',    new_value: nextControls.current, unit: 'A' },
+                { parameter_name: 'voltage',    new_value: nextControls.voltage, unit: 'V' },
+            ],
+        }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'MANUAL_ADJUST intent published', 'Intent Bridge'))
+            .catch(() => {});
         setAiRecommendationError(null);
         setWarningGateResetToken((prev) => prev + 1);
 
         if (robot.state === 'Paused') {
             resumeRobotHandler();
         }
-    }, [handleControlsApply, manualAdjustDraft, processControls, robot.state, resumeRobotHandler]);
+    }, [handleControlsApply, manualAdjustDraft, processControls, processId, publishRosIntent, pushAlert, robot.state, resumeRobotHandler]);
 
     const applyAiRecommendationAndContinue = useCallback(async () => {
         if (!aiRecommendationPlan) return;
@@ -1018,12 +1033,32 @@ export function RobinPage() {
         );
 
         setAiRecommendationPlan(null);
+        publishRosIntent('REQUEST_AI_RECOMMENDATION', {
+            process_id: processId ?? '',
+            mode: 'geometry_driven',
+            parameters: [
+                { parameter_name: 'weld_speed', new_value: nextControls.speed,   unit: 'mm/s' },
+                { parameter_name: 'current',    new_value: nextControls.current, unit: 'A' },
+                { parameter_name: 'voltage',    new_value: nextControls.voltage, unit: 'V' },
+            ],
+        }, processId ?? 'ros_bridge')
+            .then(() => pushAlert('Info', 'REQUEST_AI_RECOMMENDATION intent published', 'Intent Bridge'))
+            .catch(() => {});
         setAiRecommendationError(null);
         setWarningGateResetToken((prev) => prev + 1);
         if (robot.state === 'Paused') {
             resumeRobotHandler();
         }
-    }, [aiRecommendationPlan, processControls, processId, pushAlert, robot.state, sessionMode, resumeRobotHandler]);
+    }, [aiRecommendationPlan, processControls, processId, publishRosIntent, pushAlert, robot.state, sessionMode, resumeRobotHandler]);
+
+    const publishRosIntentOnce = (intent: string, data: Record<string, unknown>, pid: string) => {
+        if (intentInFlightRef.current) return;
+        intentInFlightRef.current = true;
+        const resetAfterMs = 1500;
+        const reset = () => { intentInFlightRef.current = false; };
+        publishRosIntent(intent, data, pid).then(reset, reset);
+        setTimeout(reset, resetAfterMs);
+    };
 
     const abortRobot = () => {
         operatorPauseHoldRef.current = false;
@@ -1032,11 +1067,19 @@ export function RobinPage() {
         if (processId) {
             stopProcess(processId, 'operator_abort').catch(() => {});
         }
+        // Publish ESTOP intent — cancels all active skill goals on the ROS2 side
+        publishRosIntentOnce('ESTOP', { reason: 'operator_button' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'ESTOP intent published to /intents', 'Intent Bridge');
     };
     const stopRobot = () => {
-        // Temporary mock behavior: Stop currently maps to Abort.
-        // In the future, Stop and Abort will have different semantics.
-        abortRobot();
+        operatorPauseHoldRef.current = false;
+        setRobot((prev) => ({ ...prev, state: 'Idle' as const, taskProgressPct: 0, segmentIndex: 0 }));
+        pushAlert('Warning', `${robot.name} stopped by operator.`, robot.name);
+        if (processId) {
+            stopProcess(processId, 'operator_stop').catch(() => {});
+        }
+        publishRosIntentOnce('STOP_PROCESS', { reason: 'operator_stop' }, processId ?? 'ros_bridge');
+        pushAlert('Info', 'STOP_PROCESS intent published', 'Intent Bridge');
     };
     const toggleParamFreeze = () => {
         setRobot((prev) => ({ ...prev, isParamFrozen: !prev.isParamFrozen }));
@@ -1110,15 +1153,7 @@ export function RobinPage() {
                             toggleParamFreeze={toggleParamFreeze}
                             currentRun={currentRun}
                             alerts={alerts}
-                            vizMode={vizMode}
-                            layers={layers}
-                            setLayers={setLayers}
-                            camera={camera}
-                            setCamera={setCamera}
                             timelineT={timelineT}
-                            setTimelineT={setTimelineT}
-                            replay={replay}
-                            setReplay={setReplay}
                             telemetryChartData={telemetryChartData}
                             metric={metric}
                             setMetric={setMetric}
@@ -1194,8 +1229,6 @@ export function RobinPage() {
                             setTrustStopTh={setTrustStopTh}
                             freezeCharts={freezeCharts}
                             setFreezeCharts={setFreezeCharts}
-                            replay={replay}
-                            setReplay={setReplay}
                         />
                     )}
                 </main>

@@ -1,4 +1,7 @@
 import rclpy
+from rclpy.qos import (
+    qos_profile_sensor_data,
+)
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2, PointField
 from geometry_msgs.msg import TransformStamped
@@ -37,14 +40,12 @@ class SensorPointCloudPublisher(Node):
         self.declare_parameter('data_port', 66)
         self.declare_parameter('frame_id', 'garmo_laser_frame')                # default to URDF frame name
         self.declare_parameter('parent_frame', 'world')                        # default to URDF root link
-        self.declare_parameter('frame_xyz', [0.0, 0.0, 0.0])        # NEW: sensor translation (meters by default)
-        self.declare_parameter('frame_rpy', [0.0, 0.0, 0.0])        # NEW: sensor rotation (radians)
-        self.declare_parameter('tf_broadcast_hz', 42.0)                # NEW: TF broadcast rate (Hz)
+        self.declare_parameter('frame_xyz', [0.0, 0.0, 0.0])        # sensor translation (meters by default)
+        self.declare_parameter('frame_rpy', [0.0, 0.0, 0.0])        # sensor rotation (radians)
+        self.declare_parameter('tf_broadcast_hz', 42.0)                # TF broadcast rate (Hz)
         self.declare_parameter('topic', '/robin/pointcloud')
         self.declare_parameter('units', 'm')  # raw/um/mm/m
         self.declare_parameter('reconnect_interval', 2.0)
-        # NEW: optional toggle to log each publish (debug level)
-        self.declare_parameter('log_publish_debug', False)
 
         self.sensor_ip = self.get_parameter('sensor_ip').value
         self.data_port = int(self.get_parameter('data_port').value)
@@ -57,8 +58,8 @@ class SensorPointCloudPublisher(Node):
         self.units = self.get_parameter('units').value
         self._xyz_cols = [0, 1, 2]
         self._frame_col = 4
+        self._needed_len = max(max(self._xyz_cols), self._frame_col) + 1
         self.reconnect_interval = float(self.get_parameter('reconnect_interval').value)
-        self.log_publish_debug = bool(self.get_parameter('log_publish_debug').value)
 
         # normalize pose params (moved into helper for stricter validation)
         self.frame_xyz = self._normalize_vec3(frame_xyz_param, "frame_xyz")
@@ -67,13 +68,11 @@ class SensorPointCloudPublisher(Node):
         self.scale = _resolve_scale(self.units)
 
         # Publisher
-        self._pub = self.create_publisher(PointCloud2, topic, 10)
+        self._pub = self.create_publisher(PointCloud2, topic, qos_profile_sensor_data)
 
-        # TF broadcaster
-        self._tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-        # timer to broadcast transform periodically
-        tf_period = max(0.01, 1.0 / max(0.1, self.tf_broadcast_hz))
-        self._tf_timer = self.create_timer(tf_period, self._broadcast_transform)
+        # Static TF broadcaster
+        self._tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
+        self._publish_static_transform()
 
         # Reader thread control
         self._stop_event = threading.Event()
@@ -99,84 +98,55 @@ class SensorPointCloudPublisher(Node):
             return (0.0, 0.0, 0.0)
 
     def _reader_loop(self):
-        text_buffer = ""
-        current_points = []
-        current_frame = None
-
+        """Outer loop managing connection and reconnection."""
         while not self._stop_event.is_set():
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(2.0)
-                    s.connect((self.sensor_ip, self.data_port))
-                    s.settimeout(1.0)
-                    self.get_logger().info("Connected to sensor data stream")
-                    while not self._stop_event.is_set():
-                        try:
-                            chunk = s.recv(4096)
-                            if not chunk:
-                                # connection closed by peer
-                                raise OSError("Socket closed")
-                        except socket.timeout:
-                            continue
-                        except OSError:
-                            break
-
-                        try:
-                            text_buffer += chunk.decode("ascii", errors="ignore")
-                        except Exception:
-                            continue
-
-                        # Process complete lines
-                        while "\n" in text_buffer:
-                            line, text_buffer = text_buffer.split("\n", 1)
-                            line = line.strip("\r").strip()
-                            if not line:
-                                continue
-
-                            parts = line.split()
-                            needed_len = max(max(self._xyz_cols), self._frame_col) + 1
-                            if len(parts) < needed_len:
-                                continue
-
-                            try:
-                                values = [int(p) for p in parts]
-                            except ValueError:
-                                continue
-
-                            frame_no = values[self._frame_col]
-                            if current_frame is None:
-                                current_frame = frame_no
-
-                            # New frame detected -> publish accumulated points
-                            if current_points and frame_no != current_frame:
-                                self._publish_pointcloud(current_points)
-                                current_points = []
-                                current_frame = frame_no
-
-                            try:
-                                px = values[self._xyz_cols[0]] * self.scale
-                                py = values[self._xyz_cols[1]] * self.scale
-                                pz = values[self._xyz_cols[2]] * self.scale
-                                # Basic sanity (reject absurd magnitudes to avoid RViz crashes)
-                                if not (-1e4 < px < 1e4 and -1e4 < py < 1e4 and -1e4 < pz < 1e4):
-                                    continue
-                                current_points.append((px, py, pz))
-                            except Exception:
-                                pass
-
-                    # On connection break publish any accumulated points
-                    if current_points:
-                        self._publish_pointcloud(current_points)
-                        current_points = []
-                        current_frame = None
-
+                self._process_sensor_stream()
             except Exception as e:
                 if self._stop_event.is_set():
                     break
                 self.get_logger().warning(f"Data stream connection lost: {e}. Reconnecting in {self.reconnect_interval}s")
-                # small sleep before reconnecting
                 time.sleep(self.reconnect_interval)
-                continue
+
+    def _process_sensor_stream(self):
+        """Inner logic handling the active socket connection and data parsing."""
+        with socket.create_connection((self.sensor_ip, self.data_port), timeout=2.0) as s:
+            s.settimeout(None)  # Blocking mode for makefile reading
+            self.get_logger().info("Connected to sensor data stream")
+            
+            # makefile handles buffering, decoding, and line-splitting in C
+            with s.makefile('r', encoding='ascii', errors='ignore') as f:
+                current_points = []
+                current_frame = None
+
+                for line in f:
+                    if self._stop_event.is_set():
+                        break
+
+                    parts = line.split()
+                    if len(parts) < self._needed_len:
+                        continue
+
+                    frame_no = int(parts[self._frame_col])
+
+                    # New frame detected -> publish accumulated points
+                    if current_frame is not None and frame_no != current_frame:
+                        self._publish_pointcloud(current_points)
+                        current_points.clear()
+
+                    current_frame = frame_no
+
+                    # Standard Python parsing is faster than np.fromstring for single lines
+                    x = float(parts[self._xyz_cols[0]]) * self.scale
+                    y = float(parts[self._xyz_cols[1]]) * self.scale
+                    z = float(parts[self._xyz_cols[2]]) * self.scale
+
+                    if -1e4 < x < 1e4 and -1e4 < y < 1e4 and -1e4 < z < 1e4:
+                        current_points.append((x, y, z))
+
+                # Publish any remaining points if connection drops cleanly
+                if current_points:
+                    self._publish_pointcloud(current_points)
 
     def _publish_pointcloud(self, points):
         if not points:
@@ -208,12 +178,10 @@ class SensorPointCloudPublisher(Node):
         msg.data = pts.tobytes()
 
         self._pub.publish(msg)
-        if self.log_publish_debug and self.get_logger().get_effective_level() <= rclpy.logging.LoggingSeverity.DEBUG:
-            self.get_logger().debug(f"Published PointCloud2 with {n_points} points")
 
-    def _broadcast_transform(self):
+    def _publish_static_transform(self):
         """
-        Broadcast a transform parent_frame -> frame_id using configured xyz/rpy.
+        Broadcast a static transform parent_frame -> frame_id using configured xyz/rpy.
         This provides the TF needed by RViz to transform the PointCloud2 into other frames.
         """
         # Skip broadcasting if frames identical (would be invalid TF)
@@ -242,25 +210,28 @@ class SensorPointCloudPublisher(Node):
         try:
             self._tf_broadcaster.sendTransform(t)
         except Exception as e:
-            # avoid noisy logging on transient broadcaster errors
-            self.get_logger().debug(f"TF sendTransform error: {e}")
+            self.get_logger().warning(f"Static TF sendTransform error: {e}")
 
     @staticmethod
     def _euler_to_quaternion(roll, pitch, yaw):
         """
         Convert Euler angles (roll, pitch, yaw) to quaternion (x, y, z, w).
         """
-        cy = math.cos(yaw * 0.5)
-        sy = math.sin(yaw * 0.5)
-        cp = math.cos(pitch * 0.5)
-        sp = math.sin(pitch * 0.5)
-        cr = math.cos(roll * 0.5)
-        sr = math.sin(roll * 0.5)
+        # Pre-compute half angles
+        r, p, y = roll * 0.5, pitch * 0.5, yaw * 0.5
+        
+        cy = math.cos(y)
+        sy = math.sin(y)
+        cp = math.cos(p)
+        sp = math.sin(p)
+        cr = math.cos(r)
+        sr = math.sin(r)
 
         qw = cr * cp * cy + sr * sp * sy
         qx = sr * cp * cy - cr * sp * sy
         qy = cr * sp * cy + sr * cp * sy
         qz = cr * cp * sy - sr * sp * cy
+        
         return (qx, qy, qz, qw)
 
     def destroy_node(self):
@@ -269,12 +240,6 @@ class SensorPointCloudPublisher(Node):
         try:
             if self._thread and self._thread.is_alive():
                 self._thread.join(timeout=2.0)
-        except Exception:
-            pass
-        # cancel TF timer
-        try:
-            if hasattr(self, "_tf_timer"):
-                self._tf_timer.cancel()
         except Exception:
             pass
         super().destroy_node()

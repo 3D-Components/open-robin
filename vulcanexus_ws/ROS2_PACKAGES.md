@@ -529,3 +529,268 @@ colcon build --symlink-install --packages-select robin_hardware_opcua
 - **ur_robot_driver** for UR10e
 - **open62541** v1.4.14 (built from source for WAGO PLC)
 - **asyncua** Python library (for Fronius OPC UA)
+
+---
+
+## HRI Skill Layer (welding_*)
+
+The `welding_*` packages implement a skill-based Human-Robot Interaction (HRI) layer on top of the core ROBIN system. Operator intents from the React dashboard are translated into ROS2 action goals and dispatched to specialised skill action servers.
+
+### System Architecture
+
+```
+Robin Dashboard (React, port 5174)
+        │
+        │  POST /intent  (JSON)
+        ▼
+welding_http_bridge  (:8766)
+        │
+        │  /intents  (welding_msgs/Intent)
+        ▼
+welding_supervisor
+        ├─► MOVE_TO_HOME             ──► welding_home_skill/execute
+        ├─► EXECUTE_SEAM             ──► welding_seam_skill/execute
+        ├─► ESTOP                    ──► cancel all active goals
+        ├─► START_PROCESS            ──► welding_seam_skill/execute  (reuses seam)
+        ├─► REQUEST_AI_RECOMMENDATION──► welding_recommendation_skill/execute
+        ├─► MANUAL_ADJUST            ──► welding_manual_skill/execute
+        ├─► LAUNCH_NEW_DOE           ──► /doe/launch  (std_msgs/String, JSON)
+        ├─► PAUSE_PROCESS            ──► cancel seam → welding_home_skill/execute
+        ├─► RESUME_PROCESS           ──► welding_home_skill/execute
+        └─► STOP_PROCESS             ──► cancel all → welding_home_skill/execute
+```
+
+### Package Index
+
+| Package | Build | Description |
+|---------|-------|-------------|
+| `welding_msgs` | CMake | Custom Intent message + action definitions |
+| `welding_http_bridge` | Python | HTTP ↔ ROS2 intent bridge (port 8766) |
+| `welding_supervisor` | Python | Intent-to-skill mission controller |
+| `welding_home_skill` | Python | Move robot to home joint configuration |
+| `welding_seam_skill` | Python | Execute a weld seam (simulation or hardware) |
+| `welding_recommendation_skill` | Python | Request an AI process recommendation |
+| `welding_manual_skill` | Python | Apply a manual parameter adjustment to hardware |
+| `welding_demo` | Python | Master launch file for the full HRI demo stack |
+
+---
+
+### welding_msgs
+
+Custom message and action definitions shared by all welding packages.
+
+**Message:** `welding_msgs/msg/Intent`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `intent` | `string` | One of the intent type constants below |
+| `data` | `string` | JSON-encoded intent payload |
+| `source` | `string` | `ROBOT` / `REMOTE` / `UNKNOWN` |
+| `modality` | `string` | `TOUCHSCREEN` / `SPEECH` / `GESTURE` / `INTERNAL` |
+| `priority` | `float32` | 0.0 (lowest) → 1.0 (highest) |
+| `confidence` | `float32` | Always 1.0 for GUI button presses |
+
+**Intent type constants:**
+
+| Constant | Routes to |
+|----------|-----------|
+| `MOVE_TO_HOME` | `welding_home_skill` |
+| `EXECUTE_SEAM` | `welding_seam_skill` |
+| `ESTOP` | Cancel all active goals |
+| `START_PROCESS` | `welding_seam_skill` (reuses seam) |
+| `REQUEST_AI_RECOMMENDATION` | `welding_recommendation_skill` |
+| `MANUAL_ADJUST` | `welding_manual_skill` |
+| `LAUNCH_NEW_DOE` | `/doe/launch` topic |
+| `PAUSE_PROCESS` | Cancel seam → `welding_home_skill` |
+| `RESUME_PROCESS` | `welding_home_skill` |
+| `STOP_PROCESS` | Cancel all → `welding_home_skill` |
+
+**Action definitions:**
+
+| Action | Goal fields | Result fields | Feedback fields |
+|--------|-------------|---------------|-----------------|
+| `MoveToHome` | `use_fast_speed: bool` | `success`, `message` | `progress_pct`, `current_joint` |
+| `ExecuteSeam` | `seam_id`, `weld_speed`, `wire_feed_rate` | `success`, `message`, `seam_length_mm` | `progress_pct`, `current_speed`, `phase` |
+| `RequestAIRecommendation` | `process_id`, `mode` | `success`, `message`, `recommendation_json` | `progress_pct`, `phase` |
+| `ManualAdjust` | `parameter_name`, `new_value`, `unit` | `success`, `message`, `applied_value` | `progress_pct`, `phase` |
+
+---
+
+### welding_http_bridge
+
+Translates HTTP requests from the React dashboard into ROS2 intent messages, and forwards NGSI-LD context broker notifications.
+
+**Node:** `welding_http_bridge_node`  
+**Port:** `8766` (aiohttp async server)
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/intent` | Publish an intent from JSON body `{"intent": "...", "data": {...}}` |
+| `POST` | `/orion-notify` | Receive NGSI-LD subscription callbacks and publish as intent |
+| `GET` | `/health` | Returns `{"status": "ok"}` |
+
+**Topics published:**
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/intents` | `welding_msgs/Intent` | Forwarded intent from HTTP or Orion-LD notification |
+
+**Key behaviour:**
+- CORS enabled for all origins (development: `localhost:5174`)
+- Background daemon thread registers and refreshes Orion-LD subscription on `pendingIntent` attribute changes
+- Thread-safe: aiohttp async handlers publish directly on the rclpy publisher
+
+---
+
+### welding_supervisor
+
+Intent-to-skill mission controller. Subscribes to `/intents`, parses the JSON payload, and dispatches each intent to the matching skill action server.
+
+**Node:** `welding_supervisor_node`  
+**Executor:** `MultiThreadedExecutor(4 threads)` with `ReentrantCallbackGroup`
+
+**Topics subscribed:**
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/intents` | `welding_msgs/Intent` | Incoming operator intents |
+
+**Topics published:**
+
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/doe/launch` | `std_msgs/String` | DOE GUI launch notification (JSON) |
+
+**Action clients:**
+
+| Client | Action type | Skill |
+|--------|-------------|-------|
+| `welding_home_skill/execute` | `MoveToHome` | `welding_home_skill` |
+| `welding_seam_skill/execute` | `ExecuteSeam` | `welding_seam_skill` |
+| `welding_recommendation_skill/execute` | `RequestAIRecommendation` | `welding_recommendation_skill` |
+| `welding_manual_skill/execute` | `ManualAdjust` | `welding_manual_skill` |
+
+**Goal tracking:**
+- `_active_goal_handles` — all currently accepted goals (cancelled by ESTOP / STOP_PROCESS)
+- `_active_seam_goal_handles` — seam/start goals only (cancelled by PAUSE_PROCESS)
+
+---
+
+### welding_home_skill
+
+Moves the robot to its home joint configuration.
+
+**Node:** `welding_home_skill_node` (LifecycleNode)  
+**Action server:** `welding_home_skill/execute` (`MoveToHome`)  
+**Executor:** `MultiThreadedExecutor(2 threads)`
+
+**Modes:**
+
+| Mode | Behaviour |
+|------|-----------|
+| Simulation (default) | 3-second mock movement across 6 joints with per-joint progress feedback |
+| Hardware | Delegates to `/move_home` action on `robin_moveit_control` (placeholder — falls back to simulation with warning) |
+
+---
+
+### welding_seam_skill
+
+Executes a weld seam path. The primary skill for `START_PROCESS` and `EXECUTE_SEAM` intents.
+
+**Node:** `welding_seam_skill_node` (LifecycleNode)  
+**Action server:** `welding_seam_skill/execute` (`ExecuteSeam`)  
+**Executor:** `MultiThreadedExecutor(4 threads)`
+
+**Modes:**
+
+| Mode | Behaviour |
+|------|-----------|
+| Simulation (default) | 6-second mock with phases: `IGNITING → WELDING×3 → FINISHING`, returns `seam_length_mm=150` |
+| Hardware | Delegates to `/weld_experiment` action on `robin_moveit_control` (RobinPlanner). Builds a `WeldBead` from the seam registry. Default seam `seam_01`: start `[0.45, -0.20, 0.05]` → end `[0.45, 0.20, 0.05]`, 220 A / 26 V / 15 mm stickout. |
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `seam_registry` | `{}` | YAML map of seam IDs to coordinate pairs |
+| `simulation_mode` | `true` | Set to `false` to use hardware path |
+
+---
+
+### welding_recommendation_skill
+
+Requests an AI process recommendation from the ROBIN backend.
+
+**Node:** `welding_recommendation_skill_node` (LifecycleNode)  
+**Action server:** `welding_recommendation_skill/execute` (`RequestAIRecommendation`)  
+**Executor:** `MultiThreadedExecutor(2 threads)`
+
+**Modes:**
+
+| Mode | Behaviour |
+|------|-----------|
+| Simulation (default) | 3-second mock with phases `FETCHING → PROCESSING → COMPLETE`. Returns stub recommendation: `weld_speed=4.8 mm/s, wire_feed=4.2 m/min, current=210 A, voltage=24.5 V, confidence=0.87` |
+| Production | Replace stub with `POST /ai-recommendation` call to ROBIN backend |
+
+---
+
+### welding_manual_skill
+
+Applies a manual process parameter adjustment, optionally writing to hardware.
+
+**Node:** `welding_manual_skill_node` (LifecycleNode)  
+**Action server:** `welding_manual_skill/execute` (`ManualAdjust`)  
+**Executor:** `MultiThreadedExecutor(4 threads)`
+
+**Modes:**
+
+| Mode | Behaviour |
+|------|-----------|
+| Simulation (default) | 2-second mock with phases `VALIDATING → APPLYING → CONFIRMING` |
+| Hardware | Calls Fronius `SetFloat32` services via the OPC UA bridge |
+
+**Hardware parameter mapping (hardware mode):**
+
+| `parameter_name` | ROS2 service | Unit | Safe range |
+|------------------|-------------|------|------------|
+| `current` | `/fronius/set_current` | A | 50 – 400 A |
+| `voltage` | `/fronius/set_voltage` | V | 10 – 50 V |
+| `wire_speed` | `/fronius/set_wire_speed` | m/min | 1 – 15 m/min |
+| `weld_speed` | *(motion — logs warning)* | mm/s | — |
+
+Values are clamped to their safe range before being sent to hardware.
+
+---
+
+### welding_demo
+
+Master launch file that starts the complete HRI demo stack in the correct order.
+
+**Launch file:** `welding_robin_demo.launch.py`
+
+**Start order:**
+
+| Time | Nodes launched |
+|------|---------------|
+| t = 0 s | `welding_home_skill`, `welding_seam_skill`, `welding_recommendation_skill`, `welding_manual_skill`, `welding_http_bridge` |
+| t = 2 s | `welding_supervisor` (delayed so all action servers are ready) |
+
+**Quick start:**
+
+```bash
+# Build
+colcon build --packages-up-to welding_demo
+
+# Launch full HRI stack
+ros2 launch welding_demo welding_robin_demo.launch.py
+
+# Test an intent manually
+curl -s -X POST http://localhost:8766/intent \
+     -H 'Content-Type: application/json' \
+     -d '{"intent": "START_PROCESS", "data": {"seam_id": "seam_01"}}' | jq
+
+# Monitor the intent stream
+ros2 topic echo /intents
+```

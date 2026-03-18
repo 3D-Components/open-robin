@@ -1,15 +1,16 @@
-# Aggregated process telemetry for DDS -> NGSI-LD bridging.
-#
-# Keep fields as simple float32 primitives so Orion-LD's DDS bridge can
-# deserialize and store them reliably.
+# Aggregated telemetry published on /robin/telemetry by telemetry_aggregator_node.
+# Field names (current, voltage, speed, width, height) are intentional:
+# Orion-LD DDS bridge serialises them into the urn:robin:processTelemetry compound JSON
+# attribute with these exact keys, which are then parsed by timescale_plot_sanity.py,
+# mintaka_plot_sanity.py and the Alert Engine.
 std_msgs/Header header
 
-# Primary output/quality metrics (example: height/width of a deposited feature)
-float32 height
-float32 width
+# From /robin/data/fronius (WelderData)
+float32 current           # Welding current (A)
+float32 voltage           # Arc voltage (V)
+float32 speed             # Wire feed speed (m/min)
 
-# Primary input/actuation metrics (example: robot tool speed, machine power)
-float32 speed
-float32 current
-float32 voltage
-
+# From /robin/weld_dimensions (BeadGeometry)
+float32 width             # Bead width (mm)
+float32 height            # Bead height (mm)
+float32 cross_sectional_area  # Cross-sectional area (mm^2)

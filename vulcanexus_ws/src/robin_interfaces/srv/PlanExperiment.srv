@@ -1,0 +1,18 @@
+# PlanExperiment.srv - Ingest system-agnostic experiment schema and build a plate-aware plan
+
+string experiment_id                         # Optional external experiment identifier
+robin_interfaces/ExperimentBeadSpec[] beads  # System-agnostic bead specs
+robin_interfaces/WeldPlate[] plates          # Available/calibrated plates (empty => reject)
+float32 spacing_x                            # Along-bead spacing/stagger step (m), default 0.03
+float32 spacing_y                            # Cross-bead spacing/pitch (m), default 0.03
+float32 margin_x                             # Margin along bead direction (m), default planner param
+float32 margin_y                             # Margin across bead direction (m), default planner param
+bool staggered                               # Apply alternating x-offset per row
+bool publish_preview                         # Publish preview markers for operator confirmation
+---
+bool success
+string plan_id
+string message
+robin_interfaces/ExperimentBead[] planned_beads
+robin_interfaces/WeldPlate[] plates
+robin_interfaces/PlateLayout layout
