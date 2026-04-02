@@ -148,3 +148,35 @@ npm run dev
 
 React 19, Vite, TypeScript, Tailwind CSS, Recharts, Lucide icons.
 Production build is served by Nginx Alpine.
+
+---
+
+## MCCP Inference (DevLab API)
+
+A lightweight Python HTTP server exposing MCCP-UQ (Monte Carlo Conformal Prediction with Uncertainty Quantification) predictions. Used by the Inference DevLab tab.
+
+### Quick Start
+
+```bash
+cd robin-dashboard/services
+MCCP_WORKSPACE_ROOT=/path/to/shared-workspace python mccp_inference_devlab_server.py
+# HTTP API on :8091
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `MCCP_API_HOST` | `0.0.0.0` | MCCP API bind address |
+| `MCCP_API_PORT` | `8091` | MCCP API port |
+| `MCCP_WORKSPACE_ROOT` | *(none)* | Path to MLOps shared-workspace |
+| `MCCP_USE_GPU` | `0` | Set to `1` for GPU inference |
+
+### Source Layout
+
+```
+robin-dashboard/
+├── inference/    # Core MCCP-UQ module (MC Dropout + CQR)
+├── services/     # MCCP DevLab HTTP API server
+└── docs/         # Architecture and integration documentation
+```

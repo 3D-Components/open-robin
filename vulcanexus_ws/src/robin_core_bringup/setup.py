@@ -15,6 +15,7 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*.xacro')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
+        (os.path.join('share', package_name, 'config'), glob('config/*')),
         (os.path.join('share', package_name, 'meshes', 'welding_table', 'visual'), glob('meshes/welding_table/visual/*')),
         (os.path.join('share', package_name, 'meshes', 'welding_table', 'collision'), glob('meshes/welding_table/collision/*')),
     ],
@@ -22,8 +23,8 @@ setup(
     zip_safe=True,
     maintainer='milaipc',
     maintainer_email='jayant@mil-as.no',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Bringup package for the ROBIN welding robot system',
+    license='Apache-2.0',
     extras_require={
         'test': [
             'pytest',

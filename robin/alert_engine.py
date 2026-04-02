@@ -83,6 +83,28 @@ async def get_profile():
     return active_profile.as_dict()
 
 
+class PublishIntentRequest(BaseModel):
+    intent: str
+    process_id: str = 'ros_bridge'
+    data: Dict[str, Any] = {}
+
+
+@app.post('/intent')
+async def publish_intent(request: PublishIntentRequest):
+    """Persist operator intent in Orion-LD.
+
+    Orion-LD delivers the intent to the ROS pipeline via its NGSI-LD subscription
+    mechanism: PATCH pendingIntent → Orion-LD subscription notification →
+    welding_http_bridge (/orion-notify) → /intents ROS2 topic.
+    """
+    client = RobinFiwareClient()
+    try:
+        client.patch_process_intent(request.process_id, request.intent, request.data)
+    except Exception:
+        pass  # Never block the response if Orion-LD is unavailable
+    return {'status': 'published', 'intent': request.intent, 'process_id': request.process_id}
+
+
 @app.get('/health')
 async def health_check():
     """Health check endpoint with per-service connectivity and latency."""
@@ -272,6 +294,10 @@ class AlertEngine:
             getattr(active_profile, 'inverse_optimizer', {}),
         )
         self.default_tolerance = active_profile.default_tolerance
+        # Cache for GeometryTarget "not found" results to avoid hitting Orion-LD
+        # on every dashboard poll when the entity doesn't exist yet.
+        # Maps process_id → (result, expiry_timestamp)
+        self._geo_target_cache: Dict[str, Tuple[Optional[Dict[str, float]], float]] = {}
 
         profile_model = None
         if active_profile.model_path:
@@ -669,7 +695,15 @@ class AlertEngine:
     def fetch_geometry_target(
         self, process_id: str
     ) -> Optional[Dict[str, float]]:
-        """Fetch geometry target from FIWARE Orion"""
+        """Fetch geometry target from FIWARE Orion.
+
+        Caches 'not found' (404) results for 30 s to avoid spamming Orion-LD
+        when the entity doesn't exist (e.g. in simulation / parameter-driven mode).
+        """
+        now = time.time()
+        cached_result, expiry = self._geo_target_cache.get(process_id, (None, 0.0))
+        if expiry > now:
+            return cached_result
         try:
             response = requests.get(
                 f'{self.client.orion_url}/ngsi-ld/v1/entities/urn:ngsi-ld:GeometryTarget:{process_id}',
@@ -678,10 +712,15 @@ class AlertEngine:
             )
             if response.status_code == 200:
                 data = response.json()
-                return {
+                result: Optional[Dict[str, float]] = {
                     'height': data.get('targetHeight', {}).get('value', 0.0),
                     'width': data.get('targetWidth', {}).get('value', 0.0),
                 }
+                # Clear any negative cache entry on success
+                self._geo_target_cache.pop(process_id, None)
+                return result
+            # Entity not found — cache the miss for 30 s
+            self._geo_target_cache[process_id] = (None, now + 30.0)
             return None
         except Exception:
             return None
@@ -787,20 +826,17 @@ class AlertEngine:
                     headers['NGSILD-Tenant'] = tenant
 
                 try:
-                    print(f'🔍 Mintaka query URL: {url}')
-                    print(f'🔍 Mintaka query params: {params}')
                     resp = requests.get(
                         url, headers=headers, params=params, timeout=10
                     )
-                    print(f'🔍 Mintaka response status: {resp.status_code}')
-                    body_preview = (
-                        resp.text[:500] if hasattr(resp, 'text') else ''
-                    )
-                    print(f'🔍 Mintaka response text: {body_preview}...')
                     if resp.status_code not in (200, 206):
-                        print(
-                            f'❌ Mintaka query failed with status {resp.status_code}: {body_preview}'
-                        )
+                        if resp.status_code != 404:
+                            body_preview = (
+                                resp.text[:500] if hasattr(resp, 'text') else ''
+                            )
+                            print(
+                                f'❌ Mintaka query failed with status {resp.status_code}: {body_preview}'
+                            )
                         return None
                     try:
                         data = resp.json()
@@ -1048,6 +1084,71 @@ class AlertEngine:
             series.sort(key=lambda x: x['timestamp'])
             return series
         except Exception:
+            return []
+
+    def fetch_measurements_from_troe(
+        self, process_id: str, last_n: Optional[int] = None
+    ) -> List[Dict]:
+        """Direct TimescaleDB query for DDS compound telemetry.
+
+        Used when Mintaka cannot handle compound DDS attributes (subproperties=true).
+        Reads the compound jsonb column which contains the flat telemetry fields
+        stored by Orion-LD's DDS bridge.
+        """
+        try:
+            import psycopg2
+            import psycopg2.extras
+
+            host = os.getenv('TROE_HOST', 'timescaledb')
+            port = int(os.getenv('TROE_PORT', '5432'))
+            dbname = os.getenv('TROE_DB', 'orion')
+            user = os.getenv('TROE_USER', 'orion')
+            password = os.getenv('TROE_PWD', 'orionpass')
+
+            conn = psycopg2.connect(
+                host=host, port=port, dbname=dbname,
+                user=user, password=password, connect_timeout=5
+            )
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            limit_clause = f'LIMIT {int(last_n)}' if last_n else 'LIMIT 1000'
+            cur.execute(
+                f"""
+                SELECT compound, observedat FROM attributes
+                WHERE entityid = %s
+                  AND id = %s
+                  AND observedat IS NOT NULL
+                  AND compound IS NOT NULL
+                ORDER BY observedat DESC
+                {limit_clause}
+                """,
+                (
+                    f'urn:ngsi-ld:Process:{process_id}',
+                    'urn:robin:processTelemetry',
+                ),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            series = []
+            for row in rows:
+                compound = row[0]    # jsonb parsed as dict by psycopg2
+                observedat = row[1]  # datetime object
+                iso = observedat.isoformat()
+                ts_str = (iso[:-6] + 'Z') if iso.endswith('+00:00') else (iso + 'Z' if '+' not in iso and not iso.endswith('Z') else iso)
+                series.append({
+                    'timestamp': ts_str,
+                    'height': float(compound.get('height') or 0),
+                    'width': float(compound.get('width') or 0),
+                    'speed': float(compound.get('speed') or 0),
+                    'current': float(compound.get('current') or 0),
+                    'voltage': float(compound.get('voltage') or 0),
+                })
+            series.reverse()  # return in chronological order
+            print(f'TROE direct: {len(series)} rows for {process_id}')
+            return series
+        except Exception as e:
+            print(f'⚠️ TROE direct query failed: {e}')
             return []
 
     def fetch_process_alerts(
@@ -1596,8 +1697,15 @@ async def get_process_measurements(process_id: str, last: int | None = None):
                 source = 'orion'
                 measurements = measurements_orion
             else:
-                source = 'none'
-                measurements = []
+                measurements_troe = engine.fetch_measurements_from_troe(
+                    process_id, last_n=last
+                )
+                if measurements_troe:
+                    source = 'troe'
+                    measurements = measurements_troe
+                else:
+                    source = 'none'
+                    measurements = []
 
         print(
             f'📊 Fetching measurements for process {process_id}: found {len(measurements)} measurements'

@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'welding_coordinator = robin_hardware_fronius.welding_coordinator:main',
+            'tcp_manager = robin_hardware_fronius.tcp_manager:main',
         ],
     },
 )

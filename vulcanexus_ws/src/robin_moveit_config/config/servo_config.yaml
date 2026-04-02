@@ -1,0 +1,94 @@
+# MoveIt Servo configuration for ROBIN Cartesian Jog
+# Used by the operator panel calibration tab for manual Cartesian jogging.
+#
+# Controller pairing:
+#   Servo outputs Float64MultiArray → /forward_velocity_controller/commands
+#   forward_velocity_controller directly forwards joint velocities to UR hardware.
+#   When jog is disabled, scaled_joint_trajectory_controller is restored for planning.
+#
+# NOTE: This file is loaded as a Python dict in the launch file, not via
+#       --params-file.  Keep it as flat YAML (no ros__parameters wrapper).
+
+###############################################
+# General
+###############################################
+publish_period: 0.01          # 100 Hz servo loop
+max_expected_latency: 0.1     # seconds
+
+###############################################
+# MoveIt properties
+###############################################
+move_group_name: ur_manipulator
+
+###############################################
+# Incoming command settings
+###############################################
+cartesian_command_in_topic: ~/delta_twist_cmds   # operator panel publishes here
+joint_command_in_topic: ~/delta_joint_cmds
+command_in_type: "speed_units"                    # operator panel sends m/s, rad/s
+scale:
+  linear: 0.3      # max linear velocity m/s (clamped by servo)
+  rotational: 0.5   # max angular velocity rad/s
+  joint: 0.5        # max joint velocity (for joint jog, unused currently)
+
+incoming_command_timeout: 0.2  # halt if no command for this long
+
+###############################################
+# Outgoing command settings
+###############################################
+# Float64MultiArray pairs with forward_velocity_controller which directly
+# commands joint velocities — smoother than position control because
+# velocity commands integrate naturally and don't cause jerky jumps
+# from timing jitter.  Servo does its own IK and sends velocity deltas.
+command_out_type: "std_msgs/Float64MultiArray"
+command_out_topic: /forward_velocity_controller/commands
+publish_joint_positions: false
+publish_joint_velocities: true
+publish_joint_accelerations: false
+
+###############################################
+# Smoothing
+###############################################
+use_smoothing: true
+smoothing_filter_plugin_name: "online_signal_smoothing::ButterworthFilterPlugin"
+# NOTE: The Butterworth plugin's own parameter (butterworth_filter_coeff)
+# lives under online_signal_smoothing.* at the NODE root, NOT under
+# moveit_servo.*.  It must be passed as a separate parameter dict in the
+# launch file — see moveit_planner.launch.py.  Default 1.5 is far too
+# weak (~21 Hz cutoff); we set 5.0 (~3 Hz cutoff) in the launch.
+
+###############################################
+# Planning scene monitor
+###############################################
+# No move_group node runs — servo owns the planning scene
+is_primary_planning_scene_monitor: true
+check_octomap_collisions: false
+joint_topic: /joint_states
+status_topic: ~/status
+
+###############################################
+# Twist settings
+###############################################
+apply_twist_commands_about_ee_frame: true
+
+###############################################
+# Collision checking
+###############################################
+check_collisions: true
+collision_check_rate: 10.0           # Hz
+self_collision_proximity_threshold: 0.005   # m — start decelerating
+scene_collision_proximity_threshold: 0.005  # m — start decelerating (was 0.02)
+
+###############################################
+# Singularity handling
+###############################################
+lower_singularity_threshold: 17.0
+hard_stop_singularity_threshold: 30.0
+leaving_singularity_threshold_multiplier: 2.0
+
+###############################################
+# Joint limits
+###############################################
+halt_all_joints_in_joint_mode: true
+halt_all_joints_in_cartesian_mode: true
+joint_limit_margins: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
