@@ -43,15 +43,16 @@ echo "Waiting for Orion-LD to restart..."
 sleep 10
 
 # 1b) Build ROS2 workspace if not already built
-if ! docker exec "${CONTAINER}" test -d /workspace/ros2_packages/install/robin_core_data 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_core_data/share/robin_core_data/local_setup.bash 2>/dev/null; then
   echo "ROS2 workspace not built — building packages (includes mesh assets for Lichtblick)..."
+  docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
   docker exec --user root "${CONTAINER}" \
     chown -R "$(id -u):$(id -g)" /workspace/ros2_packages/install
   docker exec "${CONTAINER}" bash -lc "
     source /opt/ros/jazzy/setup.bash &&
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
-    colcon build --symlink-install \
+    colcon build \
       --packages-up-to robin_core_bringup robin_core_data \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
@@ -150,6 +151,26 @@ docker exec -d "${CONTAINER}" bash -c "\
 echo "robot_state_publisher started."
 sleep 2
 
+# 4d) Start joint_state_publisher — publishes UR10e joint positions so robot_state_publisher
+# can compute the full TF tree and the robot appears in Lichtblick's 3D view.
+# Uses a static welding-approach pose (arm reaching toward the weld table).
+# Joint angles (radians):
+#   shoulder_pan  :  0.00   (arm facing forward)
+#   shoulder_lift : -2.00   (upper arm tilted back past vertical)
+#   elbow         :  2.00   (forearm angled down toward table)
+#   wrist_1       : -1.57   (wrist bent to point tool down)
+#   wrist_2       : -1.57   (torch perpendicular to forearm)
+#   wrist_3       :  0.00   (torch orientation nominal)
+echo "Starting joint_state_publisher (welding approach pose)..."
+docker exec -d "${CONTAINER}" bash -c "\
+  export ROS_DOMAIN_ID=10 && \
+  source /opt/ros/jazzy/setup.bash && \
+  source /workspace/ros2_packages/install/setup.bash && \
+  ros2 run joint_state_publisher joint_state_publisher --ros-args \
+    -p zeros:='{shoulder_pan_joint: 0.0, shoulder_lift_joint: -2.0, elbow_joint: 2.0, wrist_1_joint: -1.5707, wrist_2_joint: -1.5707, wrist_3_joint: 0.0}'"
+echo "joint_state_publisher started."
+sleep 1
+
 echo
 echo "============================================"
 echo "  DDS mode active (via Orion -wip dds)"
@@ -160,7 +181,9 @@ echo
 echo "Dashboard:  http://localhost:5174"
 echo "  → Switch visualization panel to 'Lichtblick' tab"
 echo "Lichtblick: http://localhost:8080"
-echo "  → Open Connection → Rosbridge WebSocket → ws://localhost:8765"
+echo "  → Layouts → Import → select demo/lichtblick_welding_layout.json"
+echo "  → OR: Open Connection → Rosbridge WebSocket → ws://localhost:8765"
+echo "         Then: 3D panel → Frame: world | Add layer → URDF → Topic: /robot_description"
 echo "Process ID: ${PROCESS_ID}"
 echo
 echo "Check measurements:"
@@ -184,7 +207,8 @@ docker exec -it "${CONTAINER}" bash -lc "\
 
 echo
 echo "Playback stopped."
-echo "Stopping telemetry aggregator, foxglove-bridge and robot_state_publisher..."
+echo "Stopping telemetry aggregator, foxglove-bridge, robot_state_publisher and joint_state_publisher..."
 docker exec "${CONTAINER}" pkill -f telemetry_aggregator_node.py 2>/dev/null || true
 docker exec "${CONTAINER}" pkill -f foxglove_bridge 2>/dev/null || true
 docker exec "${CONTAINER}" pkill -f robot_state_publisher 2>/dev/null || true
+docker exec "${CONTAINER}" pkill -f joint_state_publisher 2>/dev/null || true

@@ -12,7 +12,7 @@
     <!-- Sensor link -->
     <link name="garmo_sensor_link">
       <visual>
-        <origin xyz="0 0 0" rpy="${-pi/2} 0 0"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <!-- Use garmo_garline visual mesh -->
         <geometry>
           <mesh filename="package://robin_hardware_garmo/meshes/garmo_garline/garmo_garline_visual.obj"/>

@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-BAG_NAME="bag_2026-03-16"
+BAG_NAME="exp001_rosbag_real" #"bag_2026-03-16"
 BAG_CONTAINER_PATH="/workspace/ros2_packages/${BAG_NAME}"
 CONTAINER="vulcanexus-bridge"
 PROCESS_ID="ros_bridge"
@@ -75,16 +75,17 @@ sleep 10
 echo "  Containers ready."
 
 # ---- 1b. Build ROS2 workspace if install/ is missing --------------------
-if ! docker exec "${CONTAINER}" test -d /workspace/ros2_packages/install/robin_core_data 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_core_data/share/robin_core_data/local_setup.bash 2>/dev/null; then
   echo
   echo "[1b/9] ROS2 workspace not built — running colcon build (~3 min, one-time)..."
+  docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
   docker exec --user root "${CONTAINER}" \
     chown -R "$(id -u):$(id -g)" /workspace/ros2_packages/install
   docker exec "${CONTAINER}" bash -lc "
     source /opt/ros/jazzy/setup.bash &&
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
-    colcon build --symlink-install \
+    colcon build \
       --packages-up-to robin_core_bringup robin_core_data \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
