@@ -27,6 +27,9 @@ action client callbacks (goal response, result, feedback) to fire concurrently
 with the intent subscriber without deadlocking.
 """
 import json
+import os
+import subprocess
+import threading
 
 import rclpy
 from rclpy.action import ActionClient
@@ -92,6 +95,8 @@ class WeldingSupervisorNode(Node):
         self._active_goal_handles: list = []
         # Subset: only seam/start goals, so PAUSE can cancel only those
         self._active_seam_goal_handles: list = []
+        # Track the OperatorPanel subprocess to avoid duplicate windows
+        self._doe_proc: subprocess.Popen | None = None
 
         self.get_logger().info(
             'WeldingSupervisorNode ready — listening on /intents'
@@ -266,13 +271,49 @@ class WeldingSupervisorNode(Node):
             self._send_goal(self._manual_client, goal, Intent.MANUAL_ADJUST)
 
     def _dispatch_launch_doe(self, data: dict) -> None:
-        """Publish a launch notification for the external DOE configuration GUI."""
+        """Publish a notification and spawn the robin_rqt OperatorPanel GUI."""
         msg = String()
         msg.data = json.dumps(data)
         self._doe_launch_pub.publish(msg)
         self.get_logger().info(
             f'LAUNCH_NEW_DOE: notification published on /doe/launch | data: {json.dumps(data)}'
         )
+
+        # Guard: don't open a second window if the GUI is already running
+        if self._doe_proc is not None and self._doe_proc.poll() is None:
+            self.get_logger().warning(
+                'LAUNCH_NEW_DOE: OperatorPanel already running — skipping launch'
+            )
+            return
+
+        # Build environment: inherit everything, ensure DISPLAY is set
+        env = os.environ.copy()
+        if 'DISPLAY' not in env or not env['DISPLAY']:
+            env['DISPLAY'] = ':0'
+
+        self._doe_proc = subprocess.Popen(
+            ['ros2', 'launch', 'robin_rqt', 'operator_panel.launch.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+        self.get_logger().info(
+            f'LAUNCH_NEW_DOE: OperatorPanel spawned (pid {self._doe_proc.pid})'
+        )
+
+        # Log subprocess output in a background thread so it appears in the supervisor log
+        def _log_output(proc, logger):
+            for line in proc.stdout:
+                logger.info(f'[operator_panel] {line.decode(errors="replace").rstrip()}')
+            rc = proc.wait()
+            if rc != 0:
+                logger.warning(f'LAUNCH_NEW_DOE: OperatorPanel exited with code {rc}')
+
+        threading.Thread(
+            target=_log_output,
+            args=(self._doe_proc, self.get_logger()),
+            daemon=True,
+        ).start()
 
     # ── Generic goal helper ────────────────────────────────────────────────
 

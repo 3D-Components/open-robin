@@ -28,13 +28,6 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{'robot_description': robot_description_content}],
     )
 
-    joint_state_publisher_gui = Node(
-        package='joint_state_publisher_gui',
-        executable='joint_state_publisher_gui',
-        name='joint_state_publisher_gui',
-        output='screen',
-    )
-
     welding_sim_node = Node(
         package='robin_simulation',
         executable='welding_sim_node',
@@ -78,6 +71,24 @@ def launch_setup(context, *args, **kwargs):
         emulate_tty=True,
     )
 
+    # GUI publishes to /joint_states_manual so the home skill can relay it to
+    # /joint_states and override it cleanly during homing without a topic fight.
+    joint_state_publisher_gui = Node(
+        package='joint_state_publisher_gui',
+        executable='joint_state_publisher_gui',
+        name='joint_state_publisher_gui',
+        output='screen',
+        remappings=[('joint_states', 'joint_states_manual')],
+    )
+
+    home_skill = Node(
+        package='welding_home_skill',
+        executable='welding_home_skill_node',
+        name='welding_home_skill',
+        output='screen',
+        parameters=[{'use_simulation': True}],
+    )
+
     supervisor = TimerAction(
         period=2.0,
         actions=[
@@ -99,6 +110,7 @@ def launch_setup(context, *args, **kwargs):
         rviz_node,
         foxglove_bridge,
         http_bridge,
+        home_skill,
         supervisor,
     ]
 
