@@ -1,0 +1,48 @@
+column_name,dtype,description
+schema_version,string,Dataset schema version
+feature_contract_version,string,Feature contract version
+run_id,string,Unique identifier for the bag or experiment run
+bead_id,string,Unique bead identifier
+bead_index,int,Sequential bead index within run
+start_time_ns,int,Bead start timestamp in nanoseconds
+end_time_ns,int,Bead end timestamp in nanoseconds
+progression_min,float,Minimum retained progression
+progression_max,float,Maximum retained progression
+progression_coverage,float,Retained progression span
+n_geometry_samples,int,Count of retained geometry samples
+n_welder_samples,int,Count of retained welder samples
+target_current_A,float,Target current from ActiveBead
+target_wire_feed_speed_mpm,float,Target wire feed speed from ActiveBead when valid
+target_wire_feed_speed_available,bool,True when target wire speed is present and passes validity threshold
+target_travel_speed_mps,float,Target travel speed from ActiveBead
+target_voltage_V,float,Target voltage from ActiveBead if available
+target_stickout_mm,float,Target stickout from ActiveBead if available
+target_stickout_available,bool,True when target stickout is present and passes validity threshold
+fallback_wire_speed_measured_mean_mpm,float,Stable-window mean measured wire feed speed per bead
+fallback_wire_speed_measured_median_mpm,float,Stable-window median measured wire feed speed per bead
+wire_speed_mpm_model_input,float,Final wire speed feature used by the model after applying source policy
+wire_speed_source,string,One of target or measured_bead_fallback or missing
+wire_speed_is_fallback,bool,True when wire_speed_mpm_model_input came from measured data
+fallback_stickout_doe_mm,float,DOE-derived fallback stickout assigned per bead when target is absent
+stickout_mm_model_input,float,Final stickout feature used by the model after applying source policy
+stickout_source,string,One of target or doe_bead_fallback or missing
+stickout_is_fallback,bool,True when stickout_mm_model_input came from fallback data
+measured_current_A_mean,float,Mean measured current per bead
+measured_current_A_median,float,Median measured current per bead
+measured_current_A_std,float,Std measured current per bead
+measured_wire_feed_speed_mpm_mean,float,Mean measured wire feed speed per bead
+measured_wire_feed_speed_mpm_median,float,Median measured wire feed speed per bead
+measured_wire_feed_speed_mpm_std,float,Std measured wire feed speed per bead
+measured_voltage_V_mean,float,Mean measured voltage per bead
+measured_voltage_V_median,float,Median measured voltage per bead
+measured_power_W_mean,float,Mean measured power per bead
+height_mm_target,float,Aggregated bead height target
+width_mm_target,float,Aggregated bead width target
+height_mm_std,float,Std of retained height measurements
+width_mm_std,float,Std of retained width measurements
+height_mm_p10,float,10th percentile of retained height measurements
+height_mm_p90,float,90th percentile of retained height measurements
+width_mm_p10,float,10th percentile of retained width measurements
+width_mm_p90,float,90th percentile of retained width measurements
+quality_flag,string,ok or reject with reason
+split,string,train val or test assigned later
