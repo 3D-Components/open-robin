@@ -1,0 +1,94 @@
+run_name: robin_data_01_hybrid_wire_speed
+
+dataset:
+  schema_version: v2.0
+  feature_contract_version: v2.0
+  modeling_mode: hybrid_wire_speed_fallback
+  notes: >-
+    Use target current and target travel speed as instructed features.
+    Use target wire speed when valid; otherwise fall back to stable-window
+    measured wire speed aggregated per bead. Preserve source provenance.
+
+raw:
+  bag_path: mlops/robin_data_01
+  metadata_path: mlops/robin_data_01/metadata.yaml
+  doe_csv_path: mlops/robin_data_01/DOE_LHS_50.csv
+
+filters:
+  progression_min: 0.10
+  progression_max: 0.90
+  min_geometry_samples_per_bead: 25
+  min_welder_samples_per_bead: 10
+
+validation:
+  height_mm:
+    min: 0.1
+    max: 20.0
+  width_mm:
+    min: 0.1
+    max: 50.0
+  current_A:
+    min: 0.0
+    max: 500.0
+  wire_feed_speed_mpm:
+    min: 0.0
+    max: 30.0
+  travel_speed_mps:
+    min: 0.0
+    max: 0.20
+  target_wire_speed_min_valid: 0.001
+  target_stickout_min_valid: 0.001
+
+wire_speed_policy:
+  allow_measured_fallback: true
+  measured_fallback_stat: median
+  measured_fallback_window: stable_progression
+  output_feature_name: wire_speed_mpm_model_input
+  source_priority:
+    - target
+    - measured_bead_fallback
+
+stickout_policy:
+  allow_doe_fallback: true
+  output_feature_name: stickout_mm_model_input
+  source_priority:
+    - target
+    - doe_bead_fallback
+
+aggregation:
+  center_stat: median
+  spread_stat: std
+  quantiles: [0.1, 0.5, 0.9]
+  measured_alignment: progression
+
+outlier_policy:
+  enable_per_bead_iqr_filter: true
+  iqr_multiplier: 1.5
+  min_samples_per_bead: 20
+
+outputs:
+  bronze_dir: data/bronze/topic_exports
+  silver_dir: data/silver/bead_level
+  gold_csv: data/gold/train_dataset.csv
+  qc_report_json: data/gold/qc_report.json
+
+modeling:
+  recommended_primary_feature_set:
+    - target_current_A
+    - target_travel_speed_mps
+    - wire_speed_mpm_model_input
+    - stickout_mm_model_input
+  mandatory_provenance_columns:
+    - wire_speed_source
+    - wire_speed_is_fallback
+    - target_wire_feed_speed_available
+    - stickout_source
+    - stickout_is_fallback
+    - target_stickout_available
+  comparison_feature_sets:
+    - name: hybrid_recipe
+      features: [target_current_A, target_travel_speed_mps, wire_speed_mpm_model_input, stickout_mm_model_input]
+    - name: target_common_subset
+      features: [target_current_A, target_travel_speed_mps]
+    - name: measured_only
+      features: [measured_current_A_mean, measured_wire_feed_speed_mpm_mean]

@@ -13,6 +13,23 @@ ROBIN provides **two open-source modules** and a **documented integration patter
 
 This repository ships the modules together with integration examples and demo profiles that show them in action across different industrial domains.
 
+## AI Training Scope (Open vs Private)
+
+ROBIN's open-source scope is centered on **telemetry intelligence and model
+consumption at runtime**. Real-data ingestion/cleaning and production retraining
+pipelines are deployment-specific and should live in a private MLOps repository.
+
+- Open-source side: model interfaces, profile contracts, synthetic/mock training
+  flows for demos, and validation tooling.
+- Private side: raw proprietary datasets, source-specific extraction logic,
+  production cleaning heuristics, and retraining orchestration.
+- This repository may keep small, commit-worthy AI artifacts needed for runtime
+  integration, such as a selected checkpoint, its scaler, and a benchmark
+  summary. Raw datasets, intermediate exports, large investigations, and most
+  training outputs should stay outside the repository.
+
+Repository boundary notes for committed artifacts are under [`data/README.md`](data/README.md).
+
 ## Modules
 
 ### Module 1 - Process Intelligence API (`robin/`)

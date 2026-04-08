@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "ROBIN proposes an AI-driven, human-centric robotic system that leverages ROS 2 and FIWARE to enable adaptive processes, data standardization, and enhanced operator interaction."
 authors = ["dhaasb <68024961+Daniel-Haas-B@users.noreply.github.com>"]
 readme = "README.md"
+packages = [
+    { include = "robin" },
+    { include = "mlops" },
+]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = ">=3.12,<3.15"
 fastapi = "^0.116.1"
 uvicorn = "^0.35.0"
 pydantic = "^2.11.7"
@@ -15,10 +19,12 @@ typer = "^0.17.3"
 numpy = "^2.3.2"
 matplotlib = "^3.10.6"
 pep257 = "^0.7.0"
-torch = {version = "^2.5.1", source = "pytorch-cpu"}
 pandas = "^2.3.3"
 httpx = "^0.28.1"
 pyyaml = "^6.0.3"
+torch = "^2.10.0"
+joblib = "^1.5.3"
+scikit-learn = "^1.8.0"
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"
