@@ -1,216 +1,213 @@
 #!/usr/bin/env python3
 """
-Telemetry Aggregator (ROS 2 -> DDS-friendly output)
+ROBIN Telemetry Aggregator Node
 
-This node aggregates multiple ROS 2 topics into a single message with primitive
-float32 fields so Orion-LD's DDS bridge can deserialize and store it reliably.
+Combines geometry and welder data from multiple ROS2 topics into a single
+/robin/telemetry topic (ProcessTelemetry) at a configurable minimum publish rate.
 
-Default subscriptions are aligned with the existing welding rosbag demo, but
-all topic names are configurable via parameters to support other processes.
+The output topic is read by Orion-LD's DDS bridge (config-dds.json allowlist:
+rt/robin/telemetry) and stored in TimescaleDB via TROE for temporal queries.
+
+Subscribes to:
+- geometry_topic  (default /robin/weld_dimensions)  — BeadGeometry
+- fronius_topic   (default /robin/data/fronius)     — FroniusSample / WelderData
+
+Publishes:
+- output_topic    (default /robin/telemetry)         — ProcessTelemetry
+
+Type-compatibility notes
+------------------------
+Bags recorded before the WelderData refactor carry fronius data with the
+FroniusSample CDR layout (bead_id, progression, current, voltage,
+wire_feed_speed, power — all float32) under the type name
+"robin_interfaces/msg/WelderData".  The aggregator handles both versions:
+
+ * It uses create_subscription(..., raw=True) for both topics so that the
+   callback receives raw CDR bytes instead of a deserialized object, bypassing
+   the ROS 2 type-name check.  Fronius bytes are then deserialized with the
+   FroniusSample class, which is binary-compatible with the old WelderData CDR
+   layout.
+
+ * BeadGeometry in old bags includes an extra leading "string bead_id" field.
+   The raw-bytes geometry callback detects the format from the remaining byte
+   count after the Header and reads the float32 fields accordingly.
 """
 
-from __future__ import annotations
-
-import math
-import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, Optional
+import struct
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
-from std_msgs.msg import Float32MultiArray
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.serialization import deserialize_message
 
-from robin_interfaces.msg import ProcessTelemetry, FroniusSample, WelderData
-
-try:
-    import yaml
-except ImportError:
-    yaml = None  # type: ignore[assignment]
+from robin_interfaces.msg import BeadGeometry, FroniusSample, ProcessTelemetry, WelderData
 
 
-def _load_profile_ros2(path: str) -> Dict[str, Any]:
-    """Load the ros2 section from a profile YAML, or return empty dict."""
-    if not path or yaml is None:
-        return {}
-    p = Path(path)
-    if not p.is_file():
-        return {}
-    with open(p) as f:
-        data = yaml.safe_load(f) or {}
-    return data.get('ros2', {})
+def _parse_geometry_cdr(data: bytes) -> tuple:
+    """Parse BeadGeometry CDR bytes into (height_mm, width_mm, csa_mm2).
+
+    Handles two on-wire layouts:
+      New (no bead_id):  Header + float32 height_mm + float32 width_mm + float32 csa
+      Old (with bead_id): Header + string bead_id + float32 height_mm + …
+
+    CDR is little-endian (the standard ROS 2 DDS serialisation).
+    """
+    try:
+        off = 4  # skip CDR encapsulation header (4 bytes)
+
+        # Header.stamp  (sec int32 + nanosec uint32 = 8 bytes)
+        off += 8
+
+        # Header.frame_id  (4-byte length prefix + N bytes)
+        (fid_len,) = struct.unpack_from('<I', data, off)
+        off += 4 + fid_len
+        off = (off + 3) & ~3  # align to 4 bytes
+
+        remaining = len(data) - off
+
+        if remaining == 12:
+            # New BeadGeometry: directly height_mm, width_mm, csa_mm2
+            h, w, a = struct.unpack_from('<fff', data, off)
+            return h, w, a
+
+        if remaining >= 16:
+            # Old BeadGeometry: string bead_id precedes the float32 fields
+            (bid_len,) = struct.unpack_from('<I', data, off)
+            if bid_len < 256:  # sanity-check: bead IDs are short strings
+                off += 4 + bid_len
+                off = (off + 3) & ~3
+                h, w, a = struct.unpack_from('<fff', data, off)
+                return h, w, a
+
+    except Exception:
+        pass
+
+    return 0.0, 0.0, 0.0
 
 
-@dataclass
-class _PoseSample:
-    t_sec: float
-    x_m: float
-    y_m: float
-    z_m: float
+class TelemetryAggregatorNode(Node):
+    """Aggregates geometry and welder telemetry into a single output topic."""
 
+    def __init__(self):
+        super().__init__('telemetry_aggregator')
 
-class TelemetryAggregator(Node):
-    def __init__(self) -> None:
-        super().__init__('telemetry_aggregator_node')
+        # Parameters
+        self.declare_parameter('geometry_topic', '/robin/weld_dimensions')
+        self.declare_parameter('fronius_topic', '/robin/data/fronius')
+        self.declare_parameter('output_topic', '/robin/telemetry')
+        self.declare_parameter('min_publish_period', 1.0)
 
-        self.declare_parameter('profile_config', '')
-        profile_path = self.get_parameter('profile_config').get_parameter_value().string_value
-        ros2_cfg = _load_profile_ros2(profile_path)
-        topics = ros2_cfg.get('topics', {})
+        geometry_topic = self.get_parameter('geometry_topic').value
+        fronius_topic = self.get_parameter('fronius_topic').value
+        output_topic = self.get_parameter('output_topic').value
+        min_publish_period = self.get_parameter('min_publish_period').value
 
-        self.declare_parameter('geometry_topic', topics.get('geometry', '/robin/weld_dimensions'))
-        self.declare_parameter('fronius_topic', topics.get('process_params', '/robin/data/fronius'))
-        self.declare_parameter('welder_topic', '/robin/data/welder')
-        self.declare_parameter('pose_topic', topics.get('pose', '/tcp_pose_broadcaster/pose'))
-        self.declare_parameter('output_topic', topics.get('telemetry_output', '/robin/telemetry'))
-        self.declare_parameter('min_publish_period', ros2_cfg.get('min_publish_period', 0.1))
+        self._callback_group = ReentrantCallbackGroup()
 
-        self.geometry_topic = (
-            self.get_parameter('geometry_topic').get_parameter_value().string_value
+        # Latest values from geometry topic
+        self._width_mm: float = 0.0
+        self._height_mm: float = 0.0
+        self._cross_sectional_area_mm2: float = 0.0
+
+        # Latest values from fronius topic
+        self._current: float = 0.0
+        self._voltage: float = 0.0
+        self._wire_feed_speed: float = 0.0
+
+        self._publish_count = 0
+
+        # raw=True subscriptions receive bytes instead of a deserialized object,
+        # bypassing the CDR type-name check.  This is needed because bags may
+        # declare the fronius type as "WelderData" even though the bytes match
+        # the old FroniusSample CDR layout.  BeadGeometry bags may carry an
+        # extra leading "string bead_id" field not present in the current msg.
+        self._geometry_sub = self.create_subscription(
+            BeadGeometry,
+            geometry_topic,
+            self._geometry_raw_callback,
+            10,
+            raw=True,
+            callback_group=self._callback_group,
         )
-        self.fronius_topic = (
-            self.get_parameter('fronius_topic').get_parameter_value().string_value
-        )
-        self.welder_topic = (
-            self.get_parameter('welder_topic').get_parameter_value().string_value
-        )
-        self.pose_topic = (
-            self.get_parameter('pose_topic').get_parameter_value().string_value
-        )
-        self.output_topic = (
-            self.get_parameter('output_topic').get_parameter_value().string_value
-        )
-        self.min_publish_period = (
-            self.get_parameter('min_publish_period')
-            .get_parameter_value()
-            .double_value
+        self._fronius_sub = self.create_subscription(
+            WelderData,
+            fronius_topic,
+            self._fronius_raw_callback,
+            10,
+            raw=True,
+            callback_group=self._callback_group,
         )
 
-        if profile_path:
-            self.get_logger().info(f'Loaded topic config from profile: {profile_path}')
+        # Publisher
+        self._telemetry_pub = self.create_publisher(ProcessTelemetry, output_topic, 10)
 
-        # Latest cached signals
-        self._height: Optional[float] = None
-        self._width: Optional[float] = None
-        self._current: Optional[float] = None
-        self._voltage: Optional[float] = None
-        self._speed_mm_s: Optional[float] = None
-
-        self._last_pose: Optional[_PoseSample] = None
-        self._last_publish_wall: float = 0.0
-        self._published: int = 0
-
-        # QoS: match typical bag playback + DDS bridge BEST_EFFORT behavior.
-        qos = QoSProfile(
-            depth=100,
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            durability=DurabilityPolicy.VOLATILE,
-            history=HistoryPolicy.KEEP_LAST,
+        # Timer fires at min_publish_period
+        self._publish_timer = self.create_timer(
+            min_publish_period,
+            self._publish_telemetry,
+            callback_group=self._callback_group,
         )
-
-        # Subscribers
-        self.create_subscription(
-            Float32MultiArray, self.geometry_topic, self._geometry_cb, qos
-        )
-        # Support both a vendor-specific topic (legacy demos) and a generic one.
-        self.create_subscription(FroniusSample, self.fronius_topic, self._fronius_cb, qos)
-        self.create_subscription(WelderData, self.welder_topic, self._welder_cb, qos)
-        self.create_subscription(PoseStamped, self.pose_topic, self._pose_cb, qos)
-
-        # Publisher (DDS-friendly aggregate)
-        self._pub = self.create_publisher(ProcessTelemetry, self.output_topic, qos)
 
         self.get_logger().info(
-            'Telemetry aggregator ready '
-            f'(geometry={self.geometry_topic}, fronius={self.fronius_topic}, '
-            f'welder={self.welder_topic}, pose={self.pose_topic}) -> {self.output_topic}'
+            f'Telemetry aggregator started'
+            f' | geometry: {geometry_topic}'
+            f' | fronius: {fronius_topic}'
+            f' | output: {output_topic}'
+            f' | period: {min_publish_period}s'
         )
 
-    # ------------------------------------------------------------------
-    # Topic callbacks
-    # ------------------------------------------------------------------
-    def _geometry_cb(self, msg: Float32MultiArray) -> None:
-        if len(msg.data) < 2:
-            return
-        # Convention in existing demos: data[0]=width, data[1]=height
-        self._width = float(msg.data[0])
-        self._height = float(msg.data[1])
+    # -------------------------------------------------------------------------
+    # Raw-bytes callbacks
+    # -------------------------------------------------------------------------
 
-    def _fronius_cb(self, msg: FroniusSample) -> None:
-        self._current = float(msg.current)
-        self._voltage = float(msg.voltage)
-        self._maybe_publish()
-
-    def _welder_cb(self, msg: WelderData) -> None:
-        # Generic alternative to FroniusSample.
-        self._current = float(msg.current_a)
-        self._voltage = float(msg.voltage_v)
-        self._maybe_publish()
-
-    def _pose_cb(self, msg: PoseStamped) -> None:
+    def _fronius_raw_callback(self, msg) -> None:
+        """Deserialise fronius bytes as FroniusSample (CDR-compatible with old WelderData)."""
         try:
-            t = float(msg.header.stamp.sec) + float(msg.header.stamp.nanosec) / 1e9
-        except Exception:
-            return
+            sample: FroniusSample = deserialize_message(bytes(msg), FroniusSample)
+            self._current = sample.current
+            self._voltage = sample.voltage
+            self._wire_feed_speed = sample.wire_feed_speed
+        except Exception as exc:
+            self.get_logger().debug(f'Fronius deserialise error: {exc}')
 
-        p = msg.pose.position
-        sample = _PoseSample(t_sec=t, x_m=float(p.x), y_m=float(p.y), z_m=float(p.z))
+    def _geometry_raw_callback(self, msg) -> None:
+        """Parse geometry CDR bytes, handling old (bead_id) and new layouts."""
+        h, w, a = _parse_geometry_cdr(bytes(msg))
+        self._height_mm = h
+        self._width_mm = w
+        self._cross_sectional_area_mm2 = a
 
-        if self._last_pose is not None:
-            dt = sample.t_sec - self._last_pose.t_sec
-            if dt > 1e-6:
-                dx = sample.x_m - self._last_pose.x_m
-                dy = sample.y_m - self._last_pose.y_m
-                dz = sample.z_m - self._last_pose.z_m
-                dist_m = math.sqrt(dx * dx + dy * dy + dz * dz)
-                self._speed_mm_s = (dist_m * 1000.0) / dt
+    # -------------------------------------------------------------------------
+    # Publishing
+    # -------------------------------------------------------------------------
 
-        self._last_pose = sample
+    def _publish_telemetry(self) -> None:
+        now = self.get_clock().now()
 
-    # ------------------------------------------------------------------
-    # Publish logic
-    # ------------------------------------------------------------------
-    def _maybe_publish(self) -> None:
-        now_wall = time.time()
-        if (now_wall - self._last_publish_wall) < self.min_publish_period:
-            return
+        out = ProcessTelemetry()
+        out.header.stamp = now.to_msg()
+        out.header.frame_id = 'base_link'
 
-        if self._height is None or self._width is None:
-            return
-        if self._current is None or self._voltage is None:
-            return
+        out.current = self._current
+        out.voltage = self._voltage
+        out.speed = self._wire_feed_speed
 
-        msg = ProcessTelemetry()
+        out.width = self._width_mm
+        out.height = self._height_mm
+        out.cross_sectional_area = self._cross_sectional_area_mm2
 
-        # Use wall-clock time for "live" demo behavior (independent of /use_sim_time).
-        sec = int(now_wall)
-        nanosec = int((now_wall - sec) * 1e9)
-        msg.header.stamp.sec = sec
-        msg.header.stamp.nanosec = nanosec
-        msg.header.frame_id = ''
-
-        msg.height = float(self._height)
-        msg.width = float(self._width)
-        msg.speed = float(self._speed_mm_s or 0.0)
-        msg.current = float(self._current)
-        msg.voltage = float(self._voltage)
-
-        self._pub.publish(msg)
-        self._last_publish_wall = now_wall
-        self._published += 1
-        if self._published % 50 == 1:
-            self.get_logger().info(
-                f'Published telemetry #{self._published}: '
-                f'h={msg.height:.2f}, w={msg.width:.2f}, '
-                f'speed={msg.speed:.1f}mm/s, I={msg.current:.1f}A, V={msg.voltage:.1f}V'
-            )
+        self._telemetry_pub.publish(out)
+        self._publish_count += 1
+        self.get_logger().info(
+            f'[AGG] Published telemetry #{self._publish_count}'
+            f' current={out.current:.1f}A voltage={out.voltage:.1f}V'
+            f' width={out.width:.2f}mm height={out.height:.2f}mm'
+        )
 
 
-def main(args: list[str] | None = None) -> None:
+def main(args=None):
     rclpy.init(args=args)
-    node = TelemetryAggregator()
+    node = TelemetryAggregatorNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
@@ -222,4 +219,3 @@ def main(args: list[str] | None = None) -> None:
 
 if __name__ == '__main__':
     main()
-

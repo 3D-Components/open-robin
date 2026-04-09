@@ -1,12 +1,9 @@
-import { useState } from 'react';
 import {
     Bot,
     AlertTriangle,
     Activity,
     Shield,
     Camera,
-    Layers,
-    Clock,
     Play,
     Pause,
     Square,
@@ -26,16 +23,15 @@ import { Card, CardHeader, CardBody } from '../../ui/Card';
 import { Chip } from '../../ui/Chip';
 import { Button } from '../../ui/Button';
 import { Select } from '../../ui/Select';
-import { Toggle } from '../../ui/Toggle';
-import { ProgressBar, KV, Divider } from '../../ui/ProgressBar';
+import { ProgressBar, KV } from '../../ui/ProgressBar';
 import { ProcessControlsPanel } from './ProcessControlsPanel';
 import { DeviationMonitor } from './DeviationMonitor';
 import { MeasurementKPIs } from './MeasurementKPIs';
 import type {
+    AIInputFeatureSpec,
     RobotCell,
     ProcessRun,
     TrustAssessment,
-    VizMode,
     TrustGate,
     ProcessControlsState,
     OperationMode,
@@ -59,18 +55,11 @@ interface LiveOpsProps {
     toggleParamFreeze: () => void;
     currentRun: ProcessRun | null;
     alerts: Array<{ id: string; at: string; severity: "Info" | "Warning" | "Critical"; message: string; source: string }>;
-    vizMode: VizMode;
-    layers: { robotModel: boolean; torchPath: boolean; workpiece: boolean; profileSegments: boolean; frames: boolean };
-    setLayers: (v: any) => void;
-    camera: "Isometric" | "Top" | "Side";
-    setCamera: (v: any) => void;
     timelineT: number;
-    setTimelineT: (v: number) => void;
-    replay: boolean;
-    setReplay: (v: boolean) => void;
     telemetryChartData: any[];
-    metric: "speed" | "current" | "voltage" | "profileHeight" | "profileWidth";
+    metric: string;
     setMetric: (v: any) => void;
+    metricOptions: Array<{ value: string; label: string }>;
     freezeCharts: boolean;
     setFreezeCharts: (v: boolean) => void;
     metricLabel: string;
@@ -79,6 +68,7 @@ interface LiveOpsProps {
     measurementPollMs: number;
     processId: string | null;
     processControls: ProcessControlsState;
+    aiInputFeatures: AIInputFeatureSpec[];
     onControlsChange: (next: ProcessControlsState) => void;
     onControlsApply: (controls: ProcessControlsState) => void;
     targetGeometry: TargetGeometry | null;
@@ -107,18 +97,11 @@ export function LiveOps(props: LiveOpsProps) {
         toggleParamFreeze,
         currentRun,
         alerts,
-        vizMode,
-        layers,
-        setLayers,
-        camera,
-        setCamera,
         timelineT,
-        setTimelineT,
-        replay,
-        setReplay,
         telemetryChartData,
         metric,
         setMetric,
+        metricOptions,
         freezeCharts,
         setFreezeCharts,
         metricLabel,
@@ -127,6 +110,7 @@ export function LiveOps(props: LiveOpsProps) {
         measurementPollMs,
         processId,
         processControls,
+        aiInputFeatures,
         onControlsChange,
         onControlsApply,
         targetGeometry,
@@ -146,6 +130,7 @@ export function LiveOps(props: LiveOpsProps) {
                 processId={processId}
                 measurements={latestMeasurements}
                 count={measurementCount}
+                aiInputFeatures={aiInputFeatures}
             />
 
             <div className="grid grid-cols-12 gap-4">
@@ -187,6 +172,7 @@ export function LiveOps(props: LiveOpsProps) {
                     <ProcessControlsPanel
                         processId={processId}
                         controls={processControls}
+                        aiInputFeatures={aiInputFeatures}
                         onControlsChange={onControlsChange}
                         onApply={onControlsApply}
                         targetGeometry={targetGeometry}
@@ -222,18 +208,7 @@ export function LiveOps(props: LiveOpsProps) {
 
                 {/* Center column: visualization */}
                 <div className="col-span-12 space-y-4 xl:col-span-6">
-                    <VisualizationPanel
-                        vizMode={vizMode}
-                        layers={layers}
-                        setLayers={setLayers}
-                        camera={camera}
-                        setCamera={setCamera}
-                        timelineT={timelineT}
-                        setTimelineT={setTimelineT}
-                        replay={replay}
-                        setReplay={setReplay}
-                        robot={robot}
-                    />
+                    <VisualizationPanel />
                 </div>
 
                 {/* Right column: deviation monitor + telemetry + trust */}
@@ -242,6 +217,7 @@ export function LiveOps(props: LiveOpsProps) {
                         processId={processId}
                         controls={processControls}
                         latestMeasurements={latestMeasurements}
+                        aiInputFeatures={aiInputFeatures}
                         targetGeometry={targetGeometry}
                         processMode={processMode}
                         onAlert={onDeviationAlert}
@@ -255,6 +231,7 @@ export function LiveOps(props: LiveOpsProps) {
                         telemetryChartData={telemetryChartData}
                         metric={metric}
                         setMetric={setMetric}
+                        metricOptions={metricOptions}
                         freezeCharts={freezeCharts}
                         setFreezeCharts={setFreezeCharts}
                         metricLabel={metricLabel}
@@ -463,282 +440,29 @@ function AlertRow({
     );
 }
 
-function VisualizationPanel({
-    vizMode,
-    layers,
-    setLayers,
-    camera,
-    setCamera,
-    timelineT,
-    setTimelineT,
-    replay,
-    setReplay,
-    robot,
-}: {
-    vizMode: VizMode;
-    layers: {
-        robotModel: boolean;
-        torchPath: boolean;
-        workpiece: boolean;
-        profileSegments: boolean;
-        frames: boolean;
-    };
-    setLayers: (v: any) => void;
-    camera: "Isometric" | "Top" | "Side";
-    setCamera: (v: any) => void;
-    timelineT: number;
-    setTimelineT: (v: number) => void;
-    replay: boolean;
-    setReplay: (v: boolean) => void;
-    robot: RobotCell;
-}) {
-    const [showLayers, setShowLayers] = useState(false);
-
-    const latestT = Math.max(0, timelineT);
-    const maxT = Math.max(60, latestT + 1);
-
-    function resetView() {
-        setCamera("Isometric");
-        setLayers({
-            robotModel: true,
-            torchPath: true,
-            workpiece: true,
-            profileSegments: true,
-            frames: false,
-        });
-        setShowLayers(false);
-    }
-
-    const layerCount = Object.values(layers).filter(Boolean).length;
-
+function VisualizationPanel() {
     return (
         <Card className="overflow-hidden">
             <CardHeader
                 title={
                     <span className="flex items-center gap-2">
                         <Camera className="h-4 w-4" />
-                        Advanced Visualization
+                        3D Visualization
                     </span>
                 }
-                subtitle="Embedded 3D view (Viser)"
-                right={
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="relative">
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => setShowLayers((s) => !s)}
-                                title="Toggle layers"
-                            >
-                                <Layers className="h-4 w-4" />
-                                Layers
-                                <Chip tone="ghost" className="ml-1">
-                                    {layerCount}
-                                </Chip>
-                            </Button>
-
-                            {showLayers ? (
-                                <div className="absolute right-0 top-11 z-20 w-[320px] rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-800 dark:bg-slate-950">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                                            Scene layers
-                                        </div>
-                                        <Button size="sm" variant="ghost" onClick={() => setShowLayers(false)}>
-                                            Close
-                                        </Button>
-                                    </div>
-                                    <div className="mt-2 grid gap-2">
-                                        <Toggle
-                                            checked={layers.robotModel}
-                                            onChange={(v) => setLayers((x: any) => ({ ...x, robotModel: v }))}
-                                            label="Robot model"
-                                            hint="Robot geometry & links"
-                                        />
-                                        <Toggle
-                                            checked={layers.torchPath}
-                                            onChange={(v) => setLayers((x: any) => ({ ...x, torchPath: v }))}
-                                            label={domainTerms.toolPath}
-                                            hint="Trajectory overlay"
-                                        />
-                                        <Toggle
-                                            checked={layers.workpiece}
-                                            onChange={(v) => setLayers((x: any) => ({ ...x, workpiece: v }))}
-                                            label={domainTerms.workpiece}
-                                            hint="Fixture + target surface"
-                                        />
-                                        <Toggle
-                                            checked={layers.profileSegments}
-                                            onChange={(v) => setLayers((x: any) => ({ ...x, profileSegments: v }))}
-                                            label={domainTerms.segmentPlural}
-                                            hint={`${domainTerms.depositionView} geometry (colored by time/quality)`}
-                                        />
-                                        <Toggle
-                                            checked={layers.frames}
-                                            onChange={(v) => setLayers((x: any) => ({ ...x, frames: v }))}
-                                            label="Coordinate frames"
-                                            hint="Axes, TF frames"
-                                        />
-                                        <Divider />
-                                        <div className="flex items-center justify-between">
-                                            <Button size="sm" variant="secondary" onClick={resetView}>
-                                                Reset view
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() =>
-                                                    setLayers({
-                                                        robotModel: true,
-                                                        torchPath: true,
-                                                        workpiece: true,
-                                                        profileSegments: true,
-                                                        frames: false,
-                                                    })
-                                                }
-                                            >
-                                                Default layers
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-
-                        <Select
-                            value={camera}
-                            onChange={(v) => setCamera(v as any)}
-                            options={[
-                                { value: "Isometric", label: "Camera: Isometric" },
-                                { value: "Top", label: "Camera: Top" },
-                                { value: "Side", label: "Camera: Side" },
-                            ]}
-                            className="w-44"
-                        />
-
-                        <Button
-                            size="sm"
-                            variant={replay ? "primary" : "secondary"}
-                            onClick={() => setReplay(!replay)}
-                            title="Replay timeline (demo)"
-                        >
-                            {replay ? (
-                                <>
-                                    <Play className="h-4 w-4" /> Replay ON
-                                </>
-                            ) : (
-                                <>
-                                    <Pause className="h-4 w-4" /> Replay OFF
-                                </>
-                            )}
-                        </Button>
-                    </div>
-                }
             />
-
             <CardBody className="space-y-3">
                 <div className="relative h-[420px] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
                     <iframe
-                        src={import.meta.env.VITE_VISER_URL || "http://localhost:8081"}
+                        src={(() => {
+                            const base = import.meta.env.VITE_LICHTBLICK_URL || 'http://localhost:8080';
+                            const wsUrl = import.meta.env.VITE_FOXGLOVE_WS_URL || 'ws://localhost:8765';
+                            return `${base}/?ds=foxglove-websocket&ds.url=${encodeURIComponent(wsUrl)}`;
+                        })()}
                         className="w-full h-full border-0"
-                        title="Viser 3D Viewer"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+                        title="Lichtblick 3D Viewer"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; cross-origin-isolated"
                     />
-
-                    <div className="absolute top-3 left-3 right-3 pointer-events-none">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
-                                <Chip tone="info">
-                                    <Camera className="h-3.5 w-3.5" />
-                                    {vizMode === "execution" ? "Robot execution view" : `${domainTerms.depositionView} view`}
-                                </Chip>
-                                <Chip tone="ghost">{camera}</Chip>
-                                <Chip tone="ghost">{layerCount} layers</Chip>
-                            </div>
-
-                            <div className="grid gap-2 pointer-events-auto">
-                                <div className="rounded-xl border border-slate-200 bg-white/80 p-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-                                    <div className="text-xs font-semibold">Robot</div>
-                                    <div className="mt-1 space-y-1">
-                                        <KV
-                                            k={robot.name}
-                                            v={<Chip tone={robot.state === "Running" ? "good" : robot.state === "Paused" ? "warn" : "neutral"}>{robot.state}</Chip>}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="absolute bottom-3 left-3 right-3 pointer-events-auto">
-                        <div className="rounded-xl border border-slate-200 bg-white/80 p-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                    <Chip tone="ghost">
-                                        <Clock className="h-3.5 w-3.5" />
-                                        t=<span className="font-mono">{Math.round(timelineT)}s</span>
-                                    </Chip>
-                                    <Chip tone="ghost">
-                                        max <span className="font-mono">{maxT}s</span>
-                                    </Chip>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <Button size="sm" variant="secondary" onClick={() => setTimelineT(Math.max(0, timelineT - 10))}>
-                                        -10s
-                                    </Button>
-                                    <Button size="sm" variant="secondary" onClick={() => setTimelineT(Math.min(maxT, timelineT + 10))}>
-                                        +10s
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => {
-                                            setReplay(false);
-                                            setTimelineT(maxT);
-                                        }}
-                                        title="Snap to live"
-                                    >
-                                        Live
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="mt-2">
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={maxT}
-                                    value={Math.max(0, Math.min(maxT, timelineT))}
-                                    onChange={(e) => setTimelineT(Number(e.target.value))}
-                                    className="w-full accent-slate-900 dark:accent-slate-100"
-                                />
-                                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
-                                    <span>0s</span>
-                                    <span>scrub to replay</span>
-                                    <span>{maxT}s</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
-                        <KV k="Mode" v={vizMode === "execution" ? "Robot execution" : domainTerms.depositionView} />
-                        <KV k="Camera" v={camera} />
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
-                        <KV k={`${domainTerms.segment}`} v={`#${robot.segmentIndex}`} mono />
-                        <KV k="Progress" v={`${Math.round(robot.taskProgressPct)}%`} mono />
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
-                        <KV k="Layers enabled" v={`${layerCount}/5`} mono />
-                        <KV k="Frames" v={layers.frames ? "on" : "off"} />
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
-                        <KV k="Replay" v={replay ? "on" : "off"} />
-                        <KV k="Scrub time" v={`${Math.round(timelineT)}s`} mono />
-                    </div>
                 </div>
             </CardBody>
         </Card>
@@ -749,6 +473,7 @@ function TelemetryPanel({
     telemetryChartData,
     metric,
     setMetric,
+    metricOptions,
     freezeCharts,
     setFreezeCharts,
     metricLabel,
@@ -757,8 +482,9 @@ function TelemetryPanel({
     measurementPollMs,
 }: {
     telemetryChartData: any[];
-    metric: "speed" | "current" | "voltage" | "profileHeight" | "profileWidth";
+    metric: string;
     setMetric: (v: any) => void;
+    metricOptions: Array<{ value: string; label: string }>;
     freezeCharts: boolean;
     setFreezeCharts: (v: boolean) => void;
     metricLabel: string;
@@ -766,12 +492,14 @@ function TelemetryPanel({
     measurementSource: string;
     measurementPollMs: number;
 }) {
-    const sourceTone = measurementSource === 'mintaka' ? 'good' : measurementSource === 'orion' ? 'warn' : 'neutral';
+    const sourceTone = measurementSource === 'mintaka' || measurementSource === 'troe' ? 'good' : measurementSource === 'orion' ? 'warn' : 'neutral';
     const sourceLabel = measurementSource === 'mintaka'
         ? 'Mintaka stored data'
-        : measurementSource === 'orion'
-            ? 'Orion fallback data'
-            : 'No telemetry source';
+        : measurementSource === 'troe'
+            ? 'TROE live data'
+            : measurementSource === 'orion'
+                ? 'Orion fallback data'
+                : 'No telemetry source';
     const fmtTimestamp = (value: unknown) => {
         if (typeof value === 'string' && value) {
             const ts = Date.parse(value);
@@ -816,13 +544,7 @@ function TelemetryPanel({
                 <Select
                     value={metric}
                     onChange={(v) => setMetric(v)}
-                    options={[
-                        { value: "speed", label: `Metric: ${domainTerms.speed}` },
-                        { value: "current", label: `Metric: ${domainTerms.current}` },
-                        { value: "voltage", label: `Metric: ${domainTerms.voltage}` },
-                        { value: "profileHeight", label: `Metric: ${domainTerms.profileHeight}` },
-                        { value: "profileWidth", label: `Metric: ${domainTerms.profileWidth}` },
-                    ]}
+                    options={metricOptions}
                 />
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
@@ -841,7 +563,7 @@ function TelemetryPanel({
                         <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={160}>
                             <LineChart data={telemetryChartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="t" tick={{ fontSize: 12 }} tickFormatter={(v) => `${Number(v).toFixed(1)}s`} />
+                                <XAxis dataKey="absT" tick={{ fontSize: 12 }} tickFormatter={(v) => new Date(v * 1000).toLocaleTimeString([], { hour12: false })} />
                                 <YAxis tick={{ fontSize: 12 }} />
                                 <Tooltip
                                     labelFormatter={(_value, payload) =>

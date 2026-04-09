@@ -1,0 +1,19 @@
+# FindSurface.srv - Find workpiece surface Z using touch sensing
+#
+# The robot moves slowly downward (wire forward with touch sensing active)
+# until the wire touches the workpiece. The contact Z position is returned.
+#
+# The caller provides the XY position and an approximate Z to start probing from.
+# The service returns the exact Z where contact was detected.
+
+# Request
+float64 x                # X position to probe at (base_link frame)
+float64 y                # Y position to probe at (base_link frame)
+float64 z_start          # Starting Z for downward probe (above expected surface)
+float64 z_limit          # Lower Z limit (safety - stop if no contact by this Z)
+float64 probe_speed      # Downward speed in m/s (default 0.005 = 5mm/s)
+---
+# Response
+bool success
+float64 surface_z         # Detected surface Z height (base_link frame)
+string message

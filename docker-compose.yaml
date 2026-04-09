@@ -69,8 +69,11 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
       # Mount workspace packages into the expected container path
       - ./vulcanexus_ws/src:/workspace/ros2_packages/src
-      # Mount this repo's ros2_packages for testing inside container
-      - ./ros2_packages:/workspace/repo_ros2/ros2_packages
+      # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
+      - ./data/rosbags/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
+      - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro
+      # Persist colcon build artifacts across container recreation / host reboots
+      - ros2_ws_install:/workspace/ros2_packages/install
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 
@@ -107,6 +110,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 20s # give the container 20 seconds to start up
 
   # FIWARE: Mintaka temporal API (reads Orion temporal state from TimescaleDB)
   mintaka:
@@ -150,9 +154,14 @@ services:
       - ./config:/app/config
       - ./data/models:/app/data/models
     environment:
-      MINTAKA_URL: http://mintaka:8080
       ORION_URL: ${ORION_URL:-http://orion-ld:1026}
+      MINTAKA_URL: http://mintaka:8080
       ROBIN_PROFILE: ${ROBIN_PROFILE:-welding}
+      TROE_HOST: timescaledb
+      TROE_PORT: "5432"
+      TROE_DB: orion
+      TROE_USER: orion
+      TROE_PWD: orionpass
       #NGSILD_TENANT: robin  # disable tenant header to match DDS/TROE default
     depends_on:
       - orion-ld
@@ -160,19 +169,18 @@ services:
     networks:
       - fiware-net
     extra_hosts:
-      - "orion-ld:host-gateway"   # Orion runs in host mode, map hostname for alert-processor
+      - "orion-ld:host-gateway"          # Orion runs in host mode, map hostname for alert-processor
     stop_grace_period: 5s  # Give uvicorn 5 seconds to shut down gracefully before SIGKILL
 
-  # Module 3: 3D Visualization (Viser)
-  robin-viser:
-    build:
-      context: .
-      dockerfile: robin-ui/services/Dockerfile
-    container_name: robin-viser
+  # Module 2b: 3D Visualization (Lichtblick — connects to foxglove-bridge on host at ws://localhost:8765)
+  lichtblick:
+    image: ghcr.io/lichtblick-suite/lichtblick:latest
+    container_name: lichtblick
     ports:
-      - "8081:8081"   # Viser 3D viewer
-      - "8082:8082"   # WebSocket bridge for dashboard
+      - "8080:8080"
     restart: unless-stopped
+    networks:
+      - fiware-net
 
   # Module 2: Monitoring Dashboard
   robin-dashboard:
@@ -196,3 +204,4 @@ networks:
 volumes:
   mongo-db: {}
   timescale-data: {}
+  ros2_ws_install: {}

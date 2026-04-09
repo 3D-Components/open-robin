@@ -65,6 +65,7 @@ async def root():
             'process_alerts': '/process/{process_id}/alerts',
             'list_processes': '/processes',
             'set_process_mode': '/process/{process_id}/mode',
+            'set_process_input_params': '/process/{process_id}/input-params',
             'check_deviation': '/check-deviation',
             'operator_action': '/operator-action',
             'ai_recommendation': '/ai-recommendation',
@@ -81,6 +82,28 @@ async def root():
 async def get_profile():
     """Return the active profile configuration (vocabulary, fields, skills, etc.)."""
     return active_profile.as_dict()
+
+
+class PublishIntentRequest(BaseModel):
+    intent: str
+    process_id: str = 'ros_bridge'
+    data: Dict[str, Any] = {}
+
+
+@app.post('/intent')
+async def publish_intent(request: PublishIntentRequest):
+    """Persist operator intent in Orion-LD.
+
+    Orion-LD delivers the intent to the ROS pipeline via its NGSI-LD subscription
+    mechanism: PATCH pendingIntent → Orion-LD subscription notification →
+    welding_http_bridge (/orion-notify) → /intents ROS2 topic.
+    """
+    client = RobinFiwareClient()
+    try:
+        client.patch_process_intent(request.process_id, request.intent, request.data)
+    except Exception:
+        pass  # Never block the response if Orion-LD is unavailable
+    return {'status': 'published', 'intent': request.intent, 'process_id': request.process_id}
 
 
 @app.get('/health')
@@ -243,14 +266,16 @@ class SetModeRequest(BaseModel):
     mode: str  # 'parameter_driven' or 'geometry_driven'
 
 
+class SetInputParamsRequest(BaseModel):
+    input_params: Dict[str, float]
+
+
 class AIModelSelectionRequest(BaseModel):
     path: str
 
 
 class AIModelPredictRequest(BaseModel):
-    wireSpeed: float
-    current: float
-    voltage: float
+    input_params: Optional[Dict[str, float]] = None
 
 
 class AlertEngine:
@@ -272,6 +297,10 @@ class AlertEngine:
             getattr(active_profile, 'inverse_optimizer', {}),
         )
         self.default_tolerance = active_profile.default_tolerance
+        # Cache for GeometryTarget "not found" results to avoid hitting Orion-LD
+        # on every dashboard poll when the entity doesn't exist yet.
+        # Maps process_id → (result, expiry_timestamp)
+        self._geo_target_cache: Dict[str, Tuple[Optional[Dict[str, float]], float]] = {}
 
         profile_model = None
         if active_profile.model_path:
@@ -329,7 +358,7 @@ class AlertEngine:
         for directory in self.model_dirs:
             default_candidate = directory / DEFAULT_MODEL_PATH.name
             candidates.append(default_candidate)
-            for checkpoint in sorted(directory.glob('*.pt')):
+            for checkpoint in sorted(directory.rglob('*.pt')):
                 candidates.append(checkpoint)
 
         unique: List[Path] = []
@@ -348,11 +377,113 @@ class AlertEngine:
     @staticmethod
     def _default_inverse_bound(feature: str) -> Tuple[float, float]:
         defaults: Dict[str, Tuple[float, float]] = {
-            'wireSpeed': (1.0, 300.0),
-            'current': (1.0, 400.0),
-            'voltage': (0.1, 60.0),
+            'wire_feed_speed_mpm_model_input': (1.0, 30.0),
+            'travel_speed_mps_model_input': (0.001, 1.0),
+            'arc_length_correction_mm_model_input': (-20.0, 20.0),
         }
         return defaults.get(feature, (0.0, 1.0))
+
+    def input_feature_specs(self) -> List[Dict[str, Any]]:
+        raw_specs = getattr(active_profile, 'ai_input_features', [])
+        by_key: Dict[str, Dict[str, Any]] = {}
+        for raw_spec in raw_specs:
+            key = raw_spec.get('key')
+            if isinstance(key, str) and key:
+                by_key[key] = dict(raw_spec)
+
+        specs: List[Dict[str, Any]] = []
+        for feature in self.feature_order:
+            spec = dict(by_key.get(feature, {}))
+            label = spec.get('label')
+            unit = spec.get('unit')
+            aliases = spec.get('aliases')
+            default = spec.get('default')
+            step = spec.get('step')
+
+            if not isinstance(label, str) or not label:
+                label = self._default_feature_label(feature)
+            if not isinstance(unit, str):
+                unit = ''
+            if not isinstance(aliases, list):
+                aliases = []
+            aliases = [str(alias) for alias in aliases if str(alias).strip()]
+            aliases = [feature, *[alias for alias in aliases if alias != feature]]
+
+            entry: Dict[str, Any] = {
+                'key': feature,
+                'label': label,
+                'unit': unit,
+                'aliases': aliases,
+            }
+            if isinstance(default, (int, float)):
+                entry['default'] = float(default)
+            if isinstance(step, (int, float)):
+                entry['step'] = float(step)
+            specs.append(entry)
+        return specs
+
+    @staticmethod
+    def _default_feature_label(feature: str) -> str:
+        defaults = {
+            'wire_feed_speed_mpm_model_input': 'Wire Feed Speed',
+            'travel_speed_mps_model_input': 'Travel Speed',
+            'arc_length_correction_mm_model_input': 'Arc Length Correction',
+        }
+        return defaults.get(feature, feature)
+
+    def _canonicalize_input_params(
+        self, params: Optional[Dict[str, float]]
+    ) -> Dict[str, float]:
+        if not params:
+            return {}
+
+        numeric_params: Dict[str, float] = {}
+        for key, value in params.items():
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                numeric_params[key] = float(value)
+
+        canonical: Dict[str, float] = {}
+        for spec in self.input_feature_specs():
+            key = str(spec['key'])
+            aliases = spec.get('aliases', [])
+            for alias in aliases:
+                if alias in numeric_params:
+                    canonical[key] = numeric_params[alias]
+                    break
+        for feature in self.feature_order:
+            if feature in numeric_params:
+                canonical[feature] = numeric_params[feature]
+        return canonical
+
+    def _require_complete_input_params(
+        self, params: Optional[Dict[str, float]]
+    ) -> Dict[str, float]:
+        canonical = self._canonicalize_input_params(params)
+        missing = [
+            feature for feature in self.feature_order if feature not in canonical
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    'message': 'Missing required AI input features',
+                    'missing_features': missing,
+                    'feature_order': list(self.feature_order),
+                    'recognized_input_params': canonical,
+                },
+            )
+        return canonical
+
+    def _default_feature_value(self, feature: str) -> float:
+        for spec in self.input_feature_specs():
+            if spec.get('key') == feature:
+                default = spec.get('default')
+                if isinstance(default, (int, float)):
+                    return float(default)
+                break
+        return 0.0
 
     @staticmethod
     def _coerce_bound(
@@ -468,6 +599,15 @@ class AlertEngine:
             config = checkpoint.get('config')
             if isinstance(config, dict):
                 metadata['config'] = config
+            else:
+                metadata['config'] = {
+                    'schema': checkpoint.get('schema'),
+                    'feature_names': checkpoint.get('feature_columns')
+                    or checkpoint.get('feature_names'),
+                    'hidden_dims': checkpoint.get('hidden_dims'),
+                    'input_dim': checkpoint.get('input_dim'),
+                    'output_dim': checkpoint.get('output_dim'),
+                }
         except Exception as exc:
             metadata['config_error'] = str(exc)
 
@@ -479,7 +619,7 @@ class AlertEngine:
         for directory in self.model_dirs:
             if not directory.exists():
                 continue
-            for checkpoint in sorted(directory.glob('*.pt')):
+            for checkpoint in sorted(directory.rglob('*.pt')):
                 models.append(self._model_metadata(checkpoint))
         return models
 
@@ -489,7 +629,11 @@ class AlertEngine:
         return self._model_metadata(self.active_model_path)
 
     def _build_feature_vector(self, params: Dict[str, float]) -> List[float]:
-        return [float(params.get(key, 0.0)) for key in self.feature_order]
+        canonical = self._canonicalize_input_params(params)
+        return [
+            float(canonical.get(key, self._default_feature_value(key)))
+            for key in self.feature_order
+        ]
 
     def calculate_deviation(self, expected: float, measured: float) -> float:
         """Calculate percentage deviation"""
@@ -588,7 +732,8 @@ class AlertEngine:
         if self.ai_model is None:
             raise HTTPException(status_code=500, detail='AI model not loaded')
 
-        features = self._build_feature_vector(params)
+        canonical_params = self._require_complete_input_params(params)
+        features = self._build_feature_vector(canonical_params)
         result = self.forward_confidence_estimator.estimate(
             self.ai_model, features
         )
@@ -614,6 +759,7 @@ class AlertEngine:
                 'input_distance': float(result.input_distance),
                 'mc_samples': int(result.mc_samples),
             },
+            'input_params': canonical_params,
         }
 
     def recommend_params_for_geometry(
@@ -631,7 +777,7 @@ class AlertEngine:
 
         result = self.inverse_optimizer.solve(
             target_geometry=target_geometry,
-            current_params=current_params,
+            current_params=self._canonicalize_input_params(current_params),
         )
         recommended_params: Dict[str, Any] = {
             feature: float(result.params.get(feature, 0.0))
@@ -669,7 +815,15 @@ class AlertEngine:
     def fetch_geometry_target(
         self, process_id: str
     ) -> Optional[Dict[str, float]]:
-        """Fetch geometry target from FIWARE Orion"""
+        """Fetch geometry target from FIWARE Orion.
+
+        Caches 'not found' (404) results for 30 s to avoid spamming Orion-LD
+        when the entity doesn't exist (e.g. in simulation / parameter-driven mode).
+        """
+        now = time.time()
+        cached_result, expiry = self._geo_target_cache.get(process_id, (None, 0.0))
+        if expiry > now:
+            return cached_result
         try:
             response = requests.get(
                 f'{self.client.orion_url}/ngsi-ld/v1/entities/urn:ngsi-ld:GeometryTarget:{process_id}',
@@ -678,10 +832,15 @@ class AlertEngine:
             )
             if response.status_code == 200:
                 data = response.json()
-                return {
+                result: Optional[Dict[str, float]] = {
                     'height': data.get('targetHeight', {}).get('value', 0.0),
                     'width': data.get('targetWidth', {}).get('value', 0.0),
                 }
+                # Clear any negative cache entry on success
+                self._geo_target_cache.pop(process_id, None)
+                return result
+            # Entity not found — cache the miss for 30 s
+            self._geo_target_cache[process_id] = (None, now + 30.0)
             return None
         except Exception:
             return None
@@ -733,6 +892,13 @@ class AlertEngine:
                 result['voltage'] = latest.get('measuredVoltage', {}).get(
                     'value'
                 )
+            raw_input_params = latest.get('inputParams', {}).get('value')
+            if isinstance(raw_input_params, dict):
+                canonical_input_params = self._canonicalize_input_params(
+                    raw_input_params
+                )
+                if canonical_input_params:
+                    result['input_params'] = canonical_input_params
 
             return result
         except Exception:
@@ -755,7 +921,7 @@ class AlertEngine:
             temporal_attrs = (
                 'urn:robin:processTelemetry,processTelemetry,'
                 'measuredHeight,measuredWidth,measuredSpeed,'
-                'measuredCurrent,measuredVoltage'
+                'measuredCurrent,measuredVoltage,inputParams'
             )
 
             def call_temporal(
@@ -787,20 +953,17 @@ class AlertEngine:
                     headers['NGSILD-Tenant'] = tenant
 
                 try:
-                    print(f'🔍 Mintaka query URL: {url}')
-                    print(f'🔍 Mintaka query params: {params}')
                     resp = requests.get(
                         url, headers=headers, params=params, timeout=10
                     )
-                    print(f'🔍 Mintaka response status: {resp.status_code}')
-                    body_preview = (
-                        resp.text[:500] if hasattr(resp, 'text') else ''
-                    )
-                    print(f'🔍 Mintaka response text: {body_preview}...')
                     if resp.status_code not in (200, 206):
-                        print(
-                            f'❌ Mintaka query failed with status {resp.status_code}: {body_preview}'
-                        )
+                        if resp.status_code != 404:
+                            body_preview = (
+                                resp.text[:500] if hasattr(resp, 'text') else ''
+                            )
+                            print(
+                                f'❌ Mintaka query failed with status {resp.status_code}: {body_preview}'
+                            )
                         return None
                     try:
                         data = resp.json()
@@ -865,9 +1028,15 @@ class AlertEngine:
                         'speed': None,
                         'current': None,
                         'voltage': None,
+                        'input_params': {},
                     }
                     series_by_timestamp[timestamp] = entry
                 return entry
+
+            def parse_input_params_value(value: Any) -> Dict[str, float]:
+                if not isinstance(value, dict):
+                    return {}
+                return self._canonicalize_input_params(value)
 
             def parse_compound_value(compound_value: Any) -> Dict[str, Any]:
                 if not isinstance(compound_value, dict):
@@ -903,6 +1072,9 @@ class AlertEngine:
                         if compound_value.get('voltage') is not None
                         else compound_value.get('measuredVoltage')
                     ),
+                    'input_params': parse_input_params_value(
+                        compound_value.get('inputParams')
+                    ),
                 }
 
             def merge_series(entity: Dict[str, Any]) -> List[Dict]:
@@ -918,6 +1090,10 @@ class AlertEngine:
                         continue
                     entry = ensure_entry(series_by_timestamp, timestamp)
                     for metric_name, metric_value in sample.items():
+                        if metric_name == 'input_params':
+                            if metric_value:
+                                entry['input_params'] = metric_value
+                            continue
                         if metric_value is not None:
                             entry[metric_name] = metric_value
 
@@ -939,6 +1115,13 @@ class AlertEngine:
                         entry = ensure_entry(series_by_timestamp, timestamp)
                         entry[metric_name] = metric_value
 
+                for timestamp, value in temporal_pairs(entity.get('inputParams')):
+                    metric_value = parse_input_params_value(value)
+                    if not metric_value:
+                        continue
+                    entry = ensure_entry(series_by_timestamp, timestamp)
+                    entry['input_params'] = metric_value
+
                 series = [
                     s
                     for s in series_by_timestamp.values()
@@ -951,7 +1134,7 @@ class AlertEngine:
                             'current',
                             'voltage',
                         )
-                    )
+                    ) or s.get('input_params')
                 ]
                 series.sort(key=lambda x: x.get('timestamp', ''))
                 return series
@@ -1009,7 +1192,7 @@ class AlertEngine:
                     'type': 'urn:robin:Measurement',
                     'q': f'processId=="urn:ngsi-ld:Process:{process_id}"',
                     'limit': '1000',
-                    'attrs': 'measuredHeight,measuredWidth,measuredSpeed,measuredCurrent,measuredVoltage',
+                    'attrs': 'measuredHeight,measuredWidth,measuredSpeed,measuredCurrent,measuredVoltage,inputParams',
                 },
                 timeout=10,
             )
@@ -1042,12 +1225,84 @@ class AlertEngine:
                     entry['voltage'] = ent.get('measuredVoltage', {}).get(
                         'value'
                     )
+                raw_input_params = ent.get('inputParams', {}).get('value')
+                if isinstance(raw_input_params, dict):
+                    canonical_input_params = self._canonicalize_input_params(
+                        raw_input_params
+                    )
+                    if canonical_input_params:
+                        entry['input_params'] = canonical_input_params
                 series.append(entry)
 
             # Sort by timestamp ascending for plotting
             series.sort(key=lambda x: x['timestamp'])
             return series
         except Exception:
+            return []
+
+    def fetch_measurements_from_troe(
+        self, process_id: str, last_n: Optional[int] = None
+    ) -> List[Dict]:
+        """Direct TimescaleDB query for DDS compound telemetry.
+
+        Used when Mintaka cannot handle compound DDS attributes (subproperties=true).
+        Reads the compound jsonb column which contains the flat telemetry fields
+        stored by Orion-LD's DDS bridge.
+        """
+        try:
+            import psycopg2
+            import psycopg2.extras
+
+            host = os.getenv('TROE_HOST', 'timescaledb')
+            port = int(os.getenv('TROE_PORT', '5432'))
+            dbname = os.getenv('TROE_DB', 'orion')
+            user = os.getenv('TROE_USER', 'orion')
+            password = os.getenv('TROE_PWD', 'orionpass')
+
+            conn = psycopg2.connect(
+                host=host, port=port, dbname=dbname,
+                user=user, password=password, connect_timeout=5
+            )
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            limit_clause = f'LIMIT {int(last_n)}' if last_n else 'LIMIT 1000'
+            cur.execute(
+                f"""
+                SELECT compound, observedat FROM attributes
+                WHERE entityid = %s
+                  AND id = %s
+                  AND observedat IS NOT NULL
+                  AND compound IS NOT NULL
+                ORDER BY observedat DESC
+                {limit_clause}
+                """,
+                (
+                    f'urn:ngsi-ld:Process:{process_id}',
+                    'urn:robin:processTelemetry',
+                ),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            series = []
+            for row in rows:
+                compound = row[0]    # jsonb parsed as dict by psycopg2
+                observedat = row[1]  # datetime object
+                iso = observedat.isoformat()
+                ts_str = (iso[:-6] + 'Z') if iso.endswith('+00:00') else (iso + 'Z' if '+' not in iso and not iso.endswith('Z') else iso)
+                series.append({
+                    'timestamp': ts_str,
+                    'height': float(compound.get('height') or 0),
+                    'width': float(compound.get('width') or 0),
+                    'speed': float(compound.get('speed') or 0),
+                    'current': float(compound.get('current') or 0),
+                    'voltage': float(compound.get('voltage') or 0),
+                })
+            series.reverse()  # return in chronological order
+            print(f'TROE direct: {len(series)} rows for {process_id}')
+            return series
+        except Exception as e:
+            print(f'⚠️ TROE direct query failed: {e}')
             return []
 
     def fetch_process_alerts(
@@ -1195,20 +1450,24 @@ async def select_ai_model(request: AIModelSelectionRequest):
 
 
 @app.post('/ai/models/predict')
-async def predict_geometry(request: AIModelPredictRequest):
+async def predict_geometry(payload: Dict[str, Any]):
     """Run a forward pass on the active model."""
     engine = ENGINE
-    params = {
-        'wireSpeed': request.wireSpeed,
-        'current': request.current,
-        'voltage': request.voltage,
-    }
+    raw_params = payload.get('input_params')
+    if not isinstance(raw_params, dict):
+        raw_params = payload
+    params = engine._require_complete_input_params(raw_params)
     scored = engine.predict_geometry_with_confidence(params)
+    response_input_params = scored.get('input_params')
+    if not isinstance(response_input_params, dict):
+        response_input_params = params
     return {
         'prediction': scored['prediction'],
         'confidence': scored['confidence'],
         'uncertainty': scored['uncertainty'],
         'diagnostics': scored['diagnostics'],
+        'input_params': response_input_params,
+        'input_feature_specs': engine.input_feature_specs(),
         'feature_order': list(engine.feature_order),
         'using_ml_model': engine.ai_model is not None,
         'model_path': str(engine.active_model_path)
@@ -1311,6 +1570,9 @@ async def check_deviation(request: DeviationCheckRequest):
                 'status': 'error',
                 'message': 'input_params required for parameter_driven mode',
             }
+        canonical_input_params = engine._require_complete_input_params(
+            request.input_params
+        )
 
         measured = request.measured_geometry
         if not measured:
@@ -1327,7 +1589,7 @@ async def check_deviation(request: DeviationCheckRequest):
                 }
         alert, expected_geometry = engine.check_parameter_driven_deviation(
             request.process_id,
-            request.input_params,
+            canonical_input_params,
             measured,
             tolerance,
         )
@@ -1360,9 +1622,12 @@ async def check_deviation(request: DeviationCheckRequest):
         reference_geometry = target_geometry
         expected_source = 'target_geometry'
         if request.input_params:
+            canonical_input_params = engine._require_complete_input_params(
+                request.input_params
+            )
             try:
                 reference_geometry = engine.predict_geometry_from_params(
-                    request.input_params
+                    canonical_input_params
                 )
                 expected_source = 'ai_prediction_from_params'
             except Exception:
@@ -1487,6 +1752,19 @@ async def create_process(request: CreateProcessRequest):
         if not success:
             return {'error': 'Failed to create process', 'status': 'error'}
 
+        if request.initial_params:
+            canonical_initial_params = ENGINE._require_complete_input_params(
+                request.initial_params
+            )
+            input_success = client.set_input_params(
+                request.process_id, canonical_initial_params
+            )
+            if not input_success:
+                return {
+                    'error': 'Process created but failed to persist initial input parameters',
+                    'status': 'warning',
+                }
+
         # If geometry-driven mode, create target geometry
         if request.mode == 'geometry_driven' and request.target_geometry:
             target_success = client.create_geometry_target(
@@ -1567,6 +1845,16 @@ async def get_process_data(process_id: str):
                     'unitCode': 'V',
                     'observedAt': latest.get('timestamp'),
                 }
+            if (
+                'input_params' in latest
+                and isinstance(latest.get('input_params'), dict)
+                and latest.get('input_params')
+            ):
+                entity['inputParams'] = {
+                    'type': 'Property',
+                    'value': latest.get('input_params'),
+                    'observedAt': latest.get('timestamp'),
+                }
 
         return entity
 
@@ -1596,8 +1884,15 @@ async def get_process_measurements(process_id: str, last: int | None = None):
                 source = 'orion'
                 measurements = measurements_orion
             else:
-                source = 'none'
-                measurements = []
+                measurements_troe = engine.fetch_measurements_from_troe(
+                    process_id, last_n=last
+                )
+                if measurements_troe:
+                    source = 'troe'
+                    measurements = measurements_troe
+                else:
+                    source = 'none'
+                    measurements = []
 
         print(
             f'📊 Fetching measurements for process {process_id}: found {len(measurements)} measurements'
@@ -1677,9 +1972,12 @@ async def get_ai_recommendation(request: AIRecommendationRequest):
                     'error': 'input_params required for parameter_driven mode',
                     'status': 'error',
                 }
+            canonical_input_params = engine._require_complete_input_params(
+                request.input_params
+            )
 
             scored_prediction = engine.predict_geometry_with_confidence(
-                request.input_params
+                canonical_input_params
             )
             predicted_geometry = scored_prediction['prediction']
             recommendation = {
@@ -1705,10 +2003,13 @@ async def get_ai_recommendation(request: AIRecommendationRequest):
                 }
 
             if request.input_params is not None:
+                canonical_current_params = engine._require_complete_input_params(
+                    request.input_params
+                )
                 try:
                     recommended_params = engine.recommend_params_for_geometry(
                         request.target_geometry,
-                        current_params=request.input_params,
+                        current_params=canonical_current_params,
                     )
                 except TypeError:
                     # Backward-compatible fallback for patched/mocked call-sites
@@ -1747,6 +2048,8 @@ async def get_ai_recommendation(request: AIRecommendationRequest):
 
         return {'status': 'success', 'recommendation': recommendation}
 
+    except HTTPException:
+        raise
     except Exception as e:
         return {
             'status': 'error',
@@ -1887,6 +2190,39 @@ async def set_process_mode(process_id: str, request: SetModeRequest):
             'process_id': process_id,
             'error': str(e),
             'message': f'Failed to set operation mode for process {process_id}',
+        }
+
+
+@app.post('/process/{process_id}/input-params')
+async def set_process_input_params(
+    process_id: str, request: SetInputParamsRequest
+):
+    """Persist the currently commanded AI/process inputs on the Process entity."""
+    try:
+        canonical_input_params = ENGINE._require_complete_input_params(
+            request.input_params
+        )
+        client = RobinFiwareClient()
+        ok = client.set_input_params(process_id, canonical_input_params)
+        if not ok:
+            return {
+                'status': 'error',
+                'process_id': process_id,
+                'message': 'Failed to update input parameters',
+            }
+        return {
+            'status': 'success',
+            'process_id': process_id,
+            'input_params': canonical_input_params,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {
+            'status': 'error',
+            'process_id': process_id,
+            'error': str(e),
+            'message': f'Failed to set input parameters for process {process_id}',
         }
 
 
