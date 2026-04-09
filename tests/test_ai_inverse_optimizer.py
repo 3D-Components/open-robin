@@ -7,18 +7,22 @@ from robin.ai.inverse import (
 def _forward_identity(params):
     # Simple deterministic mapping used for optimizer unit tests.
     return {
-        'height': float(params['wireSpeed']),
-        'width': float(params['current']),
+        'height': float(params['wire_feed_speed_mpm_model_input']),
+        'width': float(params['travel_speed_mps_model_input']),
     }
 
 
 def test_inverse_optimizer_hits_target_for_identity_mapping():
     optimizer = GeometryInverseOptimizer(
-        feature_order=('wireSpeed', 'current', 'voltage'),
+        feature_order=(
+            'wire_feed_speed_mpm_model_input',
+            'travel_speed_mps_model_input',
+            'arc_length_correction_mm_model_input',
+        ),
         parameter_bounds={
-            'wireSpeed': (5.0, 15.0),
-            'current': (100.0, 200.0),
-            'voltage': (18.0, 32.0),
+            'wire_feed_speed_mpm_model_input': (5.0, 15.0),
+            'travel_speed_mps_model_input': (0.01, 0.04),
+            'arc_length_correction_mm_model_input': (-6.0, 6.0),
         },
         predict_geometry=_forward_identity,
         config=InverseOptimizationConfig(
@@ -28,23 +32,39 @@ def test_inverse_optimizer_hits_target_for_identity_mapping():
             random_seed=123,
         ),
     )
-    target = {'height': 11.2, 'width': 163.0}
+    target = {'height': 11.2, 'width': 0.023}
     result = optimizer.solve(target)
 
-    assert abs(result.params['wireSpeed'] - target['height']) < 0.2
-    assert abs(result.params['current'] - target['width']) < 0.5
+    assert (
+        abs(
+            result.params['wire_feed_speed_mpm_model_input']
+            - target['height']
+        )
+        < 0.2
+    )
+    assert (
+        abs(
+            result.params['travel_speed_mps_model_input']
+            - target['width']
+        )
+        < 0.002
+    )
     assert abs(result.predicted_geometry['height'] - target['height']) < 0.2
-    assert abs(result.predicted_geometry['width'] - target['width']) < 0.5
+    assert abs(result.predicted_geometry['width'] - target['width']) < 0.002
     assert 0.9 <= result.confidence <= 0.99
 
 
 def test_inverse_optimizer_respects_bounds_when_target_is_unreachable():
     optimizer = GeometryInverseOptimizer(
-        feature_order=('wireSpeed', 'current', 'voltage'),
+        feature_order=(
+            'wire_feed_speed_mpm_model_input',
+            'travel_speed_mps_model_input',
+            'arc_length_correction_mm_model_input',
+        ),
         parameter_bounds={
-            'wireSpeed': (5.0, 15.0),
-            'current': (100.0, 200.0),
-            'voltage': (18.0, 32.0),
+            'wire_feed_speed_mpm_model_input': (5.0, 15.0),
+            'travel_speed_mps_model_input': (0.01, 0.04),
+            'arc_length_correction_mm_model_input': (-6.0, 6.0),
         },
         predict_geometry=_forward_identity,
         config=InverseOptimizationConfig(
@@ -54,23 +74,27 @@ def test_inverse_optimizer_respects_bounds_when_target_is_unreachable():
             random_seed=7,
         ),
     )
-    target = {'height': 40.0, 'width': 800.0}
+    target = {'height': 40.0, 'width': 0.8}
     result = optimizer.solve(target)
 
-    assert 5.0 <= result.params['wireSpeed'] <= 15.0
-    assert 100.0 <= result.params['current'] <= 200.0
-    assert result.params['wireSpeed'] >= 14.9
-    assert result.params['current'] >= 199.0
+    assert 5.0 <= result.params['wire_feed_speed_mpm_model_input'] <= 15.0
+    assert 0.01 <= result.params['travel_speed_mps_model_input'] <= 0.04
+    assert result.params['wire_feed_speed_mpm_model_input'] >= 14.9
+    assert result.params['travel_speed_mps_model_input'] >= 0.039
     assert 0.0 <= result.confidence < 0.3
 
 
 def test_inverse_optimizer_regularization_keeps_unobserved_feature_stable():
     optimizer = GeometryInverseOptimizer(
-        feature_order=('wireSpeed', 'current', 'voltage'),
+        feature_order=(
+            'wire_feed_speed_mpm_model_input',
+            'travel_speed_mps_model_input',
+            'arc_length_correction_mm_model_input',
+        ),
         parameter_bounds={
-            'wireSpeed': (5.0, 15.0),
-            'current': (100.0, 200.0),
-            'voltage': (18.0, 32.0),
+            'wire_feed_speed_mpm_model_input': (5.0, 15.0),
+            'travel_speed_mps_model_input': (0.01, 0.04),
+            'arc_length_correction_mm_model_input': (-6.0, 6.0),
         },
         predict_geometry=_forward_identity,
         config=InverseOptimizationConfig(
@@ -80,10 +104,20 @@ def test_inverse_optimizer_regularization_keeps_unobserved_feature_stable():
             random_seed=42,
         ),
     )
-    current = {'wireSpeed': 10.5, 'current': 155.0, 'voltage': 29.5}
-    target = {'height': 10.5, 'width': 155.0}
+    current = {
+        'wire_feed_speed_mpm_model_input': 10.5,
+        'travel_speed_mps_model_input': 0.025,
+        'arc_length_correction_mm_model_input': 2.5,
+    }
+    target = {'height': 10.5, 'width': 0.025}
     result = optimizer.solve(target, current_params=current)
 
-    # Voltage does not affect the forward mapping in this test model.
+    # Arc length correction does not affect the forward mapping in this test model.
     # With regularization enabled, optimizer should keep it close to current.
-    assert abs(result.params['voltage'] - current['voltage']) < 0.5
+    assert (
+        abs(
+            result.params['arc_length_correction_mm_model_input']
+            - current['arc_length_correction_mm_model_input']
+        )
+        < 0.5
+    )

@@ -31,9 +31,10 @@ modification date.  Click **Load** to switch the active model at runtime.
 Quick Prediction
 ~~~~~~~~~~~~~~~~
 
-Enter the process parameters (e.g. speed, current, voltage), then click
+Enter the AI input values for the active profile, then click
 **Predict Geometry** to run a forward pass and see predicted height and width
-instantly.
+instantly. For the current welding profile, the inputs are wire feed speed,
+travel speed, and arc length correction.
 
 Model Routing
 ~~~~~~~~~~~~~
@@ -66,7 +67,7 @@ API Endpoints
    * - ``POST /ai/models/select``
      - Load a specific checkpoint by path
    * - ``POST /ai/models/predict``
-     - Run a forward prediction with given parameters
+     - Run a forward prediction with the profile-defined AI input features
 
 Training a New Model
 --------------------
@@ -90,8 +91,10 @@ Model Architecture
 
 ``ProcessGeometryMLP`` maps 3 input features to 2 outputs:
 
-* **Inputs**: 3 process parameters (order defined by ``ai.feature_order`` in the
-  profile YAML - e.g. speed, current, voltage)
+* **Inputs**: 3 profile-defined AI inputs (order defined by ``ai.feature_order``
+  in the profile YAML). For the welding profile these are
+  ``wire_feed_speed_mpm_model_input``, ``travel_speed_mps_model_input``, and
+  ``arc_length_correction_mm_model_input``.
 * **Outputs**: predicted height, predicted width
 * **Normalisation**: per-feature mean/std stored in the checkpoint
 * **Configurable**: number of hidden layers, hidden size, dropout rate
