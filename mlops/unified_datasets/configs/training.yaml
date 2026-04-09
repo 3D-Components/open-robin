@@ -1,0 +1,30 @@
+dataset:
+  csv_path: data/unified_legacy_arc0_plus_fragmented/gold/train_dataset.csv
+  quality_flag_ok_value: ok
+  feature_columns:
+    - wire_feed_speed_mpm_model_input
+    - travel_speed_mps_model_input
+    - arc_length_correction_mm_model_input
+  target_columns:
+    - height_mm_target
+    - width_mm_target
+
+split:
+  val_fraction: 0.2
+  random_seed: 42
+
+training:
+  batch_size: 8
+  epochs: 2000
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  hidden_dims: [64, 32]
+  dropout: 0.1
+  patience: 200
+  device: cpu
+
+outputs:
+  artifacts_dir: data/models/unified_legacy_arc0_plus_fragmented/train_split_torch
+  model_path: data/models/unified_legacy_arc0_plus_fragmented/train_split_torch/torch_regressor.pt
+  scaler_path: data/models/unified_legacy_arc0_plus_fragmented/train_split_torch/feature_scaler.joblib
+  metrics_path: data/models/unified_legacy_arc0_plus_fragmented/train_split_torch/training_metrics.json

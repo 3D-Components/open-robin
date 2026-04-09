@@ -39,9 +39,7 @@ export type ProcessRun = {
 export type MeasurementPoint = {
     t: number;
     timestamp: string | null;
-    speed: number;
-    current: number;
-    voltage: number;
+    inputParams: Record<string, number>;
     profileHeight: number;
     profileWidth: number;
     confidence: number;
@@ -103,12 +101,23 @@ export type Alert = {
 
 export type OperationMode = "parameter_driven" | "geometry_driven";
 
+export type AIInputParams = Record<string, number>;
+
+export type AIInputFeatureSpec = {
+    key: string;
+    label: string;
+    unit: string;
+    aliases?: string[];
+    defaultValue?: number;
+    step?: number;
+    min?: number;
+    max?: number;
+};
+
 export type ProcessControlsState = {
     mode: OperationMode;
     tolerance: number;
-    speed: number;
-    current: number;
-    voltage: number;
+    inputParams: AIInputParams;
     targetHeight: number;
     targetWidth: number;
 };
@@ -133,9 +142,7 @@ export type DeviationAction =
 export type MeasurementSnapshot = {
     height: number | null;
     width: number | null;
-    speed: number | null;
-    current: number | null;
-    voltage: number | null;
+    inputParams: Record<string, number>;
     timestamp: string | null;
 };
 
@@ -153,4 +160,4 @@ export type LayerVisibility = {
 };
 
 export type CameraView = "Isometric" | "Top" | "Side";
-export type MetricType = "speed" | "current" | "voltage" | "profileHeight" | "profileWidth";
+export type MetricType = string;

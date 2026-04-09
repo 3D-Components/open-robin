@@ -119,7 +119,7 @@ reads a profile YAML file. No rebuild is needed to switch domains - one Docker i
 serves all profiles.
 
 The profile YAML's `vocabulary` section controls all domain-specific labels
-(process, speed, current, voltage, height, width, tool path, workpiece, etc.).
+for the process, telemetry, geometry, and scene concepts exposed in the UI.
 See `config/profiles/welding.yaml` for a complete example.
 
 `VITE_TERM_*` build-time environment variables are still supported as a fallback

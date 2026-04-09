@@ -37,7 +37,11 @@ async def test_check_deviation_no_measurements(monkeypatch, client):
     payload = {
         'process_id': 'PX',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 1.0, 'current': 1.0, 'voltage': 1.0},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
     }
     resp = await client.post('/check-deviation', json=payload)
     assert resp.status_code == 200

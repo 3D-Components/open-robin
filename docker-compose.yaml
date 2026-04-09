@@ -110,6 +110,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 20s # give the container 20 seconds to start up
 
   # FIWARE: Mintaka temporal API (reads Orion temporal state from TimescaleDB)
   mintaka:

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { ROBIN_API_URL } from '../config/api';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -10,9 +11,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  * In production (nginx container) the env var is baked at build time.
  * In dev mode the Vite proxy rewrites /api/* → http://localhost:8000/*.
  */
-const BASE_URL: string =
-    import.meta.env.VITE_ROBIN_API_URL   // explicit override (production build)
-    ?? (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
+const BASE_URL: string = ROBIN_API_URL;
 
 // ---------------------------------------------------------------------------
 // API Types (match alert_engine.py response shapes)
@@ -25,6 +24,7 @@ export interface RobinMeasurement {
     speed?: number;
     current?: number;
     voltage?: number;
+    input_params?: Record<string, number>;
 }
 
 export interface MeasurementsDebugInfo {
@@ -129,7 +129,7 @@ export interface DeviationCheckResponse {
 export interface AIRecommendationRequest {
     process_id: string;
     mode: 'parameter_driven' | 'geometry_driven';
-    input_params?: { wireSpeed: number; current: number; voltage: number };
+    input_params?: Record<string, number>;
     target_geometry?: { height: number; width: number };
 }
 
@@ -153,6 +153,7 @@ export interface TargetGeometryResponse {
 export interface ProcessSnapshotResponse {
     operationMode?: { value: string };
     toleranceThreshold?: { value: number };
+    inputParams?: { value: Record<string, number> };
     wireSpeed?: { value: number };
     current?: { value: number };
     voltage?: { value: number };
@@ -325,11 +326,11 @@ export async function selectModel(path: string) {
     return res.json();
 }
 
-export async function predictGeometry(params: { wireSpeed: number; current: number; voltage: number }) {
+export async function predictGeometry(request: { input_params: Record<string, number> }) {
     const res = await fetch(`${BASE_URL}/ai/models/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
+        body: JSON.stringify(request),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
@@ -366,6 +367,16 @@ export async function setProcessMode(processId: string, mode: 'parameter_driven'
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function setInputParams(processId: string, input_params: Record<string, number>) {
+    const res = await fetch(`${BASE_URL}/process/${encodeURIComponent(processId)}/input-params`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input_params }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
