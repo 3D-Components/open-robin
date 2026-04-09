@@ -21,11 +21,14 @@ import {
     resumeProcess,
     setTarget,
     setProcessMode,
+    setInputParams,
     getAIRecommendation,
     type RobinMeasurement,
     type AIRecommendationResponse,
 } from '../../hooks/useRobinAPI';
 import type {
+    AIInputFeatureSpec,
+    AIInputParams,
     TabKey,
     RobotCell,
     ProcessRun,
@@ -45,6 +48,15 @@ import type {
     DeviationAction,
 } from '../../types';
 import { domainTerms } from '../../config/domain';
+import { useProfile } from '../../config/ProfileContext';
+import {
+    buildDefaultAIInputParams,
+    formatAIInputSummary,
+    mergeRecommendedAIInputParams,
+    normalizeAIInputParams,
+    resolveAIInputFeatures,
+    resolveRecordedAIInputParams,
+} from '../../config/aiInputFeatures';
 
 const ts = (offsetMinutes: number) =>
     new Date(Date.now() - offsetMinutes * 60000).toISOString();
@@ -109,15 +121,10 @@ const mockAuditLog: AuditLogEntry[] = [
     },
 ];
 
-const METRIC_LABELS: Record<MetricType, string> = {
-    speed: `${domainTerms.speed} (${domainTerms.speedUnit})`,
-    current: `${domainTerms.current} (${domainTerms.currentUnit})`,
-    voltage: `${domainTerms.voltage} (${domainTerms.voltageUnit})`,
-    profileHeight: `${domainTerms.profileHeight} (mm)`,
-    profileWidth: `${domainTerms.profileWidth} (mm)`,
-};
-
-function apiToMeasurementPoints(measurements: RobinMeasurement[]): MeasurementPoint[] {
+function apiToMeasurementPoints(
+    measurements: RobinMeasurement[],
+    aiInputFeatures: AIInputFeatureSpec[],
+): MeasurementPoint[] {
     let firstValidTimestampMs: number | null = null;
     return measurements.map((m, i) => {
         const tsMs = Date.parse(m.timestamp);
@@ -135,9 +142,10 @@ function apiToMeasurementPoints(measurements: RobinMeasurement[]): MeasurementPo
         return {
             t: timeSeconds,
             timestamp: hasValidTimestamp ? m.timestamp : null,
-            speed: m.speed ?? 0,
-            current: m.current ?? 0,
-            voltage: m.voltage ?? 0,
+            inputParams: resolveRecordedAIInputParams(
+                m as unknown as Record<string, unknown>,
+                aiInputFeatures,
+            ),
             profileHeight: m.height ?? 0,
             profileWidth: m.width ?? 0,
             confidence: 0.95,
@@ -145,36 +153,22 @@ function apiToMeasurementPoints(measurements: RobinMeasurement[]): MeasurementPo
     });
 }
 
+function getMetricValue(point: MeasurementPoint, metric: MetricType): number {
+    if (metric === 'profileHeight') return point.profileHeight;
+    if (metric === 'profileWidth') return point.profileWidth;
+    return point.inputParams[metric] ?? 0;
+}
+
 function toNumber(value: unknown): number | null {
     if (typeof value !== 'number' || Number.isNaN(value)) return null;
     return value;
-}
-
-function mapRecommendationToControls(
-    recommended: Record<string, unknown> | undefined,
-    fallback: ProcessControlsState,
-): Pick<ProcessControlsState, 'speed' | 'current' | 'voltage'> {
-    const speed =
-        toNumber(recommended?.wireSpeed)
-        ?? toNumber(recommended?.lineSpeedSetpoint)
-        ?? toNumber(recommended?.travelSpeed)
-        ?? fallback.speed;
-    const current =
-        toNumber(recommended?.current)
-        ?? toNumber(recommended?.flowRateSetpoint)
-        ?? fallback.current;
-    const voltage =
-        toNumber(recommended?.voltage)
-        ?? toNumber(recommended?.pressureSetpoint)
-        ?? fallback.voltage;
-    return { speed, current, voltage };
 }
 
 type StartPreviewPlan =
     | {
         mode: 'parameter_driven';
         processId: string;
-        inputParams: { wireSpeed: number; current: number; voltage: number };
+        inputParams: AIInputParams;
         predictedGeometry: { height: number; width: number };
         confidence: number | null;
     }
@@ -182,7 +176,7 @@ type StartPreviewPlan =
         mode: 'geometry_driven';
         processId: string;
         targetGeometry: { height: number; width: number };
-        recommendedParams: { wireSpeed: number; current: number; voltage: number };
+        recommendedParams: AIInputParams;
         predictedGeometry: { height: number; width: number } | null;
         confidence: number | null;
     };
@@ -200,16 +194,12 @@ type JobReport = {
     recommendNewDoe: boolean;
 };
 
-type ManualAdjustDraft = {
-    speed: number;
-    current: number;
-    voltage: number;
-};
+type ManualAdjustDraft = AIInputParams;
 
 type AiRecommendationPlan = {
     targetHeight: number;
     targetWidth: number;
-    recommendedParams: { wireSpeed: number; current: number; voltage: number } | null;
+    recommendedParams: AIInputParams | null;
     predictedGeometry: { height: number; width: number } | null;
     confidence: number | null;
 };
@@ -231,6 +221,11 @@ function assertRecommendationSuccess(
 }
 
 export function RobinPage() {
+    const { data: profileData } = useProfile();
+    const aiInputFeatures = useMemo<AIInputFeatureSpec[]>(
+        () => resolveAIInputFeatures(profileData),
+        [profileData],
+    );
     const [tab, setTab] = useState<TabKey>('live');
     const [sessionMode, setSessionMode] = useState<'Active Run' | 'Demo Mode'>(() => {
         if (typeof window === 'undefined') return 'Active Run';
@@ -260,12 +255,17 @@ export function RobinPage() {
     const [processControls, setProcessControls] = useState<ProcessControlsState>({
         mode: 'parameter_driven',
         tolerance: 10,
-        speed: 10,
-        current: 150,
-        voltage: 24,
+        inputParams: buildDefaultAIInputParams(aiInputFeatures),
         targetHeight: 3.0,
         targetWidth: 6.0,
     });
+
+    useEffect(() => {
+        setProcessControls((prev) => ({
+            ...prev,
+            inputParams: normalizeAIInputParams(prev.inputParams, aiInputFeatures),
+        }));
+    }, [aiInputFeatures]);
 
     const processMode: OperationMode | null = useMemo(() => {
         if (processSnapshotData?.operationMode?.value) {
@@ -281,6 +281,49 @@ export function RobinPage() {
         }
         return null;
     }, [targetGeometryData]);
+
+    useEffect(() => {
+        const snapshotInputParams = processSnapshotData?.inputParams?.value;
+        const snapshotTolerance = processSnapshotData?.toleranceThreshold?.value;
+        if (
+            (!snapshotInputParams || typeof snapshotInputParams !== 'object')
+            && !(typeof snapshotTolerance === 'number' && Number.isFinite(snapshotTolerance))
+        ) {
+            return;
+        }
+
+        const signature = JSON.stringify({
+            processId,
+            inputParams: snapshotInputParams ?? null,
+            tolerance:
+                typeof snapshotTolerance === 'number' && Number.isFinite(snapshotTolerance)
+                    ? snapshotTolerance
+                    : null,
+        });
+        if (
+            lastHydratedProcessIdRef.current === processId
+            && lastHydratedControlsSignatureRef.current === signature
+        ) {
+            return;
+        }
+
+        setProcessControls((prev) => ({
+            ...prev,
+            inputParams:
+                snapshotInputParams && typeof snapshotInputParams === 'object'
+                    ? normalizeAIInputParams(
+                        snapshotInputParams as AIInputParams,
+                        aiInputFeatures,
+                    )
+                    : prev.inputParams,
+            tolerance:
+                typeof snapshotTolerance === 'number' && Number.isFinite(snapshotTolerance)
+                    ? snapshotTolerance
+                    : prev.tolerance,
+        }));
+        lastHydratedProcessIdRef.current = processId;
+        lastHydratedControlsSignatureRef.current = signature;
+    }, [aiInputFeatures, processSnapshotData?.inputParams, processSnapshotData?.toleranceThreshold]);
 
     const connections = useMemo<Record<string, ConnStatus>>(() => {
         if (!apiReachable) {
@@ -318,6 +361,8 @@ export function RobinPage() {
     const lastMeasurementAtRef = useRef(Date.now());
     const inactivityCompletionRequestedRef = useRef(false);
     const operatorPauseHoldRef = useRef(false);
+    const lastHydratedProcessIdRef = useRef<string | null>(null);
+    const lastHydratedControlsSignatureRef = useRef<string | null>(null);
     const [startPlanning, setStartPlanning] = useState(false);
     const [startPreviewPlan, setStartPreviewPlan] = useState<StartPreviewPlan | null>(null);
     const [manualAdjustDraft, setManualAdjustDraft] = useState<ManualAdjustDraft | null>(null);
@@ -414,6 +459,12 @@ export function RobinPage() {
             pushAlert('Warning', 'Failed to persist operation mode on backend', 'Process Controls');
         }
 
+        try {
+            await setInputParams(processId, ctrl.inputParams);
+        } catch {
+            pushAlert('Warning', 'Failed to persist process input parameters on backend', 'Process Controls');
+        }
+
         if (ctrl.mode === 'geometry_driven') {
             try {
                 await setTarget(processId, ctrl.targetHeight, ctrl.targetWidth);
@@ -442,19 +493,18 @@ export function RobinPage() {
                     throw new Error('AI response missing recommended parameters');
                 }
 
-                const mapped = mapRecommendationToControls(
+                const nextInputParams = mergeRecommendedAIInputParams(
                     recommended,
-                    ctrl,
+                    ctrl.inputParams,
+                    aiInputFeatures,
                 );
                 setProcessControls((prev) => ({
                     ...prev,
-                    speed: mapped.speed,
-                    current: mapped.current,
-                    voltage: mapped.voltage,
+                    inputParams: nextInputParams,
                 }));
                 pushAlert(
                     'Info',
-                    `AI suggested parameters: speed ${mapped.speed.toFixed(2)}, current ${mapped.current.toFixed(2)}, voltage ${mapped.voltage.toFixed(2)}`,
+                    `AI suggested inputs: ${formatAIInputSummary(nextInputParams, aiInputFeatures)}`,
                     'AI Recommendation',
                 );
             } catch (err) {
@@ -468,11 +518,7 @@ export function RobinPage() {
             const recRaw = await getAIRecommendation({
                 process_id: processId,
                 mode: 'parameter_driven',
-                input_params: {
-                    wireSpeed: ctrl.speed,
-                    current: ctrl.current,
-                    voltage: ctrl.voltage,
-                },
+                input_params: ctrl.inputParams,
             });
             const rec = assertRecommendationSuccess(recRaw);
             const pred = rec.recommendation.predicted_geometry;
@@ -483,14 +529,14 @@ export function RobinPage() {
             }
             pushAlert(
                 'Info',
-                `AI predicts geometry ${height.toFixed(2)} x ${width.toFixed(2)} mm from current parameters`,
+                `AI predicts geometry ${height.toFixed(2)} x ${width.toFixed(2)} mm from the current AI inputs`,
                 'AI Recommendation',
             );
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Failed to fetch AI geometry prediction';
             pushAlert('Warning', message, 'AI Recommendation');
         }
-    }, [processId, pushAlert, setProcessControls, sessionMode]);
+    }, [aiInputFeatures, processId, pushAlert, setProcessControls, sessionMode]);
 
     const runGeometryRecommendation = useCallback(async (targetHeight: number, targetWidth: number) => {
         if (!processId) {
@@ -511,7 +557,11 @@ export function RobinPage() {
             throw new Error('AI response missing recommended parameters');
         }
 
-        const mapped = mapRecommendationToControls(recommended, processControls);
+        const nextInputParams = mergeRecommendedAIInputParams(
+            recommended,
+            processControls.inputParams,
+            aiInputFeatures,
+        );
         const predictedHeight =
             toNumber(rec.recommendation.predicted_geometry?.height)
             ?? toNumber(recommended.predictedHeight);
@@ -524,15 +574,11 @@ export function RobinPage() {
                 : { height: predictedHeight, width: predictedWidth };
 
         return {
-            recommendedParams: {
-                wireSpeed: mapped.speed,
-                current: mapped.current,
-                voltage: mapped.voltage,
-            },
+            recommendedParams: nextInputParams,
             predictedGeometry,
             confidence: toNumber(rec.recommendation.confidence) ?? toNumber(recommended.confidence),
         };
-    }, [processControls, processId]);
+    }, [aiInputFeatures, processControls.inputParams, processId]);
 
     const requestAiRecommendation = useCallback(async (targetHeight: number, targetWidth: number) => {
         setAiRecommendationLoading(true);
@@ -550,7 +596,7 @@ export function RobinPage() {
             });
             pushAlert(
                 'Info',
-                `AI suggested parameters: speed ${recommendation.recommendedParams.wireSpeed.toFixed(2)}, current ${recommendation.recommendedParams.current.toFixed(2)}, voltage ${recommendation.recommendedParams.voltage.toFixed(2)}`,
+                `AI suggested inputs: ${formatAIInputSummary(recommendation.recommendedParams, aiInputFeatures)}`,
                 'AI Recommendation',
             );
         } catch (err) {
@@ -576,9 +622,7 @@ export function RobinPage() {
     const handleDeviationAction = useCallback((action: DeviationAction) => {
         if (action === 'manual_adjust') {
             setManualAdjustDraft({
-                speed: processControls.speed,
-                current: processControls.current,
-                voltage: processControls.voltage,
+                ...processControls.inputParams,
             });
             pushAlert('Info', 'Manual adjust opened. Update parameters and apply to continue.', 'Deviation Monitor');
             return;
@@ -630,6 +674,33 @@ export function RobinPage() {
     const [telemetry, setTelemetry] = useState<MeasurementPoint[]>([]);
     const [metric, setMetric] = useState<MetricType>('profileHeight');
     const [freezeCharts, setFreezeCharts] = useState(false);
+    const metricOptions = useMemo(
+        () => [
+            ...aiInputFeatures.map((feature) => ({
+                value: feature.key,
+                label: `Metric: ${feature.label}`,
+            })),
+            { value: 'profileHeight', label: `Metric: ${domainTerms.profileHeight}` },
+            { value: 'profileWidth', label: `Metric: ${domainTerms.profileWidth}` },
+        ],
+        [aiInputFeatures],
+    );
+    const metricLabels = useMemo(() => {
+        const entries: Array<[string, string]> = aiInputFeatures.map((feature) => [
+            feature.key,
+            feature.unit ? `${feature.label} (${feature.unit})` : feature.label,
+        ]);
+        entries.push(['profileHeight', `${domainTerms.profileHeight} (mm)`]);
+        entries.push(['profileWidth', `${domainTerms.profileWidth} (mm)`]);
+        return Object.fromEntries(entries) as Record<string, string>;
+    }, [aiInputFeatures]);
+
+    useEffect(() => {
+        const validMetrics = new Set(metricOptions.map((option) => option.value));
+        if (!validMetrics.has(metric)) {
+            setMetric('profileHeight');
+        }
+    }, [metric, metricOptions]);
 
     const simulationProgress = useMemo(() => {
         const raw = processSnapshotData?.simulationProgress?.value;
@@ -640,10 +711,10 @@ export function RobinPage() {
         if (!measurementsData?.measurements?.length) return;
         if (freezeCharts) return;
 
-        const points = apiToMeasurementPoints(measurementsData.measurements);
+        const points = apiToMeasurementPoints(measurementsData.measurements, aiInputFeatures);
         setTelemetry(points);
         setTimelineT(points.length ? points[points.length - 1].t : 0);
-    }, [measurementsData, freezeCharts]);
+    }, [measurementsData, freezeCharts, aiInputFeatures]);
 
     useEffect(() => {
         if (simulationProgress === null) return;
@@ -802,7 +873,7 @@ export function RobinPage() {
         return telemetry.map((p) => ({
             t: p.t,
             timestamp: p.timestamp,
-            value: metric === 'speed' ? p.speed : metric === 'current' ? p.current : metric === 'voltage' ? p.voltage : metric === 'profileHeight' ? p.profileHeight : p.profileWidth,
+            value: getMetricValue(p, metric),
         }));
     }, [telemetry, metric]);
 
@@ -811,16 +882,14 @@ export function RobinPage() {
     const lastValue = useMemo(() => {
         const last = telemetry[telemetry.length - 1];
         if (!last) return 0;
-        return metric === 'speed' ? last.speed : metric === 'current' ? last.current : metric === 'voltage' ? last.voltage : metric === 'profileHeight' ? last.profileHeight : last.profileWidth;
+        return getMetricValue(last, metric);
     }, [telemetry, metric]);
 
     const confirmAndStart = useCallback((plan: StartPreviewPlan) => {
         if (plan.mode === 'geometry_driven') {
             setProcessControls((prev) => ({
                 ...prev,
-                speed: plan.recommendedParams.wireSpeed,
-                current: plan.recommendedParams.current,
-                voltage: plan.recommendedParams.voltage,
+                inputParams: plan.recommendedParams,
             }));
         }
 
@@ -851,11 +920,7 @@ export function RobinPage() {
         }
 
         if (mode === 'parameter_driven') {
-            const inputParams = {
-                wireSpeed: processControls.speed,
-                current: processControls.current,
-                voltage: processControls.voltage,
-            };
+            const inputParams = processControls.inputParams;
             const rec = assertRecommendationSuccess(await getAIRecommendation({
                 process_id: processId,
                 mode: 'parameter_driven',
@@ -889,7 +954,11 @@ export function RobinPage() {
         if (!recommended || typeof recommended !== 'object') {
             throw new Error('AI response missing recommended parameters');
         }
-        const mapped = mapRecommendationToControls(recommended, processControls);
+        const nextInputParams = mergeRecommendedAIInputParams(
+            recommended,
+            processControls.inputParams,
+            aiInputFeatures,
+        );
         const predictedHeight = toNumber(recommended.predictedHeight);
         const predictedWidth = toNumber(recommended.predictedWidth);
         const predictedGeometry =
@@ -901,15 +970,11 @@ export function RobinPage() {
             mode,
             processId,
             targetGeometry,
-            recommendedParams: {
-                wireSpeed: mapped.speed,
-                current: mapped.current,
-                voltage: mapped.voltage,
-            },
+            recommendedParams: nextInputParams,
             predictedGeometry,
             confidence: toNumber(rec.recommendation.confidence) ?? toNumber(recommended.confidence),
         };
-    }, [processControls, processId, processMode, sessionMode]);
+    }, [aiInputFeatures, processControls, processId, processMode, sessionMode]);
 
     const startRobot = () => {
         if (startPlanning) return;
@@ -957,9 +1022,7 @@ export function RobinPage() {
         const nextControls: ProcessControlsState = {
             ...processControls,
             mode: 'parameter_driven',
-            speed: manualAdjustDraft.speed,
-            current: manualAdjustDraft.current,
-            voltage: manualAdjustDraft.voltage,
+            inputParams: manualAdjustDraft,
         };
 
         setProcessControls(nextControls);
@@ -985,9 +1048,7 @@ export function RobinPage() {
             mode: 'geometry_driven',
             targetHeight: aiRecommendationPlan.targetHeight,
             targetWidth: aiRecommendationPlan.targetWidth,
-            speed: aiRecommendationPlan.recommendedParams.wireSpeed,
-            current: aiRecommendationPlan.recommendedParams.current,
-            voltage: aiRecommendationPlan.recommendedParams.voltage,
+            inputParams: aiRecommendationPlan.recommendedParams,
         };
 
         setProcessControls(nextControls);
@@ -1013,7 +1074,7 @@ export function RobinPage() {
 
         pushAlert(
             'Info',
-            `Applied AI recommendation: speed ${nextControls.speed.toFixed(2)}, current ${nextControls.current.toFixed(2)}, voltage ${nextControls.voltage.toFixed(2)}`,
+            `Applied AI recommendation: ${formatAIInputSummary(nextControls.inputParams, aiInputFeatures)}`,
             'AI Recommendation',
         );
 
@@ -1023,7 +1084,7 @@ export function RobinPage() {
         if (robot.state === 'Paused') {
             resumeRobotHandler();
         }
-    }, [aiRecommendationPlan, processControls, processId, pushAlert, robot.state, sessionMode, resumeRobotHandler]);
+    }, [aiInputFeatures, aiRecommendationPlan, processControls, processId, pushAlert, robot.state, sessionMode, resumeRobotHandler]);
 
     const abortRobot = () => {
         operatorPauseHoldRef.current = false;
@@ -1096,7 +1157,7 @@ export function RobinPage() {
 
                 <main className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4">
                     {tab === 'live' && (
-                        <LiveOps
+                    <LiveOps
                             robot={robot}
                             latestTrust={latestTrust}
                             trustWarnTh={trustWarnTh}
@@ -1122,14 +1183,16 @@ export function RobinPage() {
                             telemetryChartData={telemetryChartData}
                             metric={metric}
                             setMetric={setMetric}
+                            metricOptions={metricOptions}
                             freezeCharts={freezeCharts}
                             setFreezeCharts={setFreezeCharts}
-                            metricLabel={METRIC_LABELS[metric]}
+                            metricLabel={metricLabels[metric] ?? metric}
                             lastValue={lastValue}
                             measurementSource={measurementSource}
                             measurementPollMs={measurementPollMs}
                             processId={processId}
                             processControls={processControls}
+                            aiInputFeatures={aiInputFeatures}
                             onControlsChange={setProcessControls}
                             onControlsApply={handleControlsApply}
                             targetGeometry={targetGeometry}
@@ -1148,6 +1211,7 @@ export function RobinPage() {
                             robot={robot}
                             currentRun={currentRun}
                             telemetry={telemetry}
+                            aiInputFeatures={aiInputFeatures}
                             trustWarnTh={trustWarnTh}
                             trustStopTh={trustStopTh}
                             startRobot={startRobot}
@@ -1163,6 +1227,7 @@ export function RobinPage() {
                         <ModelsTrustTab
                             models={aiModelsList}
                             activeModel={activeModel}
+                            aiInputFeatures={aiInputFeatures}
                             onSwitchModel={onSwitchModel}
                             audit={mockAuditLog}
                             trustWarnTh={trustWarnTh}
@@ -1181,6 +1246,7 @@ export function RobinPage() {
                             availableProcessIds={availableProcessIds}
                             onProcessIdChange={setProcessId}
                             processTolerance={selectedProcessTolerance}
+                            aiInputFeatures={aiInputFeatures}
                         />
                     )}
                     {tab === 'settings' && (
@@ -1230,7 +1296,7 @@ export function RobinPage() {
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
                                     <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Selected parameters</div>
                                     <div className="mt-1 font-mono">
-                                        wireSpeed={startPreviewPlan.inputParams.wireSpeed.toFixed(2)}, current={startPreviewPlan.inputParams.current.toFixed(2)}, voltage={startPreviewPlan.inputParams.voltage.toFixed(2)}
+                                        {formatAIInputSummary(startPreviewPlan.inputParams, aiInputFeatures)}
                                     </div>
                                 </div>
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
@@ -1251,7 +1317,7 @@ export function RobinPage() {
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/40">
                                     <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">AI recommended parameters</div>
                                     <div className="mt-1 font-mono">
-                                        wireSpeed={startPreviewPlan.recommendedParams.wireSpeed.toFixed(2)}, current={startPreviewPlan.recommendedParams.current.toFixed(2)}, voltage={startPreviewPlan.recommendedParams.voltage.toFixed(2)}
+                                        {formatAIInputSummary(startPreviewPlan.recommendedParams, aiInputFeatures)}
                                     </div>
                                 </div>
                                 {startPreviewPlan.predictedGeometry ? (
@@ -1294,57 +1360,27 @@ export function RobinPage() {
                                 Manual process parameters
                             </div>
                             <div className="mt-2 grid gap-2">
-                                <label className="flex items-center justify-between gap-2">
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.speed}</span>
-                                    <div className="flex items-center gap-1">
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={manualAdjustDraft.speed}
-                                            onChange={(e) => {
-                                                const next = Number(e.target.value);
-                                                if (Number.isNaN(next)) return;
-                                                setManualAdjustDraft((prev) => (prev ? { ...prev, speed: next } : prev));
-                                            }}
-                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
-                                        />
-                                        <span className="text-xs text-slate-500 w-10">{domainTerms.speedUnit}</span>
-                                    </div>
-                                </label>
-                                <label className="flex items-center justify-between gap-2">
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.current}</span>
-                                    <div className="flex items-center gap-1">
-                                        <input
-                                            type="number"
-                                            step="1"
-                                            value={manualAdjustDraft.current}
-                                            onChange={(e) => {
-                                                const next = Number(e.target.value);
-                                                if (Number.isNaN(next)) return;
-                                                setManualAdjustDraft((prev) => (prev ? { ...prev, current: next } : prev));
-                                            }}
-                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
-                                        />
-                                        <span className="text-xs text-slate-500 w-10">{domainTerms.currentUnit}</span>
-                                    </div>
-                                </label>
-                                <label className="flex items-center justify-between gap-2">
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">{domainTerms.voltage}</span>
-                                    <div className="flex items-center gap-1">
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={manualAdjustDraft.voltage}
-                                            onChange={(e) => {
-                                                const next = Number(e.target.value);
-                                                if (Number.isNaN(next)) return;
-                                                setManualAdjustDraft((prev) => (prev ? { ...prev, voltage: next } : prev));
-                                            }}
-                                            className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
-                                        />
-                                        <span className="text-xs text-slate-500 w-10">{domainTerms.voltageUnit}</span>
-                                    </div>
-                                </label>
+                                {aiInputFeatures.map((feature) => (
+                                    <label key={feature.key} className="flex items-center justify-between gap-2">
+                                        <span className="text-xs text-slate-600 dark:text-slate-400">{feature.label}</span>
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="number"
+                                                step={feature.step ?? 0.1}
+                                                min={feature.min}
+                                                max={feature.max}
+                                                value={manualAdjustDraft[feature.key] ?? 0}
+                                                onChange={(e) => {
+                                                    const next = Number(e.target.value);
+                                                    if (Number.isNaN(next)) return;
+                                                    setManualAdjustDraft((prev) => (prev ? { ...prev, [feature.key]: next } : prev));
+                                                }}
+                                                className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+                                            />
+                                            <span className="text-xs text-slate-500 min-w-10">{feature.unit || '—'}</span>
+                                        </div>
+                                    </label>
+                                ))}
                             </div>
                         </div>
                         <div className="text-xs text-slate-600 dark:text-slate-400">
@@ -1450,7 +1486,7 @@ export function RobinPage() {
                                         AI recommended parameters
                                     </div>
                                     <div className="mt-1 font-mono">
-                                        wireSpeed={aiRecommendationPlan.recommendedParams.wireSpeed.toFixed(2)}, current={aiRecommendationPlan.recommendedParams.current.toFixed(2)}, voltage={aiRecommendationPlan.recommendedParams.voltage.toFixed(2)}
+                                        {formatAIInputSummary(aiRecommendationPlan.recommendedParams, aiInputFeatures)}
                                     </div>
                                 </div>
                                 {aiRecommendationPlan.predictedGeometry ? (

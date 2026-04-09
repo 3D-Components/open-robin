@@ -10,12 +10,14 @@ import {
     type RobinAlertRecord,
     type RobinMeasurement,
 } from '../../../hooks/useRobinAPI';
+import type { AIInputFeatureSpec } from '../../../types';
 
 interface HistoryTabProps {
     processId: string | null;
     availableProcessIds: string[];
     onProcessIdChange: (id: string) => void;
     processTolerance?: number | null;
+    aiInputFeatures: AIInputFeatureSpec[];
 }
 
 type HistoryCsvRow = {
@@ -25,9 +27,7 @@ type HistoryCsvRow = {
     alert_id: string;
     measurement_height_mm: string;
     measurement_width_mm: string;
-    measurement_speed_mm_s: string;
-    measurement_current_a: string;
-    measurement_voltage_v: string;
+    measurement_input_params_json: string;
     alert_severity: string;
     alert_deviation_type: string;
     alert_deviation_percentage: string;
@@ -65,6 +65,7 @@ export function HistoryTab({
     availableProcessIds,
     onProcessIdChange,
     processTolerance,
+    aiInputFeatures,
 }: HistoryTabProps) {
     const [measurements, setMeasurements] = useState<RobinMeasurement[]>([]);
     const [alerts, setAlerts] = useState<RobinAlertRecord[]>([]);
@@ -128,9 +129,7 @@ export function HistoryTab({
             alert_id: '',
             measurement_height_mm: toNum(m.height)?.toString() ?? '',
             measurement_width_mm: toNum(m.width)?.toString() ?? '',
-            measurement_speed_mm_s: toNum(m.speed)?.toString() ?? '',
-            measurement_current_a: toNum(m.current)?.toString() ?? '',
-            measurement_voltage_v: toNum(m.voltage)?.toString() ?? '',
+            measurement_input_params_json: JSON.stringify(m.input_params ?? {}),
             alert_severity: '',
             alert_deviation_type: '',
             alert_deviation_percentage: '',
@@ -150,9 +149,7 @@ export function HistoryTab({
             alert_id: a.id ?? '',
             measurement_height_mm: '',
             measurement_width_mm: '',
-            measurement_speed_mm_s: '',
-            measurement_current_a: '',
-            measurement_voltage_v: '',
+            measurement_input_params_json: '',
             alert_severity: classifySeverity(a),
             alert_deviation_type: a.deviation_type ?? '',
             alert_deviation_percentage: toNum(a.deviation_percentage)?.toString() ?? '',
@@ -189,9 +186,7 @@ export function HistoryTab({
             'alert_id',
             'measurement_height_mm',
             'measurement_width_mm',
-            'measurement_speed_mm_s',
-            'measurement_current_a',
-            'measurement_voltage_v',
+            'measurement_input_params_json',
             'alert_severity',
             'alert_deviation_type',
             'alert_deviation_percentage',
@@ -289,9 +284,7 @@ export function HistoryTab({
                                         <th className="px-3 py-2">Timestamp</th>
                                         <th className="px-3 py-2">Height (mm)</th>
                                         <th className="px-3 py-2">Width (mm)</th>
-                                        <th className="px-3 py-2">Speed (mm/s)</th>
-                                        <th className="px-3 py-2">Current (A)</th>
-                                        <th className="px-3 py-2">Voltage (V)</th>
+                                        <th className="px-3 py-2">Input Params</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -302,14 +295,26 @@ export function HistoryTab({
                                             </td>
                                             <td className="px-3 py-2 font-mono text-xs">{toNum(m.height)?.toFixed(3) ?? '-'}</td>
                                             <td className="px-3 py-2 font-mono text-xs">{toNum(m.width)?.toFixed(3) ?? '-'}</td>
-                                            <td className="px-3 py-2 font-mono text-xs">{toNum(m.speed)?.toFixed(3) ?? '-'}</td>
-                                            <td className="px-3 py-2 font-mono text-xs">{toNum(m.current)?.toFixed(3) ?? '-'}</td>
-                                            <td className="px-3 py-2 font-mono text-xs">{toNum(m.voltage)?.toFixed(3) ?? '-'}</td>
+                                            <td className="px-3 py-2 text-xs">
+                                                <div className="space-y-0.5 font-mono">
+                                                    {aiInputFeatures.map((feature) => {
+                                                        const value = m.input_params?.[feature.key];
+                                                        return (
+                                                            <div key={feature.key}>
+                                                                {feature.label}:{' '}
+                                                                {typeof value === 'number'
+                                                                    ? value.toFixed(feature.step && feature.step < 1 ? 3 : 2)
+                                                                    : '-'}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                     {measurements.length === 0 ? (
                                         <tr>
-                                            <td className="px-3 py-3 text-xs text-slate-500" colSpan={6}>
+                                            <td className="px-3 py-3 text-xs text-slate-500" colSpan={4}>
                                                 No measurements for selected process.
                                             </td>
                                         </tr>

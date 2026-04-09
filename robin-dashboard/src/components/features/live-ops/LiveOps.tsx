@@ -32,6 +32,7 @@ import { ProcessControlsPanel } from './ProcessControlsPanel';
 import { DeviationMonitor } from './DeviationMonitor';
 import { MeasurementKPIs } from './MeasurementKPIs';
 import type {
+    AIInputFeatureSpec,
     RobotCell,
     ProcessRun,
     TrustAssessment,
@@ -69,8 +70,9 @@ interface LiveOpsProps {
     replay: boolean;
     setReplay: (v: boolean) => void;
     telemetryChartData: any[];
-    metric: "speed" | "current" | "voltage" | "profileHeight" | "profileWidth";
+    metric: string;
     setMetric: (v: any) => void;
+    metricOptions: Array<{ value: string; label: string }>;
     freezeCharts: boolean;
     setFreezeCharts: (v: boolean) => void;
     metricLabel: string;
@@ -79,6 +81,7 @@ interface LiveOpsProps {
     measurementPollMs: number;
     processId: string | null;
     processControls: ProcessControlsState;
+    aiInputFeatures: AIInputFeatureSpec[];
     onControlsChange: (next: ProcessControlsState) => void;
     onControlsApply: (controls: ProcessControlsState) => void;
     targetGeometry: TargetGeometry | null;
@@ -119,6 +122,7 @@ export function LiveOps(props: LiveOpsProps) {
         telemetryChartData,
         metric,
         setMetric,
+        metricOptions,
         freezeCharts,
         setFreezeCharts,
         metricLabel,
@@ -127,6 +131,7 @@ export function LiveOps(props: LiveOpsProps) {
         measurementPollMs,
         processId,
         processControls,
+        aiInputFeatures,
         onControlsChange,
         onControlsApply,
         targetGeometry,
@@ -146,6 +151,7 @@ export function LiveOps(props: LiveOpsProps) {
                 processId={processId}
                 measurements={latestMeasurements}
                 count={measurementCount}
+                aiInputFeatures={aiInputFeatures}
             />
 
             <div className="grid grid-cols-12 gap-4">
@@ -187,6 +193,7 @@ export function LiveOps(props: LiveOpsProps) {
                     <ProcessControlsPanel
                         processId={processId}
                         controls={processControls}
+                        aiInputFeatures={aiInputFeatures}
                         onControlsChange={onControlsChange}
                         onApply={onControlsApply}
                         targetGeometry={targetGeometry}
@@ -242,6 +249,7 @@ export function LiveOps(props: LiveOpsProps) {
                         processId={processId}
                         controls={processControls}
                         latestMeasurements={latestMeasurements}
+                        aiInputFeatures={aiInputFeatures}
                         targetGeometry={targetGeometry}
                         processMode={processMode}
                         onAlert={onDeviationAlert}
@@ -255,6 +263,7 @@ export function LiveOps(props: LiveOpsProps) {
                         telemetryChartData={telemetryChartData}
                         metric={metric}
                         setMetric={setMetric}
+                        metricOptions={metricOptions}
                         freezeCharts={freezeCharts}
                         setFreezeCharts={setFreezeCharts}
                         metricLabel={metricLabel}
@@ -749,6 +758,7 @@ function TelemetryPanel({
     telemetryChartData,
     metric,
     setMetric,
+    metricOptions,
     freezeCharts,
     setFreezeCharts,
     metricLabel,
@@ -757,8 +767,9 @@ function TelemetryPanel({
     measurementPollMs,
 }: {
     telemetryChartData: any[];
-    metric: "speed" | "current" | "voltage" | "profileHeight" | "profileWidth";
+    metric: string;
     setMetric: (v: any) => void;
+    metricOptions: Array<{ value: string; label: string }>;
     freezeCharts: boolean;
     setFreezeCharts: (v: boolean) => void;
     metricLabel: string;
@@ -816,13 +827,7 @@ function TelemetryPanel({
                 <Select
                     value={metric}
                     onChange={(v) => setMetric(v)}
-                    options={[
-                        { value: "speed", label: `Metric: ${domainTerms.speed}` },
-                        { value: "current", label: `Metric: ${domainTerms.current}` },
-                        { value: "voltage", label: `Metric: ${domainTerms.voltage}` },
-                        { value: "profileHeight", label: `Metric: ${domainTerms.profileHeight}` },
-                        { value: "profileWidth", label: `Metric: ${domainTerms.profileWidth}` },
-                    ]}
+                    options={metricOptions}
                 />
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">

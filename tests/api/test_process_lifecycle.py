@@ -21,7 +21,11 @@ async def test_create_process_parameter_driven_success(monkeypatch, client):
     payload = {
         'process_id': 'PROC1',
         'mode': 'parameter_driven',
-        'initial_params': {'wireSpeed': 2.5, 'current': 110, 'voltage': 17},
+        'initial_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
     }
     resp = await client.post('/create-process', json=payload)
     assert resp.status_code == 200

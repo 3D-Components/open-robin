@@ -36,9 +36,9 @@ DASHBOARD_URL = 'http://localhost:5174'
 class WeldSample:
     bead_height: float
     bead_width: float
-    wire_speed: float
-    current: float
-    voltage: float
+    wire_feed_speed: float
+    travel_speed: float
+    arc_length_correction: float
 
 
 class DemoError(RuntimeError):
@@ -192,11 +192,7 @@ def get_ai_recommendation(
 def predict_geometry(
     input_params: Dict[str, float], api_url: str
 ) -> Dict[str, float]:
-    payload = {
-        'wireSpeed': float(input_params.get('wireSpeed', 0.0)),
-        'current': float(input_params.get('current', 0.0)),
-        'voltage': float(input_params.get('voltage', 0.0)),
-    }
+    payload = {'input_params': input_params}
     try:
         response = requests.post(
             f"{api_url.rstrip('/')}/ai/models/predict",
@@ -332,21 +328,30 @@ def generate_sample(
     height = expected_geometry['height'] + 0.20 * math.sin(t * 0.27) + random.uniform(-0.04, 0.04)
     width = expected_geometry['width'] + 0.18 * math.sin(t * 0.33) + random.uniform(-0.05, 0.05)
 
-    wire_speed = reference_params['wireSpeed'] + 0.25 * math.sin(t * 0.21) + random.uniform(-0.08, 0.08)
-    current = reference_params['current'] + 1.8 * math.sin(t * 0.39) + random.uniform(-0.5, 0.5)
-    voltage = reference_params['voltage'] + 0.22 * math.sin(t * 0.18) + random.uniform(-0.07, 0.07)
+    wire_feed_speed = reference_params['wire_feed_speed_mpm_model_input']
+    travel_speed = reference_params['travel_speed_mps_model_input']
+    arc_length_correction = reference_params['arc_length_correction_mm_model_input']
+
+    sampled_wire_feed_speed = wire_feed_speed + 0.25 * math.sin(t * 0.21) + random.uniform(-0.08, 0.08)
+    sampled_travel_speed = travel_speed + 0.0008 * math.sin(t * 0.19) + random.uniform(-0.0003, 0.0003)
+    sampled_arc_length_correction = (
+        arc_length_correction
+        + 0.18 * math.sin(t * 0.17)
+        + random.uniform(-0.06, 0.06)
+    )
 
     if in_any_window(t, deviation_windows):
         height *= 0.65
         width *= 1.35
-        current *= 0.88
+        sampled_travel_speed *= 1.08
+        sampled_arc_length_correction += 0.6
 
     return WeldSample(
         bead_height=max(0.5, round(height, 3)),
         bead_width=max(0.5, round(width, 3)),
-        wire_speed=max(1.0, round(wire_speed, 3)),
-        current=max(40.0, round(current, 3)),
-        voltage=max(5.0, round(voltage, 3)),
+        wire_feed_speed=max(1.0, round(sampled_wire_feed_speed, 3)),
+        travel_speed=max(0.001, round(sampled_travel_speed, 5)),
+        arc_length_correction=round(sampled_arc_length_correction, 3),
     )
 
 
@@ -371,9 +376,9 @@ def stream_measurements(
     )
     print(
         'Reference parameters: '
-        f"wireSpeed={reference_params['wireSpeed']:.3f}, "
-        f"current={reference_params['current']:.3f}, "
-        f"voltage={reference_params['voltage']:.3f}"
+        f"wire_feed_speed={reference_params['wire_feed_speed_mpm_model_input']:.3f}, "
+        f"travel_speed={reference_params['travel_speed_mps_model_input']:.4f}, "
+        f"arc_length_correction={reference_params['arc_length_correction_mm_model_input']:.3f}"
     )
     print(f'Deviation windows (s): {[(round(s, 1), round(e, 1)) for s, e in windows]}')
     print()
@@ -418,12 +423,12 @@ def stream_measurements(
                 measurement_id,
                 str(sample.bead_height),
                 str(sample.bead_width),
-                '--speed',
-                str(sample.wire_speed),
-                '--current',
-                str(sample.current),
-                '--voltage',
-                str(sample.voltage),
+                '--input-param',
+                f'wire_feed_speed_mpm_model_input={sample.wire_feed_speed}',
+                '--input-param',
+                f'travel_speed_mps_model_input={sample.travel_speed}',
+                '--input-param',
+                f'arc_length_correction_mm_model_input={sample.arc_length_correction}',
             ],
             check=False,
         )
@@ -444,7 +449,11 @@ def stream_measurements(
             mode=mode,
             tolerance=tolerance,
             measured_geometry={'height': sample.bead_height, 'width': sample.bead_width},
-            input_params=reference_params,
+            input_params={
+                'wire_feed_speed_mpm_model_input': sample.wire_feed_speed,
+                'travel_speed_mps_model_input': sample.travel_speed,
+                'arc_length_correction_mm_model_input': sample.arc_length_correction,
+            },
             api_url=api_url,
         )
 
@@ -466,9 +475,9 @@ def stream_measurements(
             f'[{count:03d}] '
             f'h={sample.bead_height:>6.3f}mm '
             f'w={sample.bead_width:>6.3f}mm '
-            f'ws={sample.wire_speed:>6.3f} '
-            f'i={sample.current:>7.3f} '
-            f'v={sample.voltage:>6.3f} '
+            f'wfs={sample.wire_feed_speed:>6.3f} '
+            f'ts={sample.travel_speed:>7.4f} '
+            f'alc={sample.arc_length_correction:>6.3f} '
             f'dev={deviation_pct:>6.2f}% '
             f'status={status:<8} '
             f'src={source:<26} '
@@ -526,9 +535,21 @@ def resolve_geometry_mode_plan(
         )
 
     reference_params = {
-        'wireSpeed': extract_number(raw_params, ['wireSpeed', 'lineSpeedSetpoint', 'travelSpeed'], fallback_params['wireSpeed']),
-        'current': extract_number(raw_params, ['current', 'flowRateSetpoint'], fallback_params['current']),
-        'voltage': extract_number(raw_params, ['voltage', 'pressureSetpoint'], fallback_params['voltage']),
+        'wire_feed_speed_mpm_model_input': extract_number(
+            raw_params,
+            ['wire_feed_speed_mpm_model_input'],
+            fallback_params['wire_feed_speed_mpm_model_input'],
+        ),
+        'travel_speed_mps_model_input': extract_number(
+            raw_params,
+            ['travel_speed_mps_model_input'],
+            fallback_params['travel_speed_mps_model_input'],
+        ),
+        'arc_length_correction_mm_model_input': extract_number(
+            raw_params,
+            ['arc_length_correction_mm_model_input'],
+            fallback_params['arc_length_correction_mm_model_input'],
+        ),
     }
 
     predicted = predict_geometry(reference_params, api_url)
@@ -543,9 +564,9 @@ def run_single_mode(
     tolerance: float,
     target_height: float,
     target_width: float,
-    base_wire_speed: float,
-    base_current: float,
-    base_voltage: float,
+    base_wire_feed_speed: float,
+    base_travel_speed: float,
+    base_arc_length_correction: float,
     api_url: str,
     no_prompt: bool = False,
 ) -> Tuple[int, int, int, int]:
@@ -553,9 +574,9 @@ def run_single_mode(
     set_process_mode(process_id, mode, api_url)
 
     fallback_params = {
-        'wireSpeed': base_wire_speed,
-        'current': base_current,
-        'voltage': base_voltage,
+        'wire_feed_speed_mpm_model_input': base_wire_feed_speed,
+        'travel_speed_mps_model_input': base_travel_speed,
+        'arc_length_correction_mm_model_input': base_arc_length_correction,
     }
 
     if mode == 'geometry_driven':
@@ -672,12 +693,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--tolerance', type=float, default=10.0)
     parser.add_argument('--target-height', type=float, default=5.2)
     parser.add_argument('--target-width', type=float, default=3.8)
-    parser.add_argument('--wire-speed', type=float, default=10.5,
-                        help='Initial/setpoint wire speed')
-    parser.add_argument('--current', type=float, default=150.0,
-                        help='Initial/setpoint current')
-    parser.add_argument('--voltage', type=float, default=24.0,
-                        help='Initial/setpoint voltage')
+    parser.add_argument('--wire-feed-speed', type=float, default=10.0,
+                        help='Initial/setpoint wire feed speed')
+    parser.add_argument('--travel-speed', type=float, default=0.020,
+                        help='Initial/setpoint travel speed')
+    parser.add_argument('--arc-length-correction', type=float, default=0.0,
+                        help='Initial/setpoint arc length correction')
     parser.add_argument('--api-url', default=ALERT_ENGINE_URL,
                         help='Alert Engine URL (default: http://localhost:8001)')
     parser.add_argument(
@@ -698,13 +719,15 @@ def main() -> int:
     print('Domain mapping:')
     print('  Bead Height      -> measuredHeight')
     print('  Bead Width       -> measuredWidth')
-    print('  Wire Speed       -> measuredSpeed')
-    print('  Welding Current  -> measuredCurrent')
-    print('  Arc Voltage      -> measuredVoltage')
+    print('  Input Params     -> inputParams')
     print()
     print('Dual modes demonstrated:')
-    print('  parameter_driven: parameters -> AI predicted geometry -> deviation checks')
-    print('  geometry_driven: target geometry -> AI suggested parameters -> deviation checks')
+    print('  parameter_driven: corrected inputs -> AI predicted geometry -> deviation checks')
+    print('  geometry_driven: target geometry -> AI suggested corrected inputs -> deviation checks')
+    print('AI inputs:')
+    print('  wire_feed_speed_mpm_model_input')
+    print('  travel_speed_mps_model_input')
+    print('  arc_length_correction_mm_model_input')
     print(f'Dashboard UI: {DASHBOARD_URL}')
     print()
 
@@ -728,9 +751,9 @@ def main() -> int:
                 tolerance=args.tolerance,
                 target_height=args.target_height,
                 target_width=args.target_width,
-                base_wire_speed=args.wire_speed,
-                base_current=args.current,
-                base_voltage=args.voltage,
+                base_wire_feed_speed=args.wire_feed_speed,
+                base_travel_speed=args.travel_speed,
+                base_arc_length_correction=args.arc_length_correction,
                 api_url=args.api_url,
                 no_prompt=args.no_prompt,
             )

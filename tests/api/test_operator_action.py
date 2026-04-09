@@ -9,7 +9,11 @@ async def test_operator_action_ai_retry(monkeypatch, client):
 
     def fake_recommend(target):
         calls['recommend'] += 1
-        return {'wireSpeed': 12.3, 'current': 180, 'voltage': 24.5}
+        return {
+            'wire_feed_speed_mpm_model_input': 12.3,
+            'travel_speed_mps_model_input': 0.021,
+            'arc_length_correction_mm_model_input': 1.5,
+        }
 
     class FakeClient:
         def create_ai_recommendation(self, process_id, new_params):
