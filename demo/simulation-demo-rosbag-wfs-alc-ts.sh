@@ -30,7 +30,8 @@ echo
 
 # 1) Ensure required containers are running
 echo "Starting FIWARE + dashboard services..."
-docker compose up -d mongo-db timescaledb orion-ld mintaka alert-processor robin-dashboard
+docker compose up -d mongo-db timescaledb orion-ld mintaka
+docker compose up -d --build alert-processor robin-dashboard
 echo "Waiting for Orion to be ready..."
 sleep 10
 
@@ -132,6 +133,7 @@ echo
 echo "Smoke-testing telemetry aggregator (3s foreground run)..."
 AGGREGATOR_ARGS="--ros-args \
     -p geometry_topic:=/robin/weld_dimensions \
+    -p progression_topic:=/robin/data/progression \
     -p fronius_topic:=/robin/data/fronius \
     -p output_topic:=/robin/telemetry \
     -p min_publish_period:=1.0"
@@ -232,7 +234,7 @@ docker exec -it "${CONTAINER}" bash -lc "\
   export ROS_DOMAIN_ID=${ROS_DOMAIN_ID_VALUE} && \
   cd /workspace/ros2_packages && source ws_setup.sh && \
   ros2 bag play ${BAG_CONTAINER_PATH} --loop --start-offset ${PLAY_START_OFFSET} \
-    --topics /robin/data/fronius /robin/weld_dimensions \
+    --topics /robin/data/fronius /robin/data/progression /robin/weld_dimensions \
     --remap /robot_description:=/robot_description_from_bag \
     --remap /tf_static:=/tf_static_from_bag"
 

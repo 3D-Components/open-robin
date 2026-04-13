@@ -7,7 +7,8 @@ This guide explains how to replay ROS bags into ROBIN using the current DDS tele
 From repository root:
 
 ```bash
-docker compose up -d mongo-db timescaledb orion-ld mintaka alert-processor robin-dashboard vulcanexus
+docker compose up -d mongo-db timescaledb orion-ld mintaka vulcanexus
+docker compose up -d --build alert-processor robin-dashboard
 ```
 
 ## 2. Build ROS Workspace (inside Vulcanexus)
@@ -39,6 +40,7 @@ source ws_setup.sh
 export ROS_DOMAIN_ID=0
 ros2 run robin_core_data telemetry_aggregator_node.py --ros-args \
   -p geometry_topic:=/robin/weld_dimensions \
+  -p progression_topic:=/robin/data/progression \
   -p fronius_topic:=/robin/data/fronius \
   -p output_topic:=/robin/telemetry
 ```
@@ -51,7 +53,7 @@ This publishes combined data on `/robin/telemetry`.
 source ws_setup.sh
 export ROS_DOMAIN_ID=0
 ros2 bag play /workspace/ros2_packages/correct_process_params --loop \
-  --topics /robin/data/fronius /robin/weld_dimensions
+  --topics /robin/data/fronius /robin/data/progression /robin/weld_dimensions
 ```
 
 ## 5. Verify End-to-End Flow

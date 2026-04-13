@@ -19,6 +19,8 @@ const BASE_URL: string = ROBIN_API_URL;
 
 export interface RobinMeasurement {
     timestamp: string;
+    bead_id?: string | null;
+    progression?: number;
     height: number;
     width: number;
     speed?: number;

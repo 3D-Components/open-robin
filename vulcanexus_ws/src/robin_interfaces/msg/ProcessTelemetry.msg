@@ -5,6 +5,10 @@
 # mintaka_plot_sanity.py and the Alert Engine.
 std_msgs/Header header
 
+# Alignment metadata
+string bead_id            # Active bead identifier when available
+float32 progression       # Normalized bead progression for the aligned sample
+
 # From /robin/data/fronius (WelderData)
 float32 current           # Welding current (A)
 float32 voltage           # Arc voltage (V)

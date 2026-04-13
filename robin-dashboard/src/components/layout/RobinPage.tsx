@@ -139,6 +139,8 @@ function apiToMeasurementPoints(
         return {
             t: timeSeconds,
             timestamp: hasValidTimestamp ? m.timestamp : null,
+            beadId: m.bead_id ?? null,
+            progression: m.progression,
             inputParams: resolveRecordedAIInputParams(
                 m as unknown as Record<string, unknown>,
                 aiInputFeatures,

@@ -39,6 +39,8 @@ export type ProcessRun = {
 export type MeasurementPoint = {
     t: number;
     timestamp: string | null;
+    beadId?: string | null;
+    progression?: number;
     inputParams: Record<string, number>;
     profileHeight: number;
     profileWidth: number;

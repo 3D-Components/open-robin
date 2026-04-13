@@ -1023,6 +1023,8 @@ class AlertEngine:
                 if entry is None:
                     entry = {
                         'timestamp': timestamp,
+                        'bead_id': None,
+                        'progression': None,
                         'height': None,
                         'width': None,
                         'speed': None,
@@ -1051,6 +1053,9 @@ class AlertEngine:
                     speed_value = compound_value.get('travelSpeed')
 
                 return {
+                    'bead_id': compound_value.get('bead_id')
+                    or compound_value.get('beadId'),
+                    'progression': to_float(compound_value.get('progression')),
                     'height': to_float(
                         compound_value.get('height')
                         if compound_value.get('height') is not None
@@ -1094,6 +1099,10 @@ class AlertEngine:
                             if metric_value:
                                 entry['input_params'] = metric_value
                             continue
+                        if metric_name == 'bead_id':
+                            if metric_value:
+                                entry['bead_id'] = metric_value
+                            continue
                         if metric_value is not None:
                             entry[metric_name] = metric_value
 
@@ -1133,6 +1142,7 @@ class AlertEngine:
                             'speed',
                             'current',
                             'voltage',
+                            'progression',
                         )
                     ) or s.get('input_params')
                 ]
@@ -1291,6 +1301,12 @@ class AlertEngine:
                 ts_str = (iso[:-6] + 'Z') if iso.endswith('+00:00') else (iso + 'Z' if '+' not in iso and not iso.endswith('Z') else iso)
                 series.append({
                     'timestamp': ts_str,
+                    'bead_id': compound.get('bead_id') or compound.get('beadId'),
+                    'progression': (
+                        float(compound.get('progression'))
+                        if compound.get('progression') is not None
+                        else None
+                    ),
                     'height': float(compound.get('height') or 0),
                     'width': float(compound.get('width') or 0),
                     'speed': float(compound.get('speed') or 0),
