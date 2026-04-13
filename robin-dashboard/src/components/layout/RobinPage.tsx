@@ -920,9 +920,7 @@ export function RobinPage() {
         const params = plan.mode === 'parameter_driven' ? plan.inputParams : plan.recommendedParams;
         publishRosIntent('START_PROCESS', {
             seam_id: plan.processId,
-            weld_speed: params.wireSpeed,
-            current: params.current,
-            voltage: params.voltage,
+            ...params,
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'START_PROCESS intent published to /intents', 'Intent Bridge'))
             .catch(() => pushAlert('Warning', 'Failed to publish START_PROCESS intent', 'Intent Bridge'));
@@ -1060,10 +1058,18 @@ export function RobinPage() {
         await handleControlsApply(nextControls);
         setManualAdjustDraft(null);
         publishRosIntent('MANUAL_ADJUST', {
+<<<<<<< HEAD
             parameters: inputParamsToIntentParameters(
                 nextControls.inputParams,
                 aiInputFeatures,
             ),
+=======
+            parameters: Object.entries(nextControls.inputParams).map(([key, value]) => ({
+                parameter_name: key,
+                new_value: value,
+                unit: aiInputFeatures.find((f) => f.key === key)?.unit ?? '',
+            })),
+>>>>>>> 4e30a37 (update Intent data payload messages)
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'MANUAL_ADJUST intent published', 'Intent Bridge'))
             .catch(() => {});
@@ -1073,7 +1079,7 @@ export function RobinPage() {
         if (robot.state === 'Paused') {
             resumeRobotHandler();
         }
-    }, [handleControlsApply, manualAdjustDraft, processControls, processId, publishRosIntent, pushAlert, robot.state, resumeRobotHandler]);
+    }, [aiInputFeatures, handleControlsApply, manualAdjustDraft, processControls, processId, publishRosIntent, pushAlert, robot.state, resumeRobotHandler]);
 
     const applyAiRecommendationAndContinue = useCallback(async () => {
         if (!aiRecommendationPlan) return;
@@ -1121,10 +1127,18 @@ export function RobinPage() {
         publishRosIntent('REQUEST_AI_RECOMMENDATION', {
             process_id: processId ?? '',
             mode: 'geometry_driven',
+<<<<<<< HEAD
             parameters: inputParamsToIntentParameters(
                 nextControls.inputParams,
                 aiInputFeatures,
             ),
+=======
+            parameters: Object.entries(nextControls.inputParams).map(([key, value]) => ({
+                parameter_name: key,
+                new_value: value,
+                unit: aiInputFeatures.find((f) => f.key === key)?.unit ?? '',
+            })),
+>>>>>>> 4e30a37 (update Intent data payload messages)
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'REQUEST_AI_RECOMMENDATION intent published', 'Intent Bridge'))
             .catch(() => {});

@@ -212,25 +212,34 @@ class WeldingSupervisorNode(Node):
     def _dispatch_start_process(self, data: dict) -> None:
         """START_PROCESS reuses welding_seam_skill (start = execute the weld)."""
         goal = ExecuteSeam.Goal()
-        goal.seam_id        = str(data.get('seam_id', 'seam_01'))
-        goal.weld_speed     = float(data.get('weld_speed', 5.0))
-        goal.wire_feed_rate = float(data.get('wire_feed', 4.0))
+        goal.seam_id = str(data.get('seam_id', 'seam_01'))
+
+        # New parameter names from the dashboard (preferred); fall back to legacy keys.
+        travel_speed_mps = data.get('travel_speed_mps_model_input')
+        if travel_speed_mps is not None:
+            goal.weld_speed = float(travel_speed_mps) * 1000.0  # m/s → mm/s
+        else:
+            goal.weld_speed = float(data.get('weld_speed', 5.0))
+
+        wire_feed_mpm = data.get('wire_feed_speed_mpm_model_input')
+        if wire_feed_mpm is not None:
+            goal.wire_feed_rate = float(wire_feed_mpm)  # m/min (same unit as action)
+        else:
+            goal.wire_feed_rate = float(data.get('wire_feed', 4.0))
+
         self._send_goal(self._seam_client, goal, Intent.START_PROCESS)
-        # Apply welding parameters to hardware (Fronius) before arc starts
-        hw_params = [
-            ('current', data.get('current'), 'A'),
-            ('voltage', data.get('voltage'), 'V'),
-        ]
-        for param_name, value, unit in hw_params:
-            if value is not None:
-                adj_goal = ManualAdjust.Goal()
-                adj_goal.parameter_name = param_name
-                adj_goal.new_value      = float(value)
-                adj_goal.unit           = unit
-                self._send_goal(
-                    self._manual_client, adj_goal,
-                    f'{Intent.START_PROCESS}→MANUAL_ADJUST',
-                )
+
+        # Arc length correction → hardware adjust
+        arc_length_mm = data.get('arc_length_correction_mm_model_input')
+        if arc_length_mm is not None:
+            adj_goal = ManualAdjust.Goal()
+            adj_goal.parameter_name = 'arc_length_correction'
+            adj_goal.new_value      = float(arc_length_mm)
+            adj_goal.unit           = 'mm'
+            self._send_goal(
+                self._manual_client, adj_goal,
+                f'{Intent.START_PROCESS}→MANUAL_ADJUST',
+            )
 
     def _dispatch_recommendation(self, data: dict) -> None:
         goal = RequestAIRecommendation.Goal()

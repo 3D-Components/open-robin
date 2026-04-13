@@ -65,8 +65,9 @@ def _parse_geometry_cdr(data: bytes) -> tuple:
 
         remaining = len(data) - off
 
-        if remaining == 12:
+        if 12 <= remaining < 16:
             # New BeadGeometry: directly height_mm, width_mm, csa_mm2
+            # Accept 12–15 bytes to tolerate trailing CDR alignment padding.
             h, w, a = struct.unpack_from('<fff', data, off)
             return h, w, a
 
@@ -79,8 +80,9 @@ def _parse_geometry_cdr(data: bytes) -> tuple:
                 h, w, a = struct.unpack_from('<fff', data, off)
                 return h, w, a
 
-    except Exception:
-        pass
+    except Exception as exc:
+        import sys
+        print(f'[AGG] CDR geometry parse error (len={len(data)}, remaining={remaining if "remaining" in dir() else "?"} ): {exc}', file=sys.stderr)
 
     return 0.0, 0.0, 0.0
 
