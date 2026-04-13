@@ -42,6 +42,9 @@ export type MeasurementPoint = {
     inputParams: Record<string, number>;
     profileHeight: number;
     profileWidth: number;
+    speed?: number;
+    current?: number;
+    voltage?: number;
     confidence: number;
 };
 

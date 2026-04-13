@@ -1267,12 +1267,11 @@ class AlertEngine:
             limit_clause = f'LIMIT {int(last_n)}' if last_n else 'LIMIT 1000'
             cur.execute(
                 f"""
-                SELECT compound, observedat FROM attributes
+                SELECT compound, COALESCE(observedat, ts) AS effective_observedat FROM attributes
                 WHERE entityid = %s
                   AND id = %s
-                  AND observedat IS NOT NULL
                   AND compound IS NOT NULL
-                ORDER BY observedat DESC
+                ORDER BY COALESCE(observedat, ts) DESC
                 {limit_clause}
                 """,
                 (

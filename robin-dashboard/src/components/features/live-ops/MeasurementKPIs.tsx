@@ -5,6 +5,7 @@ import { Chip } from '../../ui/Chip';
 import {
     resolveRecordedAIInputParams,
 } from '../../../config/aiInputFeatures';
+import { domainTerms } from '../../../config/domain';
 import type { RobinMeasurement } from '../../../hooks/useRobinAPI';
 import type { AIInputFeatureSpec } from '../../../types';
 
@@ -58,7 +59,7 @@ export function MeasurementKPIs({
                 }
             />
             <CardBody>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid gap-2 md:grid-cols-5">
                     <KpiCard
                         label="Height"
                         unit="mm"
@@ -73,17 +74,42 @@ export function MeasurementKPIs({
                         icon={<ArrowUpDown className="h-4 w-4 rotate-90" />}
                         value={latest?.width}
                     />
-                    {aiInputFeatures.slice(0, 3).map((feature) => (
-                        <KpiCard
-                            key={feature.key}
-                            label={feature.label}
-                            unit={feature.unit}
-                            decimals={feature.step && feature.step < 1 ? 3 : 2}
-                            icon={<SlidersHorizontal className="h-4 w-4" />}
-                            value={latestInputParams[feature.key]}
-                        />
-                    ))}
+                    <KpiCard
+                        label={domainTerms.speed}
+                        unit={domainTerms.speedUnit}
+                        decimals={2}
+                        icon={<SlidersHorizontal className="h-4 w-4" />}
+                        value={latest?.speed}
+                    />
+                    <KpiCard
+                        label={domainTerms.current}
+                        unit={domainTerms.currentUnit}
+                        decimals={1}
+                        icon={<SlidersHorizontal className="h-4 w-4" />}
+                        value={latest?.current}
+                    />
+                    <KpiCard
+                        label={domainTerms.voltage}
+                        unit={domainTerms.voltageUnit}
+                        decimals={1}
+                        icon={<SlidersHorizontal className="h-4 w-4" />}
+                        value={latest?.voltage}
+                    />
                 </div>
+                {aiInputFeatures.length > 0 && (
+                    <div className="mt-2 grid gap-2 md:grid-cols-3">
+                        {aiInputFeatures.slice(0, 3).map((feature) => (
+                            <KpiCard
+                                key={feature.key}
+                                label={feature.label}
+                                unit={feature.unit}
+                                decimals={feature.step && feature.step < 1 ? 3 : 2}
+                                icon={<SlidersHorizontal className="h-4 w-4" />}
+                                value={latestInputParams[feature.key]}
+                            />
+                        ))}
+                    </div>
+                )}
             </CardBody>
         </Card>
     );

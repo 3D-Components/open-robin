@@ -145,6 +145,9 @@ function apiToMeasurementPoints(
             ),
             profileHeight: m.height ?? 0,
             profileWidth: m.width ?? 0,
+            speed: m.speed,
+            current: m.current,
+            voltage: m.voltage,
             confidence: 0.95,
         };
     });
@@ -153,7 +156,21 @@ function apiToMeasurementPoints(
 function getMetricValue(point: MeasurementPoint, metric: MetricType): number {
     if (metric === 'profileHeight') return point.profileHeight;
     if (metric === 'profileWidth') return point.profileWidth;
+    if (metric === 'measuredSpeed') return point.speed ?? 0;
+    if (metric === 'measuredCurrent') return point.current ?? 0;
+    if (metric === 'measuredVoltage') return point.voltage ?? 0;
     return point.inputParams[metric] ?? 0;
+}
+
+function inputParamsToIntentParameters(
+    inputParams: AIInputParams,
+    aiInputFeatures: AIInputFeatureSpec[],
+) {
+    return aiInputFeatures.map((feature) => ({
+        parameter_name: feature.key,
+        new_value: inputParams[feature.key] ?? 0,
+        unit: feature.unit || '',
+    }));
 }
 
 function toNumber(value: unknown): number | null {
@@ -668,6 +685,9 @@ export function RobinPage() {
     const [freezeCharts, setFreezeCharts] = useState(false);
     const metricOptions = useMemo(
         () => [
+            { value: 'measuredSpeed', label: `Metric: ${domainTerms.speed}` },
+            { value: 'measuredCurrent', label: `Metric: ${domainTerms.current}` },
+            { value: 'measuredVoltage', label: `Metric: ${domainTerms.voltage}` },
             ...aiInputFeatures.map((feature) => ({
                 value: feature.key,
                 label: `Metric: ${feature.label}`,
@@ -678,10 +698,15 @@ export function RobinPage() {
         [aiInputFeatures],
     );
     const metricLabels = useMemo(() => {
-        const entries: Array<[string, string]> = aiInputFeatures.map((feature) => [
-            feature.key,
-            feature.unit ? `${feature.label} (${feature.unit})` : feature.label,
-        ]);
+        const entries: Array<[string, string]> = [
+            ['measuredSpeed', `${domainTerms.speed} (${domainTerms.speedUnit})`],
+            ['measuredCurrent', `${domainTerms.current} (${domainTerms.currentUnit})`],
+            ['measuredVoltage', `${domainTerms.voltage} (${domainTerms.voltageUnit})`],
+            ...aiInputFeatures.map((feature) => [
+                feature.key,
+                feature.unit ? `${feature.label} (${feature.unit})` : feature.label,
+            ] as [string, string]),
+        ];
         entries.push(['profileHeight', `${domainTerms.profileHeight} (mm)`]);
         entries.push(['profileWidth', `${domainTerms.profileWidth} (mm)`]);
         return Object.fromEntries(entries) as Record<string, string>;
@@ -1035,11 +1060,10 @@ export function RobinPage() {
         await handleControlsApply(nextControls);
         setManualAdjustDraft(null);
         publishRosIntent('MANUAL_ADJUST', {
-            parameters: [
-                { parameter_name: 'weld_speed', new_value: nextControls.speed,   unit: 'mm/s' },
-                { parameter_name: 'current',    new_value: nextControls.current, unit: 'A' },
-                { parameter_name: 'voltage',    new_value: nextControls.voltage, unit: 'V' },
-            ],
+            parameters: inputParamsToIntentParameters(
+                nextControls.inputParams,
+                aiInputFeatures,
+            ),
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'MANUAL_ADJUST intent published', 'Intent Bridge'))
             .catch(() => {});
@@ -1097,11 +1121,10 @@ export function RobinPage() {
         publishRosIntent('REQUEST_AI_RECOMMENDATION', {
             process_id: processId ?? '',
             mode: 'geometry_driven',
-            parameters: [
-                { parameter_name: 'weld_speed', new_value: nextControls.speed,   unit: 'mm/s' },
-                { parameter_name: 'current',    new_value: nextControls.current, unit: 'A' },
-                { parameter_name: 'voltage',    new_value: nextControls.voltage, unit: 'V' },
-            ],
+            parameters: inputParamsToIntentParameters(
+                nextControls.inputParams,
+                aiInputFeatures,
+            ),
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'REQUEST_AI_RECOMMENDATION intent published', 'Intent Bridge'))
             .catch(() => {});

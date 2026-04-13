@@ -50,6 +50,9 @@ export function RobotsTab({
               inputParams: last.inputParams,
               height: last.profileHeight,
               width: last.profileWidth,
+              speed: last.speed,
+              current: last.current,
+              voltage: last.voltage,
               conf: last.confidence,
           }
         : null;
@@ -101,6 +104,9 @@ export function RobotsTab({
                                         />
                                     ))}
                                     <KV k={`${domainTerms.geometry} H/W`} v={<span className="font-mono">{(t?.height ?? 0).toFixed(2)} / {(t?.width ?? 0).toFixed(2)}</span>} />
+                                    <KV k={domainTerms.speed} v={<span className="font-mono">{(t?.speed ?? 0).toFixed(2)} {domainTerms.speedUnit}</span>} />
+                                    <KV k={domainTerms.current} v={<span className="font-mono">{(t?.current ?? 0).toFixed(1)} {domainTerms.currentUnit}</span>} />
+                                    <KV k={domainTerms.voltage} v={<span className="font-mono">{(t?.voltage ?? 0).toFixed(1)} {domainTerms.voltageUnit}</span>} />
                                 </div>
                             </div>
 
