@@ -74,7 +74,7 @@ services:
       - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro
       - ./data/rosbags/correct_process_params:/workspace/ros2_packages/correct_process_params:ro
       # Persist colcon build artifacts across container recreation / host reboots
-      - ros2_ws_install:/workspace/ros2_packages/install
+      - ./vulcanexus_ws/install:/workspace/ros2_packages/install
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 
@@ -205,4 +205,3 @@ networks:
 volumes:
   mongo-db: {}
   timescale-data: {}
-  ros2_ws_install: {}
