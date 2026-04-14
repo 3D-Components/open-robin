@@ -49,7 +49,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "controllers_file",
             default_value=PathJoinSubstitution(
-                [FindPackageShare("ur_robot_driver"), "config", "ur_controllers.yaml"]
+                [FindPackageShare("robin_hardware_ur"), "config", "ur10e_controllers.yaml"]
             ),
             description="YAML file with the controllers configuration.",
         )

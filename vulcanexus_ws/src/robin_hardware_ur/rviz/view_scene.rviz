@@ -143,7 +143,7 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        weld_torch_tip:
+        contact_tip:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -165,7 +165,7 @@ Visualization Manager:
       Length: 0.05000000074505806
       Name: WeldTipFrame
       Radius: 0.004999999888241291
-      Reference Frame: weld_torch_tip
+      Reference Frame: contact_tip
       Value: false
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel

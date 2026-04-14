@@ -10,7 +10,11 @@ def test_check_parameter_driven_deviation_no_alert(monkeypatch):
         lambda params: {'height': 5.0, 'width': 8.0},
     )
 
-    input_params = {'wireSpeed': 10, 'current': 150, 'voltage': 24}
+    input_params = {
+        'wire_feed_speed_mpm_model_input': 10.0,
+        'travel_speed_mps_model_input': 0.02,
+        'arc_length_correction_mm_model_input': 0.0,
+    }
     measured = {'height': 5.1, 'width': 7.9}
     alert, expected = engine.check_parameter_driven_deviation(
         'P1', input_params, measured, tolerance=5.0
@@ -30,7 +34,11 @@ def test_check_parameter_driven_deviation_alert(monkeypatch):
         lambda params: {'height': 5.0, 'width': 8.0},
     )
 
-    input_params = {'wireSpeed': 10, 'current': 150, 'voltage': 24}
+    input_params = {
+        'wire_feed_speed_mpm_model_input': 10.0,
+        'travel_speed_mps_model_input': 0.02,
+        'arc_length_correction_mm_model_input': 0.0,
+    }
     measured = {'height': 6.0, 'width': 8.5}
     alert, expected = engine.check_parameter_driven_deviation(
         'P2', input_params, measured, tolerance=10.0
@@ -78,3 +86,35 @@ def test_check_geometry_driven_deviation_alert():
     assert alert.deviation_type == 'geometry'
     # Height deviation from 5.0 to 6.2 = 24%
     assert alert.deviation_percentage >= 23.9
+
+
+def test_engine_accepts_canonical_profile_input_keys():
+    import robin.alert_engine as ae
+
+    engine = ae.AlertEngine()
+    params = engine._canonicalize_input_params(
+        {
+            'wire_feed_speed_mpm_model_input': 10.5,
+            'travel_speed_mps_model_input': 0.021,
+            'arc_length_correction_mm_model_input': 1.2,
+        }
+    )
+
+    assert params['wire_feed_speed_mpm_model_input'] == 10.5
+    assert params['travel_speed_mps_model_input'] == 0.021
+    assert params['arc_length_correction_mm_model_input'] == 1.2
+
+
+def test_engine_does_not_canonicalize_legacy_ai_input_aliases():
+    import robin.alert_engine as ae
+
+    engine = ae.AlertEngine()
+    params = engine._canonicalize_input_params(
+        {
+            'wireSpeed': 10.5,
+            'travelSpeed': 0.021,
+            'arcLengthCorrection': 1.2,
+        }
+    )
+
+    assert params == {}

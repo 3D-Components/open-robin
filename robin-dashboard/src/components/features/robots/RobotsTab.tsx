@@ -4,13 +4,19 @@ import { Chip } from '../../ui/Chip';
 import { Button } from '../../ui/Button';
 import { KV } from '../../ui/ProgressBar';
 import { gateForConfidence } from '../../../utils/helpers';
-import type { RobotCell, ProcessRun, MeasurementPoint } from '../../../types';
+import type {
+    AIInputFeatureSpec,
+    RobotCell,
+    ProcessRun,
+    MeasurementPoint,
+} from '../../../types';
 import { domainTerms } from '../../../config/domain';
 
 interface RobotsTabProps {
     robot: RobotCell;
     currentRun: ProcessRun | null;
     telemetry: MeasurementPoint[];
+    aiInputFeatures: AIInputFeatureSpec[];
     trustWarnTh: number;
     trustStopTh: number;
     startRobot: () => void;
@@ -26,6 +32,7 @@ export function RobotsTab({
     robot,
     currentRun,
     telemetry,
+    aiInputFeatures,
     trustWarnTh,
     trustStopTh,
     startRobot,
@@ -40,11 +47,12 @@ export function RobotsTab({
 
     const t = last
         ? {
+              inputParams: last.inputParams,
+              height: last.profileHeight,
+              width: last.profileWidth,
               speed: last.speed,
               current: last.current,
               voltage: last.voltage,
-              height: last.profileHeight,
-              width: last.profileWidth,
               conf: last.confidence,
           }
         : null;
@@ -82,10 +90,23 @@ export function RobotsTab({
 
                             <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <KV k="Speed" v={<span className="font-mono">{(t?.speed ?? 0).toFixed(2)}</span>} />
-                                    <KV k="Current" v={<span className="font-mono">{(t?.current ?? 0).toFixed(1)}</span>} />
-                                    <KV k="Voltage" v={<span className="font-mono">{(t?.voltage ?? 0).toFixed(2)}</span>} />
+                                    {aiInputFeatures.slice(0, 3).map((feature) => (
+                                        <KV
+                                            key={feature.key}
+                                            k={feature.label}
+                                            v={
+                                                <span className="font-mono">
+                                                    {((t?.inputParams[feature.key] ?? 0)).toFixed(
+                                                        feature.step && feature.step < 1 ? 3 : 2,
+                                                    )}
+                                                </span>
+                                            }
+                                        />
+                                    ))}
                                     <KV k={`${domainTerms.geometry} H/W`} v={<span className="font-mono">{(t?.height ?? 0).toFixed(2)} / {(t?.width ?? 0).toFixed(2)}</span>} />
+                                    <KV k={domainTerms.speed} v={<span className="font-mono">{(t?.speed ?? 0).toFixed(2)} {domainTerms.speedUnit}</span>} />
+                                    <KV k={domainTerms.current} v={<span className="font-mono">{(t?.current ?? 0).toFixed(1)} {domainTerms.currentUnit}</span>} />
+                                    <KV k={domainTerms.voltage} v={<span className="font-mono">{(t?.voltage ?? 0).toFixed(1)} {domainTerms.voltageUnit}</span>} />
                                 </div>
                             </div>
 

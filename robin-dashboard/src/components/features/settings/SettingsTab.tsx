@@ -14,8 +14,6 @@ interface SettingsTabProps {
     setTrustStopTh: (v: number) => void;
     freezeCharts: boolean;
     setFreezeCharts: (v: boolean) => void;
-    replay: boolean;
-    setReplay: (v: boolean) => void;
 }
 
 export function SettingsTab({
@@ -28,8 +26,6 @@ export function SettingsTab({
     setTrustStopTh,
     freezeCharts,
     setFreezeCharts,
-    replay,
-    setReplay,
 }: SettingsTabProps) {
     const keys = Object.keys(connections);
     const toneForStatus = (status: ConnStatus): 'good' | 'warn' | 'bad' =>
@@ -55,12 +51,6 @@ export function SettingsTab({
                             onChange={setFreezeCharts}
                             label="Freeze charts"
                             hint="Pause telemetry streaming"
-                        />
-                        <Toggle
-                            checked={replay}
-                            onChange={setReplay}
-                            label="Replay timeline"
-                            hint="Auto-scrub visualization time slider"
                         />
                     </CardBody>
                 </Card>

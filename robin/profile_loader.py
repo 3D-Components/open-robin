@@ -29,7 +29,34 @@ _DEFAULT_VOCABULARY = {
 }
 
 _DEFAULT_AI = {
-    'feature_order': ['wireSpeed', 'current', 'voltage'],
+    'feature_order': [
+        'wire_feed_speed_mpm_model_input',
+        'travel_speed_mps_model_input',
+        'arc_length_correction_mm_model_input',
+    ],
+    'input_features': [
+        {
+            'key': 'wire_feed_speed_mpm_model_input',
+            'label': 'Wire Feed Speed',
+            'unit': 'm/min',
+            'default': 10.0,
+            'step': 0.1,
+        },
+        {
+            'key': 'travel_speed_mps_model_input',
+            'label': 'Travel Speed',
+            'unit': 'm/s',
+            'default': 0.02,
+            'step': 0.001,
+        },
+        {
+            'key': 'arc_length_correction_mm_model_input',
+            'label': 'Arc Length Correction',
+            'unit': 'mm',
+            'default': 0.0,
+            'step': 0.1,
+        },
+    ],
     'default_tolerance': 10.0,
     'default_mode': 'parameter_driven',
     'forward_confidence': {
@@ -42,9 +69,9 @@ _DEFAULT_AI = {
         'max_confidence': 0.99,
     },
     'inverse_bounds': {
-        'wireSpeed': [1.0, 300.0],
-        'current': [1.0, 400.0],
-        'voltage': [0.1, 60.0],
+        'wire_feed_speed_mpm_model_input': [1.0, 30.0],
+        'travel_speed_mps_model_input': [0.001, 1.0],
+        'arc_length_correction_mm_model_input': [-20.0, 20.0],
     },
     'inverse_optimizer': {
         'restarts': 24,
@@ -83,6 +110,17 @@ class Profile:
         self.feature_order: Sequence[str] = ai_raw.get(
             'feature_order', _DEFAULT_AI['feature_order'],
         )
+        raw_input_features = ai_raw.get(
+            'input_features', _DEFAULT_AI['input_features'],
+        )
+        if isinstance(raw_input_features, list):
+            self.ai_input_features: list[Dict[str, Any]] = [
+                feature
+                for feature in raw_input_features
+                if isinstance(feature, dict)
+            ]
+        else:
+            self.ai_input_features = list(_DEFAULT_AI['input_features'])
         self.default_tolerance: float = ai_raw.get(
             'default_tolerance', _DEFAULT_AI['default_tolerance'],
         )

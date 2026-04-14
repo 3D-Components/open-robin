@@ -22,3 +22,8 @@ services:
   mintaka:
     environment:
       MINTAKA_BROKER_URL: "http://orion-ld:1026"
+
+  # Lichtblick does not currently publish a Linux ARM64 image.
+  # On Apple Silicon, run the AMD64 image via Docker Desktop emulation.
+  lichtblick:
+    platform: linux/amd64

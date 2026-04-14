@@ -1,11 +1,10 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Float32MultiArray
+from robin_interfaces.msg import BeadGeometry
 import numpy as np
 import sensor_msgs_py.point_cloud2 as pc2
 from sklearn.linear_model import RANSACRegressor
-from sklearn.cluster import DBSCAN
 from collections import deque
 
 
@@ -15,31 +14,40 @@ class WeldProfileProcessor(Node):
         
         # Declare parameters
         self.declare_parameter('filter_window', 5)
+        self.declare_parameter('input_topic', '/robin/pointcloud')
+        self.declare_parameter('output_topic', '/robin/weld_dimensions')
         
         # Get parameters
         filter_window = self.get_parameter('filter_window').get_parameter_value().integer_value
+        input_topic = self.get_parameter('input_topic').get_parameter_value().string_value
+        output_topic = self.get_parameter('output_topic').get_parameter_value().string_value
         
         # Moving average filter
         self.filter_window = max(1, filter_window)
         self._width_history = deque(maxlen=self.filter_window)
         self._height_history = deque(maxlen=self.filter_window)
+        self._area_history = deque(maxlen=self.filter_window)
         
         # Subscriber to pointcloud topic
         self.subscription = self.create_subscription(
             PointCloud2,
-            '/robin/pointcloud',
+            input_topic,
             self.pointcloud_callback,
             10
         )
         
-        # Publisher for weld dimensions [width, height]
+        # Publisher for weld dimensions
         self.publisher = self.create_publisher(
-            Float32MultiArray,
-            '/robin/weld_dimensions',
+            BeadGeometry,
+            output_topic,
             10
         )
         
-        self.get_logger().info(f'Weld Profile Processor Node initialized (filter_window={self.filter_window})')
+        self.get_logger().info(
+            f'Weld Profile Processor Node initialized '
+            f'(filter_window={self.filter_window}, '
+            f'input={input_topic}, output={output_topic})'
+        )
     
     def pointcloud_callback(self, msg):
         try:
@@ -51,128 +59,111 @@ class WeldProfileProcessor(Node):
                 return
             
             # Compute weld dimensions
-            width, height = self.compute_weld_dimensions(points)
+            width, height, area = self.compute_weld_dimensions(points)
             
             # Publish results
-            dimensions_msg = Float32MultiArray()
-            dimensions_msg.data = [width, height]
-            self.publisher.publish(dimensions_msg)
+            msg_out = BeadGeometry()
+            msg_out.header = msg.header
+            msg_out.width_mm = float(width)
+            msg_out.height_mm = float(height)
+            msg_out.cross_sectional_area_mm2 = float(area)
+            self.publisher.publish(msg_out)
             
         except Exception as e:
             self.get_logger().error(f'Error processing pointcloud: {str(e)}')
     
     def pointcloud2_to_array(self, cloud_msg):
         """Convert PointCloud2 message to numpy array"""
-        points_list = []
-        
-        for point in pc2.read_points(cloud_msg, skip_nans=True, field_names=("x", "y", "z")):
-            points_list.append([point[0], point[1], point[2]])
-        
-        return np.array(points_list)
+        # list() consumes the generator in C, which is much faster than a Python for-loop
+        return np.array(list(pc2.read_points(cloud_msg, skip_nans=True, field_names=("x", "y", "z"))))
     
     def compute_weld_dimensions(self, points):
         """
-        Compute weld width and height from pointcloud using RANSAC + DBSCAN
-        Returns: (width, height) in mm
+        Compute weld width, height, and area using SOTA 2D profilometry techniques:
+        1. Y-axis sorting & Signal Smoothing
+        2. Robust Base Plate Fitting (RANSAC)
+        3. Precise Toe Detection (Left/Right boundaries)
         """
-        if len(points) < 10:
-            return 0.0, 0.0
+        if len(points) < 20:
+            return 0.0, 0.0, 0.0
         
         try:
             # Convert to mm
             points = points * 1000.0
             
-            # Extract coordinates
-            x = points[:, 0]
-            y = points[:, 1]
-            z = points[:, 2]
+            # 1. Sort by Y to ensure sequential 1D processing
+            sort_idx = np.argsort(points[:, 1])
+            y = points[sort_idx, 1]
+            z = points[sort_idx, 2]
+            
+            # 2. Smooth the Z profile to remove laser speckle/spikes (Moving Average)
+            window_size = 5
+            kernel = np.ones(window_size) / window_size
+            z_smooth = np.convolve(z, kernel, mode='same')
+            # Restore edges lost in convolution
+            z_smooth[:2] = z[:2]
+            z_smooth[-2:] = z[-2:]
 
-            # Fit base plane using RANSAC
+            # 3. Fit base plane using RANSAC on the smoothed data
             y_reshape = y.reshape(-1, 1)
             ransac = RANSACRegressor(min_samples=20, residual_threshold=0.2)
-            ransac.fit(y_reshape, z)
-            z_pred = ransac.predict(y_reshape)
-            z_base = np.median(z_pred)
+            ransac.fit(y_reshape, z_smooth)
             
-            # Get inlier mask (base surface)
-            inlier_mask = ransac.inlier_mask_
-
-            # Get outlier points (potential weld)
-            outlier_indices = np.where(~inlier_mask)[0]
+            # 4. Calculate height relative to the base plate
+            z_base = ransac.predict(y_reshape)
+            z_relative = z_smooth - z_base
             
-            if len(outlier_indices) < 2:
-                return 0.0, 0.0
+            # 5. Toe Detection: Find where the profile leaves the base plate
+            # We define the bead as regions deviating > 0.3mm from the flat plate
+            bead_threshold = 0.3
+            is_bead = z_relative > bead_threshold
             
-            # Cluster outlier points to find main weld bead
-            outlier_points = points[outlier_indices]
+            # Find contiguous segments (edges where boolean array changes)
+            edges = np.diff(is_bead.astype(int))
+            starts = np.where(edges == 1)[0] + 1
+            ends = np.where(edges == -1)[0] + 1
             
-            # Use DBSCAN to find dense clusters
-            clustering = DBSCAN(eps=0.5, min_samples=5).fit(outlier_points[:, :2])
-            labels = clustering.labels_
+            # Handle edge cases (bead touches the very edge of the scanner FOV)
+            if is_bead[0]:
+                starts = np.insert(starts, 0, 0)
+            if is_bead[-1]:
+                ends = np.append(ends, len(is_bead))
+                
+            if len(starts) == 0:
+                return 0.0, 0.0, 0.0
+                
+            # 6. Select the main bead (the widest contiguous segment)
+            segment_lengths = ends - starts
+            main_bead_idx = np.argmax(segment_lengths)
+            start_idx = starts[main_bead_idx]
+            end_idx = ends[main_bead_idx] - 1  # Inclusive end
             
-            # Find the largest cluster (ignore noise points labeled as -1)
-            unique_labels, counts = np.unique(labels[labels >= 0], return_counts=True)
+            # Reject false positives (e.g., noise segments narrower than 2mm)
+            if (y[end_idx] - y[start_idx]) < 2.0:
+                return 0.0, 0.0, 0.0
+                
+            # 7. Extract precise dimensions between the detected toes
+            y_bead = y[start_idx:end_idx+1]
+            z_rel_bead = z_relative[start_idx:end_idx+1]
             
-            if len(unique_labels) == 0:
-                # No valid clusters found, use all outliers
-                weld_indices = outlier_indices
-            else:
-                # Get the largest cluster
-                largest_cluster_label = unique_labels[np.argmax(counts)]
-                cluster_mask = labels == largest_cluster_label
-                weld_indices = outlier_indices[cluster_mask]
+            width_raw = y_bead[-1] - y_bead[0]
+            height_raw = np.max(z_rel_bead)
+            area_raw = np.trapz(z_rel_bead, y_bead)
             
-            # Create weld mask
-            weld_mask = np.zeros(len(points), dtype=bool)
-            weld_mask[weld_indices] = True
-
-            # Find weld top (height) from main cluster only
-            z_relative = z - z_base
-            z_relative_weld = z_relative[weld_mask]
-            
-            if len(z_relative_weld) == 0:
-                return 0.0, 0.0
-            
-            height_raw = np.max(z_relative_weld)
-            
-            # Check if height is below threshold - no weld detected
-            if height_raw < 0.5:
-                # self.get_logger().log('No weld detected (height < 0.5mm)')
-                return 0.0, 0.0
-            
-            # Estimate weld width using only main cluster points above half-height threshold
-            y_weld = y[weld_mask]
-            z_relative_weld_full = z_relative[weld_mask]
-            
-            # Filter to points above 5% of peak height
-            half_height = 0.05 * height_raw
-            above_threshold = z_relative_weld_full >= half_height
-            
-            if np.sum(above_threshold) < 2:
-                # Fallback: use all weld points
-                y_filtered = y_weld
-            else:
-                y_filtered = y_weld[above_threshold]
-            
-            # Width is the extent of filtered weld points
-            width_raw = np.max(y_filtered) - np.min(y_filtered)
-            
-            # Apply moving average filter
+            # 8. Apply moving average filter over time
             self._width_history.append(width_raw)
             self._height_history.append(height_raw)
+            self._area_history.append(area_raw)
             
             width = np.mean(self._width_history)
             height = np.mean(self._height_history)
-
-            # self.get_logger().info(f'Weld Width: {width:.1f}mm, Height: {height:.1f}mm '
-            #                      f'(Base: {np.sum(inlier_mask)}, Weld: {np.sum(weld_mask)}, '
-            #                      f'Noise: {len(points) - np.sum(inlier_mask) - np.sum(weld_mask)})')
+            area = np.mean(self._area_history)
             
-            return float(width), float(height)
+            return float(width), float(height), float(area)
             
         except Exception as e:
             self.get_logger().error(f'Error computing weld dimensions: {e}')
-            return 0.0, 0.0
+            return 0.0, 0.0, 0.0
 
 
 def main(args=None):

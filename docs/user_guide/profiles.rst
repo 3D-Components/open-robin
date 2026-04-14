@@ -37,15 +37,12 @@ Profile Comparison
    * - Width metric
      - Bead Width (mm)
      - Coverage Width (mm)
-   * - Speed
-     - Wire Speed (m/min)
-     - Line Speed (mm/s)
-   * - Current / Flow
-     - Current (A)
-     - Flow Rate (ml/min)
-   * - Voltage / Pressure
-     - Voltage (V)
-     - Pressure (bar)
+   * - Primary AI inputs
+     - Wire Feed Speed (m/min), Travel Speed (m/s), Arc Length Correction (mm)
+     - Line Speed (mm/s), Flow Rate (ml/min), Nozzle Pressure (bar)
+   * - Auxiliary measured telemetry
+     - Wire Speed, Welding Current, Arc Voltage
+     - Line Speed, Flow Rate, Nozzle Pressure
    * - AI default mode
      - parameter_driven
      - geometry_driven
@@ -90,7 +87,7 @@ How Profiles Work
 Profile files live in ``config/profiles/`` and are plain YAML.  A profile
 contains:
 
-* **vocabulary** - dashboard labels (process, speed, current, voltage, etc.)
+* **vocabulary** - dashboard labels for the profile's process and telemetry terms
 * **fields** - telemetry field display names and units
 * **ros2.topics** - ROS 2 topic names for geometry, process parameters, pose
 * **skills** - robot capabilities (service/action names, types, descriptions)
