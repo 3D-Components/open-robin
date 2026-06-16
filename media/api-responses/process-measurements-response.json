@@ -1,0 +1,25 @@
+{
+  "status": "success",
+  "process_id": "d4_demo_process",
+  "measurements": [
+    {
+      "timestamp": "2026-06-16T12:01:05+00:00",
+      "height": 2.95,
+      "width": 7.48,
+      "speed": 0.021,
+      "current": 234.9,
+      "voltage": 26.7,
+      "input_params": {
+        "wire_feed_speed_mpm_model_input": 10.5,
+        "travel_speed_mps_model_input": 0.021,
+        "arc_length_correction_mm_model_input": 1.5
+      }
+    }
+  ],
+  "count": 1,
+  "debug_info": {
+    "mintaka_url": "http://mintaka:8080",
+    "tenant": "",
+    "source": "mintaka"
+  }
+}

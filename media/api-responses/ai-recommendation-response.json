@@ -1,0 +1,19 @@
+{
+  "status": "success",
+  "recommendation": {
+    "process_id": "d4_demo_process",
+    "mode": "geometry_driven",
+    "recommended_params": {
+      "wire_feed_speed_mpm_model_input": 10.8,
+      "travel_speed_mps_model_input": 0.019,
+      "arc_length_correction_mm_model_input": 1.1,
+      "confidence": 0.88
+    },
+    "confidence": 0.88,
+    "model_version": "v2.1",
+    "recommendations": [
+      "Apply recommended parameters gradually",
+      "Monitor first few passes for stability"
+    ]
+  }
+}
