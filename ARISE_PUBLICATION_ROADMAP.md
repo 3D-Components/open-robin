@@ -133,7 +133,7 @@ Execution checklist:
 
 ### Openness
 
-- permissive license (`MIT`)
+- open-source copyleft license (`AGPL-3.0-only`)
 - public code + docs + reproducible startup path
 - clear boundary of what is open vs what is proprietary
 

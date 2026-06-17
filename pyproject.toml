@@ -2,12 +2,25 @@
 name = "robin"
 version = "0.1.0"
 description = "ROBIN proposes an AI-driven, human-centric robotic system that leverages ROS 2 and FIWARE to enable adaptive processes, data standardization, and enhanced operator interaction."
-authors = ["dhaasb <68024961+Daniel-Haas-B@users.noreply.github.com>"]
+authors = [
+    "Daniel Haas <daniel.haas@3d-components.co>",
+    "Virgilio Gomez <virgilio.gomez@3d-components.co>",
+    "Jayant Singh <jayant@mil-as.no>",
+]
+maintainers = [
+    "Daniel Haas <daniel.haas@3d-components.co>",
+    "Virgilio Gomez <virgilio.gomez@3d-components.co>",
+    "Jayant Singh <jayant@mil-as.no>",
+]
+license = "AGPL-3.0-only"
 readme = "README.md"
 packages = [
     { include = "robin" },
     { include = "mlops" },
 ]
+homepage = "https://github.com/3D-Components/open-robin"
+repository = "https://github.com/3D-Components/open-robin"
+documentation = "https://open-robin.readthedocs.io/"
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"

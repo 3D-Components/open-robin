@@ -4,9 +4,9 @@ project:
   short_name: "open-robin-core"
   version: "0.1.0"
   status: "release-candidate"
-  license: "MIT"
-  repository: "https://github.com/Industry40Lab/open-robin"
-  homepage: "https://github.com/Industry40Lab/open-robin"
+  license: "AGPL-3.0-only"
+  repository: "https://github.com/3D-Components/open-robin"
+  homepage: "https://github.com/3D-Components/open-robin"
   description: >
     Reusable FIWARE + ROS 2 process intelligence core for machine-agnostic telemetry
     ingestion, process monitoring, deviation detection, and AI-assisted parameter control.
@@ -82,6 +82,7 @@ deployment:
 artifacts:
   documentation:
     - "README.md"
+    - "THIRD_PARTY_LICENSES.md"
     - "current_stack_feb22.md"
     - "ARISE_PUBLICATION_ROADMAP.md"
   demo_scripts:
@@ -91,4 +92,12 @@ artifacts:
 
 contacts:
   organization: "3D-Components AS + Mechatronics Innovation Lab"
-  support_email: "opensource@industry40lab.eu"
+  support_email: "info@3d-components.co"
+  issue_tracker: "https://github.com/3D-Components/open-robin/issues"
+  maintainers:
+    - name: "Daniel Haas"
+      email: "daniel.haas@3d-components.co"
+    - name: "Virgilio Gomez"
+      email: "virgilio.gomez@3d-components.co"
+    - name: "Jayant Singh"
+      email: "jayant@mil-as.no"

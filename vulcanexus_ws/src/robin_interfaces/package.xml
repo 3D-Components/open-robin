@@ -3,9 +3,11 @@
 <package format="3">
   <name>robin_interfaces</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="virgilio@todo.todo">virgilio</maintainer>
-  <license>TODO: License declaration</license>
+  <description>ROBIN ROS 2 interface messages and services</description>
+  <maintainer email="daniel.haas@3d-components.co">Daniel Haas</maintainer>
+  <maintainer email="virgilio.gomez@3d-components.co">Virgilio Gomez</maintainer>
+  <maintainer email="jayant@mil-as.no">Jayant Singh</maintainer>
+  <license>AGPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>

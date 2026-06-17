@@ -18,10 +18,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='root',
-    maintainer_email='root@todo.todo',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    maintainer='Daniel Haas, Virgilio Gomez, Jayant Singh',
+    maintainer_email='daniel.haas@3d-components.co, virgilio.gomez@3d-components.co, jayant@mil-as.no',
+    description='ROBIN welding process simulation package',
+    license='AGPL-3.0-only',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

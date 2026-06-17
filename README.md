@@ -224,7 +224,7 @@ Full schema and how to add your own: [`demo/profiles/README.md`](demo/profiles/R
 ## Quick Start
 
 ```bash
-git clone https://github.com/Industry40Lab/open-robin.git
+git clone https://github.com/3D-Components/open-robin.git
 cd open-robin
 poetry install --with dev
 
@@ -346,9 +346,11 @@ CI pipeline: `.github/workflows/ci.yml`
 
 ## License
 
-MIT. See `LICENSE`.
+AGPL-3.0-only. See [`LICENSE`](LICENSE). Third-party and template-origin notices are documented in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ## Support
 
-- Issues: https://github.com/Industry40Lab/open-robin/issues
-- Discussions: https://github.com/Industry40Lab/open-robin/discussions
+- Maintainers: Daniel Haas <daniel.haas@3d-components.co>, Virgilio Gomez <virgilio.gomez@3d-components.co>, Jayant Singh <jayant@mil-as.no>
+- Support email: info@3d-components.co
+- Issues: https://github.com/3D-Components/open-robin/issues
+- Discussions: https://github.com/3D-Components/open-robin/discussions

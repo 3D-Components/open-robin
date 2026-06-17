@@ -4,8 +4,10 @@
   <name>robin_calibration</name>
   <version>0.1.0</version>
   <description>Touch-sensing calibration library for ROBIN (stickout, surface probing, plate plane)</description>
-  <maintainer email="jayant@mil-as.no">Jayant</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="daniel.haas@3d-components.co">Daniel Haas</maintainer>
+  <maintainer email="virgilio.gomez@3d-components.co">Virgilio Gomez</maintainer>
+  <maintainer email="jayant@mil-as.no">Jayant Singh</maintainer>
+  <license>AGPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
