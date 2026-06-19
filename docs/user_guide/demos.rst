@@ -28,7 +28,8 @@ Dual-Mode Validation Logic
 
 **Parameter-driven**
 
-1. Operator sets initial process parameters.
+1. Operator sets initial AI inputs. In the welding demo these are wire feed
+   speed, travel speed, and arc length correction.
 2. AI predicts expected geometry.
 3. Telemetry is streamed.
 4. Alert processor compares measured geometry to AI-predicted geometry.
@@ -37,12 +38,13 @@ Dual-Mode Validation Logic
 **Geometry-driven**
 
 1. Operator sets target geometry.
-2. AI suggests process parameters for that target.
+2. AI suggests AI input values for that target. In the welding demo, those are
+   wire feed speed, travel speed, and arc length correction.
 3. Telemetry is streamed.
 4. Alert processor compares measured geometry against the expected geometry from
-   AI-suggested parameters.
+   AI-suggested inputs.
 5. In geometry-driven mode, deviation checks use fixed AI-guided/setpoint
-   parameters for the run (not per-sample live measured parameters).
+   inputs for the run (not per-sample live measured telemetry).
 6. Reason: this keeps the deviation metric anchored to the planned operating
    point and avoids conflating geometric quality with control-loop jitter.
 7. Deviation alerts are generated when tolerance is exceeded.
@@ -131,7 +133,7 @@ Expected first output line:
 
 .. code-block:: bash
 
-   curl -s "http://localhost:9090/temporal/entities/urn:ngsi-ld:Process:${BASE}-parameter?attrs=measuredHeight,measuredWidth,measuredSpeed,measuredCurrent,measuredVoltage&timeproperty=observedAt&timerel=between&timeAt=1970-01-01T00:00:00Z&endTimeAt=2035-01-01T00:00:00Z&options=temporalValues&lastN=5" | jq
+   curl -s "http://localhost:9090/temporal/entities/urn:ngsi-ld:Process:${BASE}-parameter?attrs=measuredHeight,measuredWidth,inputParams&timeproperty=observedAt&timerel=between&timeAt=1970-01-01T00:00:00Z&endTimeAt=2035-01-01T00:00:00Z&options=temporalValues&lastN=5" | jq
 
 Mode-specific runs
 ------------------
@@ -155,7 +157,6 @@ integration tasks, but they are not the primary demos:
 * ``demo/validate-setup.sh`` - service health checks
 * ``demo/cleanup-demo.sh`` - remove demo entities
 * ``demo/simulation-demo-rosbag.sh`` - ROS 2 bag replay path
-* ``demo/interactive-demo.sh`` - interactive walkthrough
 
 Cleanup
 -------

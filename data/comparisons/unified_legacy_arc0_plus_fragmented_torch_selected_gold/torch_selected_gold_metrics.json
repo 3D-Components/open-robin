@@ -1,0 +1,58 @@
+{
+  "dataset_csv": "data/unified_legacy_arc0_plus_fragmented/gold/train_dataset.csv",
+  "dataset_label": "unified legacy arc0 plus fragmented selected gold",
+  "n_rows": 51,
+  "feature_columns": [
+    "wire_feed_speed_mpm_model_input",
+    "travel_speed_mps_model_input",
+    "arc_length_correction_mm_model_input"
+  ],
+  "target_columns": [
+    "height_mm_target",
+    "width_mm_target"
+  ],
+  "model": {
+    "hidden_dims": [
+      64,
+      32
+    ],
+    "weight_decay": 0.0001,
+    "max_iter": 215,
+    "random_seed": 6,
+    "optimizer": "LBFGS"
+  },
+  "r2_variance_weighted": 0.8946648836135864,
+  "targets": {
+    "height_mm_target": {
+      "r2": 0.9019486904144287,
+      "rmse": 0.2886213854666248,
+      "mae": 0.21115443110466003
+    },
+    "width_mm_target": {
+      "r2": 0.8942424654960632,
+      "rmse": 1.2448026850809935,
+      "mae": 0.7106337547302246
+    }
+  },
+  "saved_model_artifact": {
+    "model_path": "data/models/unified_legacy_arc0_plus_fragmented/selected_gold_torch_mlp/torch_selected_gold_model.pt",
+    "scaler_path": "data/models/unified_legacy_arc0_plus_fragmented/selected_gold_torch_mlp/torch_selected_gold_feature_scaler.joblib",
+    "refit_note": "Saved artifact is refit on all selected-gold rows; benchmark metrics above remain leave-one-out.",
+    "refit_train_metrics": {
+      "n_rows": 51,
+      "r2_variance_weighted_train": 0.9987884163856506,
+      "targets": {
+        "height_mm_target": {
+          "r2_train": 0.9928844571113586,
+          "rmse_train": 0.07775095566318636,
+          "mae_train": 0.054087039083242416
+        },
+        "width_mm_target": {
+          "r2_train": 0.9991307854652405,
+          "rmse_train": 0.1128508555507997,
+          "mae_train": 0.06912016123533249
+        }
+      }
+    }
+  }
+}

@@ -14,11 +14,11 @@ The AI slice adds a self-contained modelling stack that learns bead geometry fro
 
 ## 2) Architecture in plain language
 
-**Data generation (demonstration mode).** `scripts/process_geometry_simulator.py` reuses analytic process equations to create input/output pairs (travel speed, current, voltage → bead width/height). This synthetic approach demonstrates the pipeline end-to-end without requiring real process trials. The script writes `data/process_dataset_input_output.csv` and a diagnostic plot in the same folder. **When transitioning to production**, simply replace this CSV with real measurement data in the same format-no code changes required beyond pointing to the new file.
+**Data generation (demonstration mode).** `scripts/process_geometry_simulator.py` reuses analytic process equations to create input/output pairs. This section is historical MVP context only. For the current welding baseline, the forward model contract is `(wire feed speed, travel speed, arc length correction) -> (bead width, bead height)`. This synthetic approach demonstrates the pipeline end-to-end without requiring real process trials. The script writes `data/process_dataset_input_output.csv` and a diagnostic plot in the same folder.
 
 **Model definition.** `robin/ai/mlp.py` contains a configurable PyTorch MLP (`ProcessGeometryMLP`) and helpers to serialise checkpoints (`save_model`, `load_model`). Normalisation statistics (mean/std) and feature order are stored inside the checkpoint so inference can remain consistent even if features change.
 
-**Training workflow.** `scripts/train_geometry_mlp.py` reads the dataset from `data/`, splits into train/validation sets, trains the MLP, and writes checkpoints to `data/models/` (default filename `process_geometry_mlp.pt`). The script can regenerate the synthetic dataset (`--generate-if-missing`) to keep the demonstration flow reproducible. **To train on real data**, place your collected measurements in `data/process_dataset_input_output.csv` with columns `[wireSpeed, current, voltage, beadWidth, beadHeight]` and run the same training script-the pipeline seamlessly adapts to real-world inputs.
+**Training workflow.** `scripts/train_geometry_mlp.py` reads the dataset from `data/`, splits into train/validation sets, trains the MLP, and writes checkpoints to `data/models/` (default filename `process_geometry_mlp.pt`). The script can regenerate the synthetic dataset (`--generate-if-missing`) to keep the demonstration flow reproducible. For the current welding model family, training data should follow the corrected input contract with columns matching `wire_feed_speed_mpm_model_input`, `travel_speed_mps_model_input`, `arc_length_correction_mm_model_input`, and the bead geometry targets.
 
 **Serving path.** The Alert Engine (`robin/alert_engine.py`) maintains a singleton `AlertEngine` instance that discovers checkpoints, loads the active one, and exposes REST endpoints for listing models, selecting a checkpoint, and running predictions. If no checkpoint is available, it falls back to the legacy heuristic so the API never hard-fails. **Models trained on real data** are served through the same interface with zero API changes.
 
@@ -34,7 +34,7 @@ The AI slice adds a self-contained modelling stack that learns bead geometry fro
 | `/ai/models/directories` | GET | Show directories scanned for checkpoints | Defaults to `data/models/` and `robin/models/`, optional extra dirs via `ROBIN_MLP_MODEL_DIRS`. |
 | `/ai/models/active` | GET | Return the currently loaded model | Responds with `status: inactive` if nothing is loaded. |
 | `/ai/models/select` | POST | Load a specific checkpoint | Body: `{ "path": "relative/or/absolute.pt" }`. Relative names are resolved against project root or known model dirs. Errors return 404/400 with clear detail. |
-| `/ai/models/predict` | POST | Run a forward pass on the active model | Body: `{ "wireSpeed": float, "current": float, "voltage": float }`. Response includes `prediction`, `feature_order`, and whether the MLP or heuristic handled the request. |
+| `/ai/models/predict` | POST | Run a forward pass on the active model | Body: `{ "input_params": { "wire_feed_speed_mpm_model_input": float, "travel_speed_mps_model_input": float, "arc_length_correction_mm_model_input": float } }`. Response includes `prediction`, `input_params`, `input_feature_specs`, `feature_order`, and whether the MLP or heuristic handled the request. |
 | `/ai-recommendation` | POST | Domain-level AI recommendation | Reuses the active model (if present) to power parameter-driven mode before storing an `AIRecommendation` entity in Orion-LD. |
 
 Each endpoint is stateless: the active checkpoint is kept in-memory by the singleton engine and recorded in responses. Widgets can call `/ai/models` after `/ai/models/select` to refresh their view.
@@ -52,7 +52,7 @@ Each endpoint is stateless: the active checkpoint is kept in-memory by the singl
 
 **Production workflow (real data):**
 
-1. **Collect & store data** – Export measurements from process trials (sensors, vision systems, or manual QC) into `data/process_dataset_input_output.csv` with the expected schema: `wireSpeed, current, voltage, beadWidth, beadHeight`. This file **directly replaces** the synthetic dataset.
+1. **Collect & store data** – Export measurements from process trials (sensors, vision systems, or manual QC) into a dataset that uses the corrected welding input contract: `wire_feed_speed_mpm_model_input`, `travel_speed_mps_model_input`, `arc_length_correction_mm_model_input`, plus bead geometry targets. This file **directly replaces** the synthetic dataset.
 2. **Train model** – Run `python scripts/train_geometry_mlp.py` exactly as before-no modifications needed. The training script reads whatever data is in `data/process_dataset_input_output.csv`.
 3. **Select & serve** – Follow steps 3–4 above. The REST API is data-agnostic; operators interact with real-data models through the same endpoints and FAROS widgets.
 

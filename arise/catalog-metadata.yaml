@@ -86,7 +86,7 @@ artifacts:
     - "ARISE_PUBLICATION_ROADMAP.md"
   demo_scripts:
     - "demo/simulation-demo-rosbag.sh"
-    - "demo/interactive-demo.sh"
+    - "demo/profiles/welding_profile.py"
     - "demo/profiles/spray_coating_profile.py"
 
 contacts:

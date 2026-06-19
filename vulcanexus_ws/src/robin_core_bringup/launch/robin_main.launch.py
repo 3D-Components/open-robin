@@ -14,6 +14,7 @@ def generate_launch_description():
     sensor_ip = LaunchConfiguration("sensor_ip")
     use_sensor = LaunchConfiguration("use_sensor")
     use_fronius = LaunchConfiguration("use_fronius")
+    use_operator_panel = LaunchConfiguration("use_operator_panel")
     sensor_start_delay = LaunchConfiguration("sensor_start_delay")
     is_simulation = LaunchConfiguration("is_simulation")
 
@@ -53,9 +54,16 @@ def generate_launch_description():
             default_value="false",
             description="Whether to launch the robot in simulation mode.",
         ),
+        DeclareLaunchArgument(
+            "use_operator_panel",
+            default_value="true",
+            description="Launch ROBIN RQT operator panel.",
+        ),
     ]
 
     # 1. UR Robot (driver + robot_state_publisher)
+    #    Use our custom controller config so joint_trajectory_controller and
+    #    forward_position_controller are registered (needed for MoveIt Servo jog).
     ur_robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare("robin_hardware_ur"), "launch", "robot.launch.py"])
@@ -63,14 +71,32 @@ def generate_launch_description():
         launch_arguments={
             "robot_ip": robot_ip,
             "is_simulation": is_simulation,
+            "controllers_file": PathJoinSubstitution(
+                [FindPackageShare("robin_hardware_ur"), "config", "ur10e_controllers.yaml"]
+            ),
         }.items(),
     )
 
     # 1b. MoveIt Planner
     moveit_planner = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([FindPackageShare("robin_moveit_control"), "launch", "moveit_planner.launch.py"])
+            PathJoinSubstitution([FindPackageShare("robin_core_planner"), "launch", "moveit_planner.launch.py"])
         ]),
+    )
+
+    # 1c. Experiment Node
+    experiment_node = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare("robin_experiment"), "launch", "experiment.launch.py"])
+        ]),
+    )
+
+    # 1d. Plate Markers
+    plate_markers_node = Node(
+        package="robin_core_data",
+        executable="plate_markers.py",
+        name="plate_markers",
+        output="screen",
     )
 
     # 2. RViz
@@ -80,6 +106,16 @@ def generate_launch_description():
         name="rviz2",
         output="screen",
         arguments=["-d", rviz_config_file],
+    )
+
+    # 2b. Operator panel (RQT plugin)
+    operator_panel = Node(
+        package="rqt_gui",
+        executable="rqt_gui",
+        name="robin_operator_panel",
+        output="screen",
+        arguments=["--standalone", "OperatorPanel"],
+        condition=IfCondition(use_operator_panel),
     )
 
     # 2. Garmo Sensor (hardware driver)
@@ -133,6 +169,13 @@ def generate_launch_description():
         condition=IfCondition(use_fronius),
     )
 
+    # 5b. TCP Manager (dynamic wire_tip TF + TCP mode switching)
+    tcp_manager = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare("robin_hardware_fronius"), "launch", "tcp_manager.launch.py"])
+        ]),
+    )
+
     # 6. Weld Data Node (progression tracking) - depends on welding coordinator
     weld_data = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
@@ -146,7 +189,11 @@ def generate_launch_description():
         + [
             ur_robot,
             moveit_planner,
+            experiment_node,
+            plate_markers_node,
             rviz_node,
+            operator_panel,
+            tcp_manager,
             delayed_garmo_sensor,
             sensor_processing,
             opcua_bridge,

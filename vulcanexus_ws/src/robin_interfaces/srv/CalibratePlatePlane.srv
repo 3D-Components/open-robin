@@ -1,0 +1,24 @@
+# CalibratePlatePlane - Probe 4 in-margin points and fit a plane z = a*x + b*y + c
+# Input plate definition uses one touched corner + corner identity.
+
+string plate_id
+float32 corner_x
+float32 corner_y
+float32 corner_z
+string corner_id              # front_left | front_right | rear_left | rear_right
+float32 width                 # m
+float32 length                # m
+float32 yaw                   # rad in base_link
+float32 margin_x              # m (along plate length axis)
+float32 margin_y              # m (along plate width axis)
+float32 z_start_offset        # m above expected surface for probing start
+float32 z_probe_depth         # m downward probing depth
+float32 probe_speed           # m/s
+---
+bool success
+string message
+float32 surface_z             # representative average z
+float32 plane_a               # z = a*x + b*y + c
+float32 plane_b
+float32 plane_c
+geometry_msgs/Point[] probe_points

@@ -41,7 +41,11 @@ async def test_check_deviation_param_no_data(monkeypatch, client):
     payload = {
         'process_id': 'P2',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 10, 'current': 150, 'voltage': 24},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
     }
     resp = await client.post('/check-deviation', json=payload)
     assert resp.status_code == 200
@@ -89,7 +93,11 @@ async def test_check_deviation_param_alert(monkeypatch, client):
     payload = {
         'process_id': 'P3',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 10, 'current': 150, 'voltage': 24},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
         'measured_geometry': {'height': 6.0, 'width': 8.0},
         'tolerance': 10.0,
     }
@@ -214,7 +222,11 @@ async def test_check_deviation_geometry_uses_ai_prediction_source(
     payload = {
         'process_id': 'PG-AI',
         'mode': 'geometry_driven',
-        'input_params': {'wireSpeed': 10, 'current': 150, 'voltage': 24},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
         'measured_geometry': {'height': 5.0, 'width': 8.2},
         'tolerance': 10.0,
     }
@@ -263,7 +275,11 @@ async def test_check_deviation_geometry_falls_back_to_target_source(
     payload = {
         'process_id': 'PG-TARGET',
         'mode': 'geometry_driven',
-        'input_params': {'wireSpeed': 10, 'current': 150, 'voltage': 24},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
         'measured_geometry': {'height': 5.0, 'width': 8.2},
         'tolerance': 10.0,
     }
@@ -289,7 +305,11 @@ async def test_check_deviation_process_inactive(monkeypatch, client):
     payload = {
         'process_id': 'PZ',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 10, 'current': 150, 'voltage': 24},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
         'measured_geometry': {'height': 5.0, 'width': 8.0},
     }
     resp = await client.post('/check-deviation', json=payload)

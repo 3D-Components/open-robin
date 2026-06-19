@@ -104,7 +104,12 @@ def test_create_ai_recommendation_payload(monkeypatch):
 
     client = RobinFiwareClient()
     ok = client.create_ai_recommendation(
-        'PROC', {'wireSpeed': 12.3, 'current': 180, 'voltage': 24.5}
+        'PROC',
+        {
+            'wire_feed_speed_mpm_model_input': 12.3,
+            'travel_speed_mps_model_input': 0.021,
+            'arc_length_correction_mm_model_input': 1.5,
+        },
     )
     assert ok is True
     body = seen['json']
@@ -302,7 +307,10 @@ def test_create_ai_recommendation_failure(monkeypatch):
 
     monkeypatch.setattr('robin.cli.requests.post', fake_post)
     client = RobinFiwareClient()
-    ok = client.create_ai_recommendation('P6', {'wireSpeed': 10})
+    ok = client.create_ai_recommendation(
+        'P6',
+        {'wire_feed_speed_mpm_model_input': 10.0},
+    )
     assert ok is False
 
 

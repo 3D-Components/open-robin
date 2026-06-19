@@ -19,9 +19,12 @@ The **Live Ops** tab is the main cockpit.
 Measurement KPIs
 ~~~~~~~~~~~~~~~~
 
-The top row shows the latest values for the five core telemetry fields
-(height, width, speed, current, voltage).  Labels and units adapt
-automatically to the active :doc:`profile <profiles>`.
+The top row shows the latest geometry values plus the primary
+profile-defined process parameters. For the welding profile, this means
+bead height, bead width, wire feed speed, travel speed, and arc length
+correction. Labels and units adapt automatically to the active
+:doc:`profile <profiles>`, and auxiliary telemetry such as current or
+voltage can still be displayed when available.
 
 Robot Control
 ~~~~~~~~~~~~~
@@ -68,8 +71,9 @@ Below the deviation monitor, the **Process Controls** panel lets the operator:
 
 * Switch between **parameter-driven** and **geometry-driven** modes
 * Set tolerance percentage
-* Enter process parameters (speed, current, voltage) or target geometry
-  (height, width) depending on mode
+* Enter the active profile's AI input values or target geometry
+  (height, width) depending on mode. For the welding profile, the AI inputs are
+  wire feed speed, travel speed, and arc length correction.
 * In geometry-driven mode, clicking **Apply Settings** stores target geometry
   and fetches AI-suggested parameters for the process
 

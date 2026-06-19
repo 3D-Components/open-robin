@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+    schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>welding_supervisor</name>
+  <version>0.2.0</version>
+  <description>
+    Intent-to-skill mission controller for the ROBIN welding HRI PoC.
+    Subscribes to /intents and dispatches to the corresponding skill
+    action servers. Handles intent types:
+      - MOVE_TO_HOME, EXECUTE_SEAM, ESTOP (original)
+      - START_PROCESS, REQUEST_AI_RECOMMENDATION, MANUAL_ADJUST,
+        PAUSE_PROCESS, RESUME_PROCESS, STOP_PROCESS, LAUNCH_NEW_DOE
+        (ROBIN dashboard buttons)
+
+    Implements the same MissionController pattern as ErgoBot_AI's
+    llm_supervisor/mission_controller.py.
+  </description>
+  <maintainer email="dev@example.com">Developer</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>welding_msgs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

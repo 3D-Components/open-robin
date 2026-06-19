@@ -1,0 +1,16 @@
+<library path="robin_rqt">
+  <class name="OperatorPanel" type="robin_rqt.operator_panel.OperatorPanel"
+         base_class_type="rqt_gui_py::Plugin">
+    <description>
+      ROBIN Operator Panel — plate management, calibration, manual weld control, live status.
+    </description>
+    <qtgui>
+      <group>
+        <label>ROBIN</label>
+        <icon type="theme">preferences-system</icon>
+      </group>
+      <label>Operator Panel</label>
+      <icon type="theme">utilities-terminal</icon>
+    </qtgui>
+  </class>
+</library>

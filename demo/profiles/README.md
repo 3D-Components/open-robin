@@ -7,15 +7,13 @@ This folder contains the two canonical ROBIN profile demos:
 
 Both scripts now implement the same robust dual-mode workflow.
 
-## Core model shared by all profiles
+## Geometry telemetry + process input snapshots
 
 | Field | Role | Example mappings |
 |---|---|---|
 | `measuredHeight` | Primary geometry output | bead height, coating thickness |
 | `measuredWidth` | Secondary geometry output | bead width, coverage width |
-| `measuredSpeed` | Process speed | wire speed, line speed |
-| `measuredCurrent` | Primary process input | welding current, flow rate |
-| `measuredVoltage` | Secondary process input | arc voltage, nozzle pressure |
+| `inputParams` | Controlled process input snapshot when available | welding AI inputs, other profile setpoints |
 
 ## Canonical runs
 
@@ -55,9 +53,7 @@ python demo/profiles/spray_coating_profile.py --mode both --duration 120 --inter
 |---|---|---|
 | `measuredHeight` | Bead Height (mm) | Coating Thickness (mm) |
 | `measuredWidth` | Bead Width (mm) | Coverage Width (mm) |
-| `measuredSpeed` | Wire Speed | Line Speed |
-| `measuredCurrent` | Welding Current | Flow Rate |
-| `measuredVoltage` | Arc Voltage | Nozzle Pressure |
+| `inputParams` | Wire Feed Speed / Travel Speed / Arc Length Correction | Optional setpoint snapshot |
 
 ## Configuration
 

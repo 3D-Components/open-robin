@@ -1,0 +1,16 @@
+# Laser profile plot display window configuration.
+#
+# Edit this file to change the visible scan area and hit "Reload Config" in
+# the Sensor tab — no need to restart rqt.
+#
+# Both axes are fixed (no auto-scaling) so the profile is always in view
+# at the same spatial position regardless of what the sensor returns.
+#
+# Y axis  — lateral extent of the cross-section (horizontal in the plot)
+y_min_mm: -35.0
+y_max_mm:  35.0
+
+# Z axis  — vertical extent / height range of the cross-section
+# Total range = z_max_mm - z_min_mm  →  default 20 mm
+z_min_mm:  -5.0
+z_max_mm:  15.0

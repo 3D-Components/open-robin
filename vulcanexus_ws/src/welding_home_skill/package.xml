@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+    schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>welding_home_skill</name>
+  <version>0.1.0</version>
+  <description>
+    Mock implementation of the "move to home" welding skill.
+    Lifecycle action server that simulates moving the robot arm to the safe
+    home configuration. Mock: sleeps 3 s while publishing progress feedback.
+
+    ros4hri compliance: conceptually implements motion_skills/ExecuteJointTrajectory.
+  </description>
+  <maintainer email="dev@example.com">Developer</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>welding_msgs</depend>
+  <depend>lifecycle_msgs</depend>
+  <depend>sensor_msgs</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+    <!-- ros4hri skill declaration: maps to motion_skills/execute_joint_trajectory -->
+    <implements type="skill" package="motion_skills" id="execute_joint_trajectory"/>
+  </export>
+</package>

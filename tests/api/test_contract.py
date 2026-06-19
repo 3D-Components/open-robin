@@ -43,17 +43,52 @@ async def test_ai_models_listing_and_active(client):
 
 @pytest.mark.asyncio
 async def test_ai_predict_forward_pass(client):
-    payload = {'wireSpeed': 3.0, 'current': 120.0, 'voltage': 16.5}
+    payload = {
+        'wire_feed_speed_mpm_model_input': 10.5,
+        'travel_speed_mps_model_input': 0.021,
+        'arc_length_correction_mm_model_input': 1.5,
+    }
     resp = await client.post('/ai/models/predict', json=payload)
     assert resp.status_code == 200
     data = resp.json()
     assert 'prediction' in data
     pred = data['prediction']
     assert set(['height', 'width']).issubset(pred.keys())
-    assert (
-        data.get('feature_order') == ['wireSpeed', 'current', 'voltage']
-        or True
-    )
+    assert data.get('feature_order') == [
+        'wire_feed_speed_mpm_model_input',
+        'travel_speed_mps_model_input',
+        'arc_length_correction_mm_model_input',
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ai_predict_accepts_nested_input_params_payload(client):
+    payload = {
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.5,
+            'travel_speed_mps_model_input': 0.021,
+            'arc_length_correction_mm_model_input': 1.5,
+        }
+    }
+    resp = await client.post('/ai/models/predict', json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['input_params'] == payload['input_params']
+    assert 'input_feature_specs' in data
+
+
+@pytest.mark.asyncio
+async def test_ai_predict_rejects_incomplete_input_payload(client):
+    payload = {'wireSpeed': 10.0, 'current': 150.0, 'voltage': 24.0}
+    resp = await client.post('/ai/models/predict', json=payload)
+    assert resp.status_code == 422
+    detail = resp.json()['detail']
+    assert detail['message'] == 'Missing required AI input features'
+    assert detail['missing_features'] == [
+        'wire_feed_speed_mpm_model_input',
+        'travel_speed_mps_model_input',
+        'arc_length_correction_mm_model_input',
+    ]
 
 
 @pytest.mark.asyncio
@@ -100,7 +135,11 @@ async def test_check_deviation_parameter_driven_happy_path(
     payload = {
         'process_id': 'P123',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 3.0, 'current': 120.0, 'voltage': 16.5},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.5,
+            'travel_speed_mps_model_input': 0.021,
+            'arc_length_correction_mm_model_input': 1.5,
+        },
     }
     resp = await client.post('/check-deviation', json=payload)
     assert resp.status_code == 200

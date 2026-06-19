@@ -5,12 +5,18 @@ import { Chip } from '../../ui/Chip';
 import { Button } from '../../ui/Button';
 import { Select } from '../../ui/Select';
 import { Divider } from '../../ui/ProgressBar';
-import type { OperationMode, ProcessControlsState, TargetGeometry } from '../../../types';
+import type {
+    AIInputFeatureSpec,
+    OperationMode,
+    ProcessControlsState,
+    TargetGeometry,
+} from '../../../types';
 import { domainTerms } from '../../../config/domain';
 
 interface ProcessControlsPanelProps {
     processId: string | null;
     controls: ProcessControlsState;
+    aiInputFeatures: AIInputFeatureSpec[];
     onControlsChange: (next: ProcessControlsState) => void;
     onApply: (controls: ProcessControlsState) => void;
     targetGeometry: TargetGeometry | null;
@@ -20,6 +26,7 @@ interface ProcessControlsPanelProps {
 export function ProcessControlsPanel({
     processId,
     controls,
+    aiInputFeatures,
     onControlsChange,
     onApply,
     targetGeometry,
@@ -109,48 +116,30 @@ export function ProcessControlsPanel({
                     </div>
 
                     <div className="mt-2 grid gap-2">
-                        <label className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-slate-600 dark:text-slate-400 w-24">{domainTerms.speed}</span>
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={controls.speed}
-                                    onChange={(e) => update({ speed: parseFloat(e.target.value) || 0 })}
-                                    readOnly={!isParameterMode}
-                                    className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900 read-only:opacity-60"
-                                />
-                                <span className="text-xs text-slate-500 w-10">{domainTerms.speedUnit}</span>
-                            </div>
-                        </label>
-                        <label className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-slate-600 dark:text-slate-400 w-24">{domainTerms.current}</span>
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    step="1"
-                                    value={controls.current}
-                                    onChange={(e) => update({ current: parseFloat(e.target.value) || 0 })}
-                                    readOnly={!isParameterMode}
-                                    className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900 read-only:opacity-60"
-                                />
-                                <span className="text-xs text-slate-500 w-10">{domainTerms.currentUnit}</span>
-                            </div>
-                        </label>
-                        <label className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-slate-600 dark:text-slate-400 w-24">{domainTerms.voltage}</span>
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={controls.voltage}
-                                    onChange={(e) => update({ voltage: parseFloat(e.target.value) || 0 })}
-                                    readOnly={!isParameterMode}
-                                    className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900 read-only:opacity-60"
-                                />
-                                <span className="text-xs text-slate-500 w-10">{domainTerms.voltageUnit}</span>
-                            </div>
-                        </label>
+                        {aiInputFeatures.map((feature) => (
+                            <label key={feature.key} className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-slate-600 dark:text-slate-400 w-32">{feature.label}</span>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="number"
+                                        step={feature.step ?? 0.1}
+                                        min={feature.min}
+                                        max={feature.max}
+                                        value={controls.inputParams[feature.key] ?? 0}
+                                        onChange={(e) =>
+                                            update({
+                                                inputParams: {
+                                                    ...controls.inputParams,
+                                                    [feature.key]: parseFloat(e.target.value) || 0,
+                                                },
+                                            })}
+                                        readOnly={!isParameterMode}
+                                        className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs font-mono dark:border-slate-700 dark:bg-slate-900 read-only:opacity-60"
+                                    />
+                                    <span className="text-xs text-slate-500 min-w-10">{feature.unit || '—'}</span>
+                                </div>
+                            </label>
+                        ))}
                     </div>
 
                     {!isParameterMode && (

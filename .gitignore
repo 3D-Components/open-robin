@@ -174,6 +174,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv*/
 env/
 venv/
 ENV/
@@ -225,6 +226,10 @@ pyrightconfig.json
 install/
 log/
 
+# Private MLOps artifacts (local training data and exports)
+data/bags/
+data/mlops/
+
 # Ignore generated docs
 *.dox
 *.wikidoc
@@ -272,4 +277,9 @@ AMENT_IGNORE
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,ros2,python,visualstudiocode
 ros2_packages/.github/*
 node_modules
-Data_ROSBAGS/
+data/rosbags/exp001_rosbag_real
+.claude/
+humble_workspace/.pixi/
+.env
+.venv-docs/
+.venv-test/

@@ -32,6 +32,7 @@ class FakeClient:
         speed=None,
         current=None,
         voltage=None,
+        input_params=None,
     ):
         return self.create_measurement_ok
 
@@ -140,10 +141,39 @@ def test_add_measurement_success(monkeypatch):
             '150',
             '--voltage',
             '24.5',
+            '--input-param',
+            'wire_feed_speed_mpm_model_input=10.5',
+            '--input-param',
+            'travel_speed_mps_model_input=0.021',
         ],
     )
     assert result.exit_code == 0
     assert 'Added measurement M1 for process PX' in result.stdout
+
+
+def test_add_measurement_invalid_input_param(monkeypatch):
+    fc = FakeClient()
+
+    def fake_ctor(orion_url=None):
+        return fc
+
+    monkeypatch.setattr(rcli, 'RobinFiwareClient', fake_ctor)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli_app,
+        [
+            'add-measurement',
+            'PX',
+            'M1',
+            '4.2',
+            '7.9',
+            '--input-param',
+            'wire_feed_speed_mpm_model_input:not-a-pair',
+        ],
+    )
+    assert result.exit_code != 0
+    assert 'Invalid input param' in result.stderr
 
 
 def test_add_measurement_failure(monkeypatch):
@@ -172,7 +202,7 @@ def test_add_recommendation_success(monkeypatch):
     monkeypatch.setattr(rcli, 'RobinFiwareClient', fake_ctor)
 
     runner = CliRunner()
-    params = '{"wireSpeed": 12.3, "current": 180, "voltage": 24.5}'
+    params = '{"wire_feed_speed_mpm_model_input": 12.3, "travel_speed_mps_model_input": 0.021, "arc_length_correction_mm_model_input": 1.5}'
     result = runner.invoke(cli_app, ['add-recommendation', 'PX', params])
     assert result.exit_code == 0
     assert 'Added AI recommendation for process PX' in result.stdout
@@ -202,7 +232,7 @@ def test_add_recommendation_failure(monkeypatch):
     monkeypatch.setattr(rcli, 'RobinFiwareClient', fake_ctor)
 
     runner = CliRunner()
-    params = '{"wireSpeed": 10}'
+    params = '{"wire_feed_speed_mpm_model_input": 10}'
     result = runner.invoke(cli_app, ['add-recommendation', 'PX', params])
     assert result.exit_code != 0
     assert 'Failed to add AI recommendation' in result.stderr

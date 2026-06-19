@@ -35,7 +35,7 @@ def generate_launch_description():
     sensor_cmd_node = Node(
         package='robin_hardware_garmo',
         executable='sensor_cmd',
-        name='sensor_command_service',
+        name='garmo_command_node',
         output='screen', # can be 'log' to capture to file
         parameters=[{
             'sensor_ip': sensor_ip,

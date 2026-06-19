@@ -64,6 +64,25 @@ skills:
 
 ai:
   feature_order: [wireSpeed, current, voltage]
+  input_features:
+    - key: wireSpeed
+      label: Line Speed
+      unit: mm/s
+      default: 180.0
+      step: 1.0
+      aliases: [speed, measuredSpeed]
+    - key: current
+      label: Flow Rate
+      unit: ml/min
+      default: 40.0
+      step: 0.5
+      aliases: [current, measuredCurrent]
+    - key: voltage
+      label: Nozzle Pressure
+      unit: bar
+      default: 3.0
+      step: 0.1
+      aliases: [voltage, measuredVoltage]
   model_path: data/models/spray_coating/process_geometry_mlp.pt
   default_tolerance: 10.0
   default_mode: geometry_driven

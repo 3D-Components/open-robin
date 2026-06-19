@@ -68,8 +68,27 @@ skills:
     description: Execute a multi-bead welding experiment
 
 ai:
-  feature_order: [wireSpeed, current, voltage]
-  model_path: data/models/welding/process_geometry_mlp.pt
+  feature_order:
+    - wire_feed_speed_mpm_model_input
+    - travel_speed_mps_model_input
+    - arc_length_correction_mm_model_input
+  input_features:
+    - key: wire_feed_speed_mpm_model_input
+      label: Wire Feed Speed
+      unit: m/min
+      default: 10.0
+      step: 0.1
+    - key: travel_speed_mps_model_input
+      label: Travel Speed
+      unit: m/s
+      default: 0.020
+      step: 0.001
+    - key: arc_length_correction_mm_model_input
+      label: Arc Length Correction
+      unit: mm
+      default: 0.0
+      step: 0.1
+  model_path: data/models/unified_legacy_arc0_plus_fragmented/selected_gold_torch_mlp/torch_selected_gold_model.pt
   default_tolerance: 10.0
   default_mode: parameter_driven
   forward_confidence:
@@ -81,9 +100,9 @@ ai:
     min_confidence: 0.05
     max_confidence: 0.99
   inverse_bounds:
-    wireSpeed: [5.0, 15.0]
-    current: [100.0, 220.0]
-    voltage: [18.0, 32.0]
+    wire_feed_speed_mpm_model_input: [5.0, 15.0]
+    travel_speed_mps_model_input: [0.010, 0.035]
+    arc_length_correction_mm_model_input: [-8.0, 8.0]
   inverse_optimizer:
     restarts: 32
     max_iterations: 80

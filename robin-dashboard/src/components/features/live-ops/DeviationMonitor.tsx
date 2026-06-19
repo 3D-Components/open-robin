@@ -17,7 +17,9 @@ import {
     type DeviationCheckResponse,
     type RobinMeasurement,
 } from '../../../hooks/useRobinAPI';
+import { resolveRecordedAIInputParams } from '../../../config/aiInputFeatures';
 import type {
+    AIInputFeatureSpec,
     OperationMode,
     ProcessControlsState,
     TargetGeometry,
@@ -29,6 +31,7 @@ interface DeviationMonitorProps {
     processId: string | null;
     controls: ProcessControlsState;
     latestMeasurements: RobinMeasurement[] | null;
+    aiInputFeatures: AIInputFeatureSpec[];
     targetGeometry: TargetGeometry | null;
     processMode: OperationMode | null;
     onAlert: (severity: 'Info' | 'Warning' | 'Critical', message: string) => void;
@@ -37,6 +40,7 @@ interface DeviationMonitorProps {
     onWarningEscalation?: () => void;
     warningGateResetToken?: number;
     pollIntervalMs?: number;
+    dataStaleThresholdMs?: number;
 }
 
 const WARNING_STREAK_THRESHOLD = 2;
@@ -65,6 +69,7 @@ export function DeviationMonitor({
     processId,
     controls,
     latestMeasurements,
+    aiInputFeatures,
     targetGeometry: _targetGeometry,
     processMode,
     onAlert,
@@ -73,6 +78,7 @@ export function DeviationMonitor({
     onWarningEscalation,
     warningGateResetToken = 0,
     pollIntervalMs = 3000,
+    dataStaleThresholdMs = 30_000,
 }: DeviationMonitorProps) {
     const [deviationResult, setDeviationResult] = useState<DeviationCheckResponse | null>(null);
     const [checking, setChecking] = useState(false);
@@ -91,33 +97,35 @@ export function DeviationMonitor({
         return {
             height: latest.height ?? null,
             width: latest.width ?? null,
-            speed: latest.speed ?? null,
-            current: latest.current ?? null,
-            voltage: latest.voltage ?? null,
+            inputParams: resolveRecordedAIInputParams(
+                latest as unknown as Record<string, unknown>,
+                aiInputFeatures,
+            ),
             timestamp: latest.timestamp ?? null,
         };
-    }, []);
+    }, [aiInputFeatures]);
 
     const runCheck = useCallback(async () => {
         if (!processId || !latestMeasurements?.length) return;
 
         const snap = extractSnapshot(latestMeasurements);
         if (!snap || snap.height === null || snap.width === null) return;
+
+        // If the latest data point is older than the threshold, show idle state and bail
+        if (snap.timestamp) {
+            const ageMs = Date.now() - new Date(snap.timestamp).getTime();
+            if (ageMs > dataStaleThresholdMs) {
+                const ageSec = Math.round(ageMs / 1000);
+                setStatusMsg(`No active data (last seen ${ageSec}s ago)`);
+                setChecking(false);
+                return;
+            }
+        }
+
         setSnapshot(snap);
 
         const mode: OperationMode = processMode ?? controls.mode;
-        const inputParams =
-            mode === 'geometry_driven'
-                ? {
-                    wireSpeed: controls.speed,
-                    current: controls.current,
-                    voltage: controls.voltage,
-                }
-                : {
-                    wireSpeed: snap.speed ?? controls.speed,
-                    current: snap.current ?? controls.current,
-                    voltage: snap.voltage ?? controls.voltage,
-                };
+        const inputParams = controls.inputParams;
 
         const payload: Parameters<typeof checkDeviation>[0] = {
             process_id: processId,
@@ -207,7 +215,7 @@ export function DeviationMonitor({
         } finally {
             setChecking(false);
         }
-    }, [processId, latestMeasurements, controls, processMode, onAlert, onPointEvaluated, onWarningEscalation, extractSnapshot]);
+    }, [processId, latestMeasurements, controls, processMode, onAlert, onPointEvaluated, onWarningEscalation, extractSnapshot, dataStaleThresholdMs]);
 
     useEffect(() => {
         if (!processId || !latestMeasurements?.length) {
@@ -298,9 +306,21 @@ export function DeviationMonitor({
                         <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                             <KV k="Height" v={<span className="font-mono">{fmt(snapshot.height, 2, 'mm')}</span>} />
                             <KV k="Width" v={<span className="font-mono">{fmt(snapshot.width, 2, 'mm')}</span>} />
-                            <KV k="Speed" v={<span className="font-mono">{fmt(snapshot.speed, 2, 'mm/s')}</span>} />
-                            <KV k="Current" v={<span className="font-mono">{fmt(snapshot.current, 1, 'A')}</span>} />
-                            <KV k="Voltage" v={<span className="font-mono">{fmt(snapshot.voltage, 1, 'V')}</span>} />
+                            {aiInputFeatures.slice(0, 3).map((feature) => (
+                                <KV
+                                    key={feature.key}
+                                    k={feature.label}
+                                    v={
+                                        <span className="font-mono">
+                                            {fmt(
+                                                snapshot.inputParams[feature.key],
+                                                feature.step && feature.step < 1 ? 3 : 2,
+                                                feature.unit,
+                                            )}
+                                        </span>
+                                    }
+                                />
+                            ))}
                             <KV
                                 k="Time"
                                 v={
@@ -453,6 +473,7 @@ export function DeviationMonitor({
                         </div>
                     </div>
                 )}
+
             </CardBody>
         </Card>
     );

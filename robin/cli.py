@@ -24,6 +24,30 @@ class OperationMode(str, Enum):
     GEOMETRY_DRIVEN = 'geometry_driven'
 
 
+def parse_input_param_items(items: list[str]) -> Dict[str, float]:
+    """Parse repeated KEY=VALUE items into a numeric dict."""
+    parsed: Dict[str, float] = {}
+    for item in items:
+        if '=' not in item:
+            raise ValueError(
+                f'Invalid input param "{item}". Expected KEY=VALUE.'
+            )
+        key, raw_value = item.split('=', 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if not key:
+            raise ValueError(
+                f'Invalid input param "{item}". Key must not be empty.'
+            )
+        try:
+            parsed[key] = float(raw_value)
+        except ValueError as exc:
+            raise ValueError(
+                f'Invalid numeric value in input param "{item}".'
+            ) from exc
+    return parsed
+
+
 class RobinFiwareClient:
     ROBIN_NS = 'urn:robin:'
     PROCESS_ENTITY_TYPE = 'urn:robin:Process'
@@ -154,6 +178,52 @@ class RobinFiwareClient:
                 f'Failed to stop process {process_id}: {response.text}',
             )
 
+    def patch_process_intent(self, process_id: str, intent: str, data: dict) -> bool:
+        """Write the pending intent to the Process entity in Orion-LD.
+
+        Orion-LD 1.x has separate operations for adding vs updating attributes:
+        - PATCH /attrs updates existing attributes (returns 204 on success, 207 if attr missing)
+        - POST  /attrs appends new attributes (returns 204 on success)
+
+        Strategy:
+        1. PATCH to update (fast path for subsequent intents)
+        2. If 207 (attribute missing) → POST to append it (first intent ever)
+        3. If 404 (entity missing) → create a minimal entity stub
+        """
+        entity_id = f'{self.PROCESS_ENTITY_ID_PREFIX}{process_id}'
+        now = datetime.now(timezone.utc).isoformat()
+        intent_prop = {
+            'type': 'Property',
+            'value': {'intent': intent, 'data': data, 'source': 'dashboard'},
+            'observedAt': now,
+        }
+        attrs_url = f'{self.orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs'
+
+        response = requests.patch(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+
+        if response.status_code == 204:
+            return True
+
+        if response.status_code == 207:
+            # Attribute doesn't exist yet — append it, then PATCH to guarantee subscription fires
+            # (Orion-LD does not fire watchedAttributes subscriptions on POST /attrs, only on PATCH)
+            requests.post(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+            patch_resp = requests.patch(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+            return patch_resp.status_code == 204
+
+        if response.status_code == 404:
+            # Entity doesn't exist yet — create a minimal stub, then PATCH to fire subscription
+            # (Orion-LD does not fire subscriptions on entity creation, only on PATCH)
+            requests.post(
+                f'{self.orion_url}/ngsi-ld/v1/entities',
+                headers=self.headers,
+                json={'id': entity_id, 'type': 'urn:robin:Process', 'pendingIntent': intent_prop},
+            )
+            patch_resp = requests.patch(attrs_url, headers=self.headers, json={'pendingIntent': intent_prop})
+            return patch_resp.status_code == 204
+
+        return False
+
     def resume_process(self, process_id: str):
         """Resume a stopped process"""
         entity_id = f'{self.PROCESS_ENTITY_ID_PREFIX}{process_id}'
@@ -256,6 +326,13 @@ class RobinFiwareClient:
             else None,
         }
 
+        input_params = process_data.get('inputParams', {}).get('value')
+        if isinstance(input_params, dict):
+            if status_info['telemetry'] is None:
+                status_info['telemetry'] = {}
+            if isinstance(status_info['telemetry'], dict):
+                status_info['telemetry']['input_params'] = input_params
+
         return status_info, None
 
     def create_geometry_target(
@@ -308,6 +385,28 @@ class RobinFiwareClient:
         except Exception:
             return False
 
+    def set_input_params(
+        self, process_id: str, input_params: Dict[str, float]
+    ) -> bool:
+        """Persist the currently commanded AI/process inputs on the Process entity."""
+        try:
+            entity_id = f'{self.PROCESS_ENTITY_ID_PREFIX}{process_id}'
+            payload = {
+                'inputParams': {
+                    'type': 'Property',
+                    'value': input_params,
+                },
+            }
+            resp = requests.patch(
+                f'{self.orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs',
+                headers=self.headers,
+                json=payload,
+                timeout=5,
+            )
+            return 200 <= resp.status_code < 300
+        except Exception:
+            return False
+
     def create_measurement(
         self,
         process_id: str,
@@ -317,6 +416,7 @@ class RobinFiwareClient:
         speed: float = None,
         current: float = None,
         voltage: float = None,
+        input_params: Dict[str, float] | None = None,
     ):
         """Store measurement values with optional machine parameters"""
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -366,6 +466,13 @@ class RobinFiwareClient:
                 'observedAt': timestamp,
             }
 
+        if input_params:
+            entity['inputParams'] = {
+                'type': 'Property',
+                'value': input_params,
+                'observedAt': timestamp,
+            }
+
         response = requests.post(
             f'{self.orion_url}/ngsi-ld/v1/entities',
             headers=self.headers,
@@ -410,6 +517,12 @@ class RobinFiwareClient:
                     'type': 'Property',
                     'value': voltage,
                     'unitCode': 'V',
+                    'observedAt': timestamp,
+                }
+            if input_params:
+                attrs_payload['inputParams'] = {
+                    'type': 'Property',
+                    'value': input_params,
                     'observedAt': timestamp,
                 }
 
@@ -461,7 +574,7 @@ class RobinFiwareClient:
     def create_alert(self, alert_data):
         """Create alert entity in Orion"""
         entity = {
-            'id': f'urn:ngsi-ld:Alert:{alert_data.process_id}-{int(time.time())}',
+            'id': f'urn:ngsi-ld:Alert:{alert_data.process_id}-{int(time.time() * 1000)}',
             'type': 'urn:robin:Alert',
             'processId': {
                 'type': 'Relationship',
@@ -499,7 +612,8 @@ class RobinFiwareClient:
             headers=self.headers,
             json=entity,
         )
-        return response.status_code in (200, 201)
+        # 409 means the entity already exists (race condition — alert was already recorded)
+        return response.status_code in (200, 201, 409)
 
 
 # CLI Commands
@@ -573,12 +687,30 @@ def add_measurement(
     speed: float = typer.Option(None, help='Measured travel speed in mm/s'),
     current: float = typer.Option(None, help='Measured current in A'),
     voltage: float = typer.Option(None, help='Measured voltage in V'),
+    input_param: list[str] = typer.Option(
+        None,
+        '--input-param',
+        help='Repeatable KEY=VALUE process input snapshot to attach to the measurement',
+    ),
     orion_url: str = typer.Option(ORION, help='Orion Context Broker URL'),
 ):
-    """Add a measurement for a process with optional machine parameters"""
+    """Add a measurement for a process with optional machine parameters."""
+    try:
+        input_params = parse_input_param_items(input_param or [])
+    except ValueError as exc:
+        typer.echo(f'❌ {exc}', err=True)
+        raise typer.Exit(1)
+
     client = RobinFiwareClient(orion_url)
     success = client.create_measurement(
-        process_id, measurement_id, height, width, speed, current, voltage
+        process_id,
+        measurement_id,
+        height,
+        width,
+        speed,
+        current,
+        voltage,
+        input_params if input_params else None,
     )
     if success:
         params_str = f'{height}x{width}mm'
@@ -591,6 +723,9 @@ def add_measurement(
             if voltage is not None:
                 param_parts.append(f'voltage={voltage}V')
             params_str += f' ({", ".join(param_parts)})'
+        if input_params:
+            input_parts = [f'{key}={value}' for key, value in input_params.items()]
+            params_str += f' [inputParams: {", ".join(input_parts)}]'
 
         typer.echo(
             f'✅ Added measurement {measurement_id} for process {process_id}: {params_str}'
@@ -701,6 +836,11 @@ def process_status(
                 typer.echo(f'  Current: {float(telemetry["current"]):.2f} A')
             if telemetry.get('voltage') is not None:
                 typer.echo(f'  Voltage: {float(telemetry["voltage"]):.2f} V')
+            input_params = telemetry.get('input_params')
+            if isinstance(input_params, dict) and input_params:
+                typer.echo('  Input Params:')
+                for key, value in input_params.items():
+                    typer.echo(f'    {key}: {float(value):.4f}')
         except Exception:
             typer.echo('Telemetry attribute exists, but is not yet populated.')
     else:

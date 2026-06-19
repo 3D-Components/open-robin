@@ -38,7 +38,11 @@ async def test_perf_root_endpoint(client):
 
 @pytest.mark.asyncio
 async def test_perf_ai_predict_smoke(client):
-    payload = {'wireSpeed': 2.5, 'current': 110.0, 'voltage': 17.0}
+    payload = {
+        'wire_feed_speed_mpm_model_input': 10.0,
+        'travel_speed_mps_model_input': 0.02,
+        'arc_length_correction_mm_model_input': 0.0,
+    }
 
     async def once():
         resp = await client.post('/ai/models/predict', json=payload)

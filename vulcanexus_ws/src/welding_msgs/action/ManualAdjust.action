@@ -1,0 +1,21 @@
+# Manually adjust a single welding process parameter.
+# Triggered by the "Manual adjust" button in the ROBIN dashboard.
+# ros4hri: maps to process_skills/action/ManualParameterAdjust
+
+# ── Goal ──────────────────────────────────────────────────────────────────
+string  parameter_name  # e.g. "weld_speed", "wire_feed", "current", "voltage"
+float32 new_value       # target value in the unit below
+string  unit            # "mm/s" | "m/min" | "A" | "V"
+
+---
+
+# ── Result ─────────────────────────────────────────────────────────────────
+bool    success
+string  message
+float32 applied_value   # actual value applied after clamping to safe range
+
+---
+
+# ── Feedback ───────────────────────────────────────────────────────────────
+float32 progress_pct   # 0.0 → 100.0
+string  phase          # "VALIDATING" | "APPLYING" | "CONFIRMING"

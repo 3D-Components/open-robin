@@ -71,6 +71,13 @@ def test_fetch_latest_measurement_success(monkeypatch):
             'measuredSpeed': {'value': 10.5},
             'measuredCurrent': {'value': 150.0},
             'measuredVoltage': {'value': 24.0},
+            'inputParams': {
+                'value': {
+                    'wire_feed_speed_mpm_model_input': 10.5,
+                    'travel_speed_mps_model_input': 0.021,
+                    'arc_length_correction_mm_model_input': 1.2,
+                }
+            },
         },
     ]
 
@@ -93,6 +100,7 @@ def test_fetch_latest_measurement_success(monkeypatch):
         and out['current'] == 150.0
         and out['voltage'] == 24.0
     )
+    assert out['input_params']['travel_speed_mps_model_input'] == 0.021
     assert out['timestamp'] == '2025-01-01T00:00:02Z'
 
 

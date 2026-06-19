@@ -94,7 +94,6 @@ These scripts remain available for setup/integration tasks:
 - `demo/validate-setup.sh`
 - `demo/cleanup-demo.sh`
 - `demo/simulation-demo-rosbag.sh`
-- `demo/interactive-demo.sh`
 
 ## Cleanup
 

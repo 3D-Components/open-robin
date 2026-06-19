@@ -1,0 +1,8 @@
+# ApproveExperimentPlan.srv - Explicit operator approval gate for a planned experiment
+
+string plan_id
+bool approve
+---
+bool success
+bool approved
+string message

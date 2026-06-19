@@ -1,5 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
-import { domainTerms } from '../../../config/domain';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import {
     Shield,
     Database,
@@ -30,11 +29,22 @@ import {
     predictGeometry,
     type AIModelsResponse,
 } from '../../../hooks/useRobinAPI';
-import type { ModelVersion, AuditLogEntry, TrustAssessment } from '../../../types';
+import type {
+    AIInputFeatureSpec,
+    AIInputParams,
+    ModelVersion,
+    AuditLogEntry,
+    TrustAssessment,
+} from '../../../types';
+import {
+    buildDefaultAIInputParams,
+    normalizeAIInputParams,
+} from '../../../config/aiInputFeatures';
 
 interface ModelsTrustTabProps {
     models: ModelVersion[];
     activeModel: string;
+    aiInputFeatures: AIInputFeatureSpec[];
     onSwitchModel: (next: string) => void;
     audit: AuditLogEntry[];
     trustWarnTh: number;
@@ -71,6 +81,7 @@ function formatDate(iso: string | undefined | null): string {
 export function ModelsTrustTab({
     models,
     activeModel,
+    aiInputFeatures,
     onSwitchModel,
     audit,
     trustWarnTh,
@@ -102,11 +113,15 @@ export function ModelsTrustTab({
     const [loadingModel, setLoadingModel] = useState(false);
     const [modelStatus, setModelStatus] = useState('');
 
-    const [predWireSpeed, setPredWireSpeed] = useState(10);
-    const [predCurrent, setPredCurrent] = useState(150);
-    const [predVoltage, setPredVoltage] = useState(24);
+    const [predictInputs, setPredictInputs] = useState<AIInputParams>(
+        buildDefaultAIInputParams(aiInputFeatures),
+    );
     const [predicting, setPredicting] = useState(false);
     const [predictionResult, setPredictionResult] = useState<Record<string, unknown> | null>(null);
+
+    useEffect(() => {
+        setPredictInputs((prev) => normalizeAIInputParams(prev, aiInputFeatures));
+    }, [aiInputFeatures]);
 
     const handleLoadModel = useCallback(async () => {
         if (!selectedPath) return;
@@ -127,11 +142,7 @@ export function ModelsTrustTab({
         setPredicting(true);
         setPredictionResult(null);
         try {
-            const result = await predictGeometry({
-                wireSpeed: predWireSpeed,
-                current: predCurrent,
-                voltage: predVoltage,
-            });
+            const result = await predictGeometry({ input_params: predictInputs });
             setPredictionResult(result);
         } catch (err) {
             setPredictionResult({
@@ -140,7 +151,7 @@ export function ModelsTrustTab({
         } finally {
             setPredicting(false);
         }
-    }, [predWireSpeed, predCurrent, predVoltage]);
+    }, [predictInputs]);
 
     const isActive = (path: string) => aiActiveModel?.path === path;
 
@@ -301,37 +312,27 @@ export function ModelsTrustTab({
                                 <Sparkles className="h-4 w-4" />
                                 Quick Prediction
                             </div>
-                            <div className="mt-2 grid grid-cols-3 gap-2">
-                                <label className="space-y-1">
-                                    <span className="text-xs text-slate-500">{domainTerms.speed} ({domainTerms.speedUnit})</span>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        value={predWireSpeed}
-                                        onChange={(e) => setPredWireSpeed(parseFloat(e.target.value) || 0)}
-                                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-mono dark:border-slate-700 dark:bg-slate-900"
-                                    />
-                                </label>
-                                <label className="space-y-1">
-                                    <span className="text-xs text-slate-500">{domainTerms.current} ({domainTerms.currentUnit})</span>
-                                    <input
-                                        type="number"
-                                        step="1"
-                                        value={predCurrent}
-                                        onChange={(e) => setPredCurrent(parseFloat(e.target.value) || 0)}
-                                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-mono dark:border-slate-700 dark:bg-slate-900"
-                                    />
-                                </label>
-                                <label className="space-y-1">
-                                    <span className="text-xs text-slate-500">{domainTerms.voltage} ({domainTerms.voltageUnit})</span>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        value={predVoltage}
-                                        onChange={(e) => setPredVoltage(parseFloat(e.target.value) || 0)}
-                                        className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-mono dark:border-slate-700 dark:bg-slate-900"
-                                    />
-                                </label>
+                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
+                                {aiInputFeatures.map((feature) => (
+                                    <label key={feature.key} className="space-y-1">
+                                        <span className="text-xs text-slate-500">
+                                            {feature.label} {feature.unit ? `(${feature.unit})` : ''}
+                                        </span>
+                                        <input
+                                            type="number"
+                                            step={feature.step ?? 0.1}
+                                            min={feature.min}
+                                            max={feature.max}
+                                            value={predictInputs[feature.key] ?? 0}
+                                            onChange={(e) =>
+                                                setPredictInputs((prev) => ({
+                                                    ...prev,
+                                                    [feature.key]: parseFloat(e.target.value) || 0,
+                                                }))}
+                                            className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-mono dark:border-slate-700 dark:bg-slate-900"
+                                        />
+                                    </label>
+                                ))}
                             </div>
                             <div className="mt-2">
                                 <Button size="sm" onClick={handlePredict} disabled={predicting}>

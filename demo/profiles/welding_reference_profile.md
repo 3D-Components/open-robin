@@ -14,7 +14,7 @@ This single script validates both operational modes with real alert generation.
 
 ### Parameter-driven
 
-- Operator chooses initial welding parameters (`wireSpeed`, `current`, `voltage`).
+- Operator chooses initial welding AI inputs (`wire_feed_speed_mpm_model_input`, `travel_speed_mps_model_input`, `arc_length_correction_mm_model_input`).
 - AI predicts expected bead geometry.
 - Streamed measurements are checked against AI prediction.
 
@@ -30,9 +30,13 @@ This single script validates both operational modes with real alert generation.
 |---|---|---|
 | Bead Height | `measuredHeight` | mm |
 | Bead Width | `measuredWidth` | mm |
-| Wire Speed | `measuredSpeed` | m/min or mm/s (profile dependent display) |
-| Welding Current | `measuredCurrent` | A |
-| Arc Voltage | `measuredVoltage` | V |
+| Controlled welding inputs | `inputParams` | mixed (`m/min`, `m/s`, `mm`) |
+
+The welding demo records these controlled inputs in each measurement snapshot:
+
+- `wire_feed_speed_mpm_model_input`
+- `travel_speed_mps_model_input`
+- `arc_length_correction_mm_model_input`
 
 ## ROS 2 / DDS note
 

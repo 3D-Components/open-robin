@@ -24,7 +24,11 @@ async def test_ai_recommendation_parameter_uses_dynamic_confidence(
     payload = {
         'process_id': 'P-DYN',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 10.0, 'current': 150.0, 'voltage': 24.0},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.5,
+        },
     }
     resp = await client.post('/ai-recommendation', json=payload)
     assert resp.status_code == 200
@@ -53,7 +57,11 @@ async def test_ai_models_predict_includes_dynamic_confidence(
         },
     )
 
-    payload = {'wireSpeed': 10.0, 'current': 150.0, 'voltage': 24.0}
+    payload = {
+        'wire_feed_speed_mpm_model_input': 10.0,
+        'travel_speed_mps_model_input': 0.02,
+        'arc_length_correction_mm_model_input': 0.5,
+    }
     resp = await client.post('/ai/models/predict', json=payload)
     assert resp.status_code == 200
     body = resp.json()

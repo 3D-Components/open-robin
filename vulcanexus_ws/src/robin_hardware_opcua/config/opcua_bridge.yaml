@@ -2,12 +2,12 @@
 # High-performance bridge with batch polling
 
 servers:
-  # Fronius Welder - welding data and parameters
+  # Fronius Welder - welding data and parameters (direct OPC UA)
   fronius:
     url: "opc.tcp://192.168.1.104:4840"
     auth:
       type: anonymous
-    poll_rate: 100.0  # Hz - single timer for all topics
+    poll_rate: 10.0  # Hz - single timer for all topics
     
     # Topics: OPC UA nodes published as ROS2 topics
     topics:
@@ -41,32 +41,193 @@ servers:
         node_id: "ns=1;s=WFS_COMMANDVALUE"
         type: float32
 
-  # WAGO PLC - welding control signals
+  # WAGO PLC - Fronius welding control via GVL_Fronius_IN (write) and GVL_Fronius_OUT (read)
   wago:
     url: "opc.tcp://192.168.0.17:4840"
     auth:
       type: username_password
       username: "admin"
       password: "wago"
-    
-    # Services only - no polling needed for PLC
+    poll_rate: 50.0  # Hz - increased from 10 Hz for reliable touch signal detection
+
+    # =========================================================================
+    # Topics: GVL_Fronius_OUT → ROS2 topics (read from PLC)
+    # These are feedback/status signals from the Fronius power source
+    # =========================================================================
+    topics:
+      # Feedback signals (bool)
+      - name: "wago/out/arc_stable"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.ArcStable_TouchSignal"
+        type: bool
+
+      - name: "wago/out/current_flow"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.CurrentFlow"
+        type: bool
+
+      - name: "wago/out/heartbeat"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.HeartbeatPowerSource"
+        type: bool
+
+      - name: "wago/out/main_current_signal"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.MainCurrentSignal"
+        type: bool
+
+      - name: "wago/out/power_source_ready"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.PowerSourceReady"
+        type: bool
+
+      - name: "wago/out/process_active"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.ProcessActive"
+        type: bool
+
+      - name: "wago/out/robot_motion_release"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.RobotMotionRelease"
+        type: bool
+
+      - name: "wago/out/touch_signal"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.TouchSignal"
+        type: bool
+
+      - name: "wago/out/touch_signal_gas_nozzle"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.TouchSignalGasNozzle"
+        type: bool
+
+      - name: "wago/out/warning"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.Warning"
+        type: bool
+
+      # Feedback signals (float32) - measured welding values
+      - name: "wago/out/welding_current"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.WeldingCurrent"
+        type: float32
+
+      - name: "wago/out/welding_voltage"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.WeldingVoltage"
+        type: float32
+
+      - name: "wago/out/wire_feed_speed"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.WireFeedSpeed"
+        type: float32
+
+      # =========================================================================
+      # GVL_Fronius_IN readback → ROS2 topics (read back control signals)
+      # These mirror the writable GVL_Fronius_IN variables so that the
+      # operator panel (and any other subscriber) can see the actual PLC
+      # state, even when set by other nodes (e.g. welding_coordinator).
+      # Topic names use the /wago/in/... convention with a /state suffix.
+      # =========================================================================
+      - name: "wago/in/robot_ready/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.RobotReady"
+        type: bool
+
+      - name: "wago/in/gas_on/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.GasOn"
+        type: bool
+
+      - name: "wago/in/error_quit/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.ErrorQuit"
+        type: bool
+
+      - name: "wago/in/teach_mode/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.TeachMode"
+        type: bool
+
+      - name: "wago/in/torch_blow_out/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.TorchBlowOut"
+        type: bool
+
+      - name: "wago/in/touch_sensing/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.TouchSensing"
+        type: bool
+
+      - name: "wago/in/welding_simulation/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WeldingSimulation"
+        type: bool
+
+      - name: "wago/in/welding_start/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WeldingStart"
+        type: bool
+
+      - name: "wago/in/wire_backward/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireBackward"
+        type: bool
+
+      - name: "wago/in/wire_forward/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireForward"
+        type: bool
+
+      - name: "wago/in/wire_sense_break/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireSenseBreak"
+        type: bool
+
+      - name: "wago/in/wire_sense_start/state"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireSenseStart"
+        type: bool
+
+    # =========================================================================
+    # Services: GVL_Fronius_IN → ROS2 services (write to PLC)
+    # These are control signals sent TO the Fronius power source
+    # =========================================================================
     services:
-      - name: "wago/gas_on"
-        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.GasOn"
+      # Control signals (bool)
+      - name: "wago/in/error_quit"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.ErrorQuit"
         type: bool
-        
-      - name: "wago/robot_ready"
-        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.RobotReady"
+
+      - name: "wago/in/gas_on"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.GasOn"
         type: bool
-        
-      - name: "wago/welding_start"
-        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.WeldingStart"
+
+      - name: "wago/in/robot_ready"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.RobotReady"
         type: bool
-        
-      - name: "wago/wire_backward"
-        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.WireBackward"
+
+      - name: "wago/in/teach_mode"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.TeachMode"
         type: bool
-        
-      - name: "wago/wire_forward"
-        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.IO.WireForward"
+
+      - name: "wago/in/torch_blow_out"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.TorchBlowOut"
         type: bool
+
+      - name: "wago/in/touch_sensing"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.TouchSensing"
+        type: bool
+
+      - name: "wago/in/welding_simulation"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WeldingSimulation"
+        type: bool
+
+      - name: "wago/in/welding_start"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WeldingStart"
+        type: bool
+
+      - name: "wago/in/wire_backward"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireBackward"
+        type: bool
+
+      - name: "wago/in/wire_forward"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireForward"
+        type: bool
+
+      - name: "wago/in/wire_sense_break"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireSenseBreak"
+        type: bool
+
+      - name: "wago/in/wire_sense_start"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireSenseStart"
+        type: bool
+
+      # Control signals (float32)
+      - name: "wago/in/welding_speed"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WeldingSpeed"
+        type: float32
+
+      - name: "wago/in/wire_move_length"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireMoveLength"
+        type: float32
+
+      # Control signals (int32) - enum values
+      - name: "wago/in/working_mode"
+        node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WorkingMode"
+        type: int32

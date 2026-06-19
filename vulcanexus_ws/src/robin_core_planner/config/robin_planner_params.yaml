@@ -1,0 +1,57 @@
+# Robin Planner Configuration
+# Parameters for the MoveItPy bead execution node (robin_core_planner)
+#
+# These parameters can be overridden via launch file arguments or
+# command-line --ros-args -p parameter:=value
+
+robin_planner:
+  ros__parameters:
+    # =========================================================================
+    # Motion parameters
+    # =========================================================================
+    controller_timeout: 10.0            # Timeout waiting for controller (s)
+    approach_height: 0.15               # Height above weld start for approach/retract (m)
+    default_velocity_scaling: 0.3       # Default velocity scaling for non-weld motions (0.0-1.0)
+    default_acceleration_scaling: 0.3   # Default acceleration scaling for non-weld motions (0.0-1.0)
+    max_cartesian_velocity: 0.25        # Max Cartesian velocity from pilz_cartesian_limits.yaml (m/s)
+
+    # =========================================================================
+    # Stickout / TCP
+    # =========================================================================
+    default_stickout: 0.015             # Default wire stickout (m, 15mm)
+
+    # =========================================================================
+    # Service timeouts
+    # =========================================================================
+    welding_service_timeout: 5.0        # Timeout for /welding/start and /welding/stop (s)
+    parameter_service_timeout: 2.0      # Timeout for parameter-setting services (s)
+
+    # =========================================================================
+    # Frame and link names
+    # =========================================================================
+    end_effector_link: "wire_tip"        # TCP link for planning (wire tip, not contact tip)
+    base_frame: "base_link"              # Base reference frame
+    controller_name: "scaled_joint_trajectory_controller"
+
+    # =========================================================================
+    # Bead layout
+    # =========================================================================
+    default_bead_pitch: 0.030           # Default spacing between parallel beads (m)
+
+    # =========================================================================
+    # Stickout calibration
+    # =========================================================================
+    pre_weld_calibration: false          # Run stickout calibration before each bead
+    pre_weld_calibration_retries: 1      # Additional retries after first calibration attempt
+    pre_weld_calibration_on_fail: "continue"  # "continue" or "abort"
+    stickout_calibration_retract: 0.030  # Wire retraction before feed-until-touch (m, 30mm)
+
+    # =========================================================================
+    # Scan pass
+    # =========================================================================
+    inter_bead_clearance_height: 0.150    # Clearance height above plate surface between beads (m)
+    scan_wire_retract: 0.040              # Wire retract before per-bead scan pass (m)
+    scan_wire_slack_compensation: 0.015   # Extra pre-scan pull-in to absorb wire-hose slack (m, 15mm)
+    scan_on_fail: "continue"             # "continue" or "abort"
+    scan_control_laser: true              # Toggle laser ON only during scan pass
+    scan_laser_fps: 42                    # Profilometer FPS to request on activation

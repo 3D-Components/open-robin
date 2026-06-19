@@ -1,0 +1,72 @@
+column_name,dtype,description
+schema_version,string,Dataset schema version for the fragmented corrected-input export
+feature_contract_version,string,Feature contract version for the corrected-input recipe features
+dataset_id,string,Stable identifier for the fragmented corrected-input dataset family
+run_id,string,Bag stem for the selected attempt source
+bag_file,string,Original MCAP filename
+attempt_id,string,Globally unique mapped attempt identifier
+attempt_idx_in_bag,int,Sequential mapped attempt index inside the bag
+bead_id,string,ROS-local bead identifier within the source bag
+doe_input_id,string,Canonical DOE recipe identifier
+quality_flag,string,ok or reject reason used by downstream training filters
+start_time_ns,int,Attempt start timestamp in nanoseconds
+end_time_ns,int,Attempt end timestamp in nanoseconds
+progression_min,float,Configured lower bound of the stable progression window
+progression_max,float,Configured upper bound of the stable progression window
+progression_coverage,float,Configured stable-window span
+n_progression_samples,int,Stable-window progression message count for the attempt
+n_geometry_samples,int,Retained geometry sample count after cleaning
+n_welder_samples,int,Retained fronius sample count after cleaning
+geometry_msgs_total_interval,int,Raw geometry message count inside the attempt interval before filtering
+welder_msgs_total_interval,int,Raw fronius message count inside the attempt interval before filtering
+progression_msgs_total_interval,int,Raw progression message count inside the attempt interval before filtering
+ros_wire_feed_speed_cmd_mpm,float,Wire feed speed recorded in the ROS ActiveBead start message
+ros_travel_speed_cmd_mps,float,Travel speed recorded in the ROS ActiveBead start message
+ros_arc_length_correction_cmd_mm,float,Arc length correction recorded in the ROS ActiveBead start message
+ros_current_recomm_A,float,Current recommendation recorded in the ROS ActiveBead start message
+ros_voltage_recomm_V,float,Voltage recommendation recorded in the ROS ActiveBead start message
+total_length_m,float,Total programmed bead length recorded in the ROS ActiveBead start message
+doe_wire_feed_speed_mpm,float,Wire feed speed from the mapped DOE recipe
+doe_travel_speed_mps,float,Travel speed from the mapped DOE recipe
+doe_arc_length_correction_mm,float,Arc length correction from the mapped DOE recipe
+wire_feed_speed_mpm_model_input,float,Final wire feed speed feature intended for model training
+travel_speed_mps_model_input,float,Final travel speed feature intended for model training
+arc_length_correction_mm_model_input,float,Final arc length correction feature intended for model training
+input_source,string,Recipe feature provenance for the final model inputs
+weld_speed_match,string,Whether ROS travel speed exactly matches the mapped DOE travel speed
+weld_speed_ratio_ros_to_doe,float,ROS to DOE travel-speed ratio for provenance and ranking
+active_start_msgs,int,Count of duplicate ActiveBead start messages collapsed into the mapped attempt
+geometry_anomaly_flag,bool,True when the mapping manifest marked the attempt as geometry-heavy or suspicious
+progression_anomaly_flag,bool,True when the mapping manifest marked the attempt as progression-heavy or suspicious
+mapping_notes,string,Human-readable notes carried over from the mapping manifest
+height_mm_target,float,Median retained bead height in the stable window
+width_mm_target,float,Median retained bead width in the stable window
+height_mm_std,float,Standard deviation of retained height measurements
+width_mm_std,float,Standard deviation of retained width measurements
+height_mm_p10,float,10th percentile of retained height measurements
+height_mm_p90,float,90th percentile of retained height measurements
+width_mm_p10,float,10th percentile of retained width measurements
+width_mm_p90,float,90th percentile of retained width measurements
+measured_current_A_mean,float,Mean measured current in the stable window
+measured_current_A_median,float,Median measured current in the stable window
+measured_current_A_std,float,Standard deviation of measured current in the stable window
+measured_current_A_p10,float,10th percentile of measured current in the stable window
+measured_current_A_p90,float,90th percentile of measured current in the stable window
+measured_wire_feed_speed_mpm_mean,float,Mean measured wire feed speed in the stable window
+measured_wire_feed_speed_mpm_median,float,Median measured wire feed speed in the stable window
+measured_wire_feed_speed_mpm_std,float,Standard deviation of measured wire feed speed in the stable window
+measured_wire_feed_speed_mpm_p10,float,10th percentile of measured wire feed speed in the stable window
+measured_wire_feed_speed_mpm_p90,float,90th percentile of measured wire feed speed in the stable window
+measured_voltage_V_mean,float,Mean measured voltage in the stable window
+measured_voltage_V_median,float,Median measured voltage in the stable window
+measured_voltage_V_std,float,Standard deviation of measured voltage in the stable window
+measured_voltage_V_p10,float,10th percentile of measured voltage in the stable window
+measured_voltage_V_p90,float,90th percentile of measured voltage in the stable window
+measured_power_W_mean,float,Mean measured power in the stable window
+measured_power_W_median,float,Median measured power in the stable window
+measured_power_W_std,float,Standard deviation of measured power in the stable window
+measured_power_W_p10,float,10th percentile of measured power in the stable window
+measured_power_W_p90,float,90th percentile of measured power in the stable window
+selection_rank_within_recipe,int,Rank of this attempt inside its DOE recipe group after selection sorting
+selected_for_training,bool,True for the chosen representative attempt of that DOE recipe
+selection_reason,string,Human-readable explanation of why the attempt was or was not selected

@@ -6,6 +6,7 @@
 
   <link name="weld_table">
     <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
         <mesh filename="package://robin_core_bringup/meshes/welding_table/visual/WeldingTable.stl"/>
       </geometry>

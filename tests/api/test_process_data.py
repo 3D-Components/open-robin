@@ -27,6 +27,11 @@ async def test_get_process_data_happy_path(monkeypatch, client):
             'speed': 10.0,
             'current': 150.0,
             'voltage': 24.0,
+            'input_params': {
+                'wire_feed_speed_mpm_model_input': 10.5,
+                'travel_speed_mps_model_input': 0.021,
+                'arc_length_correction_mm_model_input': 1.5,
+            },
             'timestamp': '2025-01-01T00:10:00Z',
         },
     )
@@ -44,4 +49,5 @@ async def test_get_process_data_happy_path(monkeypatch, client):
     assert data['measuredSpeed']['value'] == 10.0
     assert data['measuredCurrent']['value'] == 150.0
     assert data['measuredVoltage']['value'] == 24.0
+    assert data['inputParams']['value']['wire_feed_speed_mpm_model_input'] == 10.5
     assert data['measuredHeight']['observedAt'] == '2025-01-01T00:10:00Z'

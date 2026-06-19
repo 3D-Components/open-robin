@@ -122,6 +122,18 @@ def test_fetch_all_measurements_scalar_temporal_values(monkeypatch):
         'measuredCurrent': {
             'values': [[150.0, '2025-01-01T00:00:01Z']]
         },
+        'inputParams': {
+            'values': [
+                [
+                    {
+                        'wire_feed_speed_mpm_model_input': 10.5,
+                        'travel_speed_mps_model_input': 0.021,
+                        'arc_length_correction_mm_model_input': 1.2,
+                    },
+                    '2025-01-01T00:00:01Z',
+                ]
+            ]
+        },
     }
 
     def fake_get(url, headers=None, params=None, timeout=10):
@@ -136,6 +148,7 @@ def test_fetch_all_measurements_scalar_temporal_values(monkeypatch):
     assert series[1]['timestamp'] == '2025-01-01T00:00:01Z'
     assert series[1]['height'] == 5.2 and series[1]['width'] == 8.1
     assert series[1]['current'] == 150.0
+    assert series[1]['input_params']['arc_length_correction_mm_model_input'] == 1.2
 
 
 def test_fetch_all_measurements_scalar_full_temporal_fallback(monkeypatch):

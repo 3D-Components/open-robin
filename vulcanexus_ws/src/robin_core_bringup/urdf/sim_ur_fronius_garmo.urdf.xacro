@@ -30,7 +30,7 @@
     </xacro:fronius_weld_torch>
 
     <!-- Add Garmo Garline laser sensor -->
-    <xacro:garmo_laser_sensor parent="weld_torch_tip">
+    <xacro:garmo_laser_sensor parent="contact_tip">
         <origin xyz="$(arg garmo_origin_xyz)" rpy="$(arg garmo_origin_rpy)"/>
     </xacro:garmo_laser_sensor>
 

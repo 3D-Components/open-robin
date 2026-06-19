@@ -45,8 +45,8 @@ class WeldingSimNode(Node):
         # --- Simulation State ---
         self.sim_params = sim_lib.WeldParams()
         self.rng = np.random.default_rng(self.sim_params.seed)
-        self.robot_frame_id = "welding_torch"
-        self.weld_bead_frame_id = "weld_bead"
+        self.robot_frame_id = "weld_torch_tip"
+        self.weld_bead_frame_id = "weld_torch_tip"
 
         # Pre-calculate constants
         r_mm = self.sim_params.wire_diameter_mm / 2.0

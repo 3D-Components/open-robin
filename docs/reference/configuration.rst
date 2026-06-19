@@ -68,7 +68,7 @@ Default: ``welding``.
 
 A profile YAML contains:
 
-* **vocabulary** - dashboard labels (process, speed, current, voltage, etc.)
+* **vocabulary** - dashboard labels for the profile's process and telemetry terms
 * **fields** - telemetry field display names and units
 * **ros2.topics** - ROS 2 topic names for geometry, process parameters, pose
 * **skills** - robot capabilities (service/action names, types, descriptions)

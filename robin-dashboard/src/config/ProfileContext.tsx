@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { domainTerms, applyProfileVocabulary, type DomainTerms } from './domain';
+import { ROBIN_API_URL } from './api';
 
 interface ProfileSkill {
     ros_type: string;
@@ -36,10 +37,6 @@ const ProfileContext = createContext<ProfileContextValue>({
     loading: true,
 });
 
-const API_URL: string =
-    import.meta.env.VITE_ROBIN_API_URL
-    ?? (import.meta.env.DEV ? '/api' : 'http://localhost:8001');
-
 export function ProfileProvider({ children }: { children: ReactNode }) {
     const [data, setData] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -49,7 +46,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch(`${API_URL}/profile`);
+                const res = await fetch(`${ROBIN_API_URL}/profile`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const profile: ProfileData = await res.json();
                 if (cancelled) return;

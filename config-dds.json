@@ -5,10 +5,10 @@
         "domain": 0,
         "allowlist": [
           {
-            "name": "*"
+            "name": "rt/robin/telemetry"
           }
         ],
-        "blocklist": [          
+        "blocklist": [
             {
             "name": ""
             }

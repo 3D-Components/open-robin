@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robin_robot">
+    <!-- Visualization-only URDF for robin_simulation.
+         Attaches Garmo sensor to weld_torch_tip (not contact_tip) to avoid
+         the dynamic TF dependency on tcp_manager at runtime. -->
+
+    <xacro:arg name="name" default="ur10e"/>
+    <xacro:arg name="ur_type" default="ur10e"/>
+    <xacro:arg name="use_mock_hardware" default="true"/>
+    <xacro:arg name="mock_sensor_commands" default="false"/>
+    <xacro:arg name="garmo_origin_xyz" default="0.0 -0.032 -0.15"/>
+    <xacro:arg name="garmo_origin_rpy" default="${pi} 0 -${pi/2}"/>
+    <xacro:arg name="welding_table_origin_xyz" default="-1.096 0.076 -0.193"/>
+    <xacro:arg name="welding_table_origin_rpy" default="0 0 ${pi/2}"/>
+    <xacro:arg name="robot_platform_origin_xyz" default="0.25 0.4 -0.5"/>
+    <xacro:arg name="robot_platform_origin_rpy" default="0 0 0"/>
+
+    <xacro:include filename="$(find robin_hardware_ur)/urdf/ur.urdf.xacro"/>
+    <xacro:include filename="$(find robin_hardware_fronius)/urdf/fronius_macro.xacro"/>
+    <xacro:include filename="$(find robin_hardware_garmo)/urdf/garmo_garline_macro.xacro"/>
+    <xacro:include filename="$(find robin_core_bringup)/urdf/scene_macro.xacro"/>
+
+    <xacro:fronius_weld_torch parent="tool0">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:fronius_weld_torch>
+
+    <xacro:garmo_laser_sensor parent="weld_torch_tip">
+        <origin xyz="$(arg garmo_origin_xyz)" rpy="$(arg garmo_origin_rpy)"/>
+    </xacro:garmo_laser_sensor>
+
+    <xacro:scene
+        table_xyz="$(arg welding_table_origin_xyz)"
+        table_rpy="$(arg welding_table_origin_rpy)"
+        platform_xyz="$(arg robot_platform_origin_xyz)"
+        platform_rpy="$(arg robot_platform_origin_rpy)"/>
+
+</robot>

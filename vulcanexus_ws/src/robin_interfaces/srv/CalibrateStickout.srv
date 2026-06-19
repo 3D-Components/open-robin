@@ -1,0 +1,26 @@
+# CalibrateStickout.srv - Calibrate wire stickout using touch sensing
+#
+# The calibration procedure:
+# 1. Move contact_tip to a known surface contact point
+# 2. Retract wire fully into nozzle
+# 3. Enable touch sensing
+# 4. Feed wire continuously (WireMoveLength=0) until TouchSignal fires
+#    (Fronius automatically stops wire feed on contact)
+# 5. Measure stickout = nozzle-to-surface distance along torch axis
+# 6. Update the wire_tip TF with the calibrated stickout
+#
+# Prerequisites:
+# - A valid surface/contact z reference must be provided
+# - Robot must be free to move to the calibration position
+
+# Request
+float64 x                 # X position for calibration (base_link frame)
+float64 y                 # Y position for calibration (base_link frame)
+float64 surface_z          # Known surface/contact Z reference (base_link frame)
+float64 nozzle_height      # DEPRECATED/ignored (keep 0.0 for compatibility)
+float64 retract_length     # Wire retraction distance before feeding (m, default 0.020)
+---
+# Response
+bool success
+float64 measured_stickout  # Calibrated stickout distance in meters
+string message

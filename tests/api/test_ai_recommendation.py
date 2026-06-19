@@ -17,7 +17,11 @@ async def test_ai_recommendation_parameter_driven(monkeypatch, client):
     payload = {
         'process_id': 'P1',
         'mode': 'parameter_driven',
-        'input_params': {'wireSpeed': 2.5, 'current': 110, 'voltage': 17},
+        'input_params': {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+            'arc_length_correction_mm_model_input': 0.0,
+        },
     }
     resp = await client.post('/ai-recommendation', json=payload)
     assert resp.status_code == 200
@@ -33,7 +37,11 @@ async def test_ai_recommendation_geometry_driven(monkeypatch, client):
     monkeypatch.setattr(
         ae.ENGINE,
         'recommend_params_for_geometry',
-        lambda tg: {'wireSpeed': 2.8, 'current': 115, 'voltage': 17.5},
+        lambda tg: {
+            'wire_feed_speed_mpm_model_input': 10.5,
+            'travel_speed_mps_model_input': 0.021,
+            'arc_length_correction_mm_model_input': 1.0,
+        },
     )
     monkeypatch.setattr(
         ae.ENGINE.client, 'create_ai_recommendation', lambda *_: None

@@ -1,0 +1,29 @@
+# ExecuteBead.action - Execute a single weld bead (motion + welding + scan)
+#
+# Sent by the experiment node to the planner node for per-bead execution.
+# Provides a clean cancellation boundary between experiment and planner.
+
+# Goal
+string bead_id                             # Unique bead identifier
+string plate_id                            # Target plate
+geometry_msgs/Point start_point            # Weld start in base_link
+geometry_msgs/Point end_point              # Weld end in base_link
+float32 target_speed                       # Weld travel speed [m/s]
+int32 primary_parameter                    # 0=CURRENT, 1=VOLTAGE, 2=WFS
+float32 primary_value                      # Value of primary parameter
+float32 target_current                     # [A]
+float32 target_voltage                     # [V]
+float32 wire_feed_speed                    # [m/min]
+float32 requested_stickout                 # Per-bead stickout target [m] (0 = use calibrated)
+float32 scan_speed                         # Scan pass speed [m/s] (0 = use weld speed)
+bool dry_run                               # Motion only, no arc
+---
+# Result
+bool success
+string message
+float32 calibrated_stickout                # Measured stickout from pre-weld cal [m]
+float32 applied_stickout                   # Actually applied stickout [m]
+---
+# Feedback
+string step                                # Current sub-step name
+float32 step_progress                      # 0.0-1.0 within current step

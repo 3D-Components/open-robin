@@ -1,0 +1,17 @@
+# SetTcpMode.srv - Switch the active Tool Center Point (TCP) mode
+#
+# Supported modes:
+#   "welding"  - TCP is wire_tip (wire end, offset from nozzle by stickout)
+#   "scanning" - TCP is laser_frame (Garmo sensor measurement origin)
+#
+# The tcp_manager node adjusts the planning target frame accordingly.
+# The planner always plans to wire_tip but compensates for the offset
+# when scanning mode is active.
+
+# Request
+string mode               # "welding" or "scanning"
+---
+# Response
+bool success
+string active_frame        # The TF frame now active as TCP (e.g. "wire_tip" or "laser_frame")
+string message

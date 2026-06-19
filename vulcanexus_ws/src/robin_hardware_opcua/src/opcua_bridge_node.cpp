@@ -26,6 +26,7 @@
 #include "std_msgs/msg/int32.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "robin_interfaces/srv/set_float32.hpp"
+#include "robin_interfaces/srv/set_int32.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -61,8 +62,10 @@ private:
     static UA_NodeId parseNodeId(const std::string& node_id_str);
     bool readFloatUnlocked(const UA_NodeId& node_id, float& value);
     bool readBoolUnlocked(const UA_NodeId& node_id, bool& value);
+    bool readInt32Unlocked(const UA_NodeId& node_id, int32_t& value);
     bool writeFloat(const UA_NodeId& node_id, float value);
     bool writeBool(const UA_NodeId& node_id, bool value);
+    bool writeInt32(const UA_NodeId& node_id, int32_t value);
 
     std::string name_;
     std::string url_;
@@ -297,6 +300,20 @@ OpcUaServer::OpcUaServer(const std::string& name, const YAML::Node& config, OpcU
                             response->message = "Write failed - check connection";
                         }
                     });
+            } else if (service.type == "int32") {
+                service.service = bridge_->createService<robin_interfaces::srv::SetInt32>(
+                    service.name,
+                    [this, svc_idx](
+                        const robin_interfaces::srv::SetInt32::Request::SharedPtr request,
+                        robin_interfaces::srv::SetInt32::Response::SharedPtr response) {
+                        if (this->writeInt32(services_[svc_idx].node_id, request->value)) {
+                            response->success = true;
+                            response->message = "Set to " + std::to_string(request->value);
+                        } else {
+                            response->success = false;
+                            response->message = "Write failed - check connection";
+                        }
+                    });
             }
 
             RCLCPP_INFO(bridge_->getNodeLogger(), "[%s] Service: %s (%s)",
@@ -457,6 +474,39 @@ bool OpcUaServer::readBoolUnlocked(const UA_NodeId& node_id, bool& value) {
     return success;
 }
 
+bool OpcUaServer::readInt32Unlocked(const UA_NodeId& node_id, int32_t& value) {
+    if (!connected_) return false;
+
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+
+    UA_StatusCode status = UA_Client_readValueAttribute(client_, node_id, &variant);
+
+    if (status != UA_STATUSCODE_GOOD) {
+        if (status == UA_STATUSCODE_BADCONNECTIONCLOSED ||
+            status == UA_STATUSCODE_BADSECURECHANNELCLOSED ||
+            status == UA_STATUSCODE_BADSERVERNOTCONNECTED) {
+            connected_ = false;
+        }
+        return false;
+    }
+
+    bool success = false;
+    if (UA_Variant_hasScalarType(&variant, &UA_TYPES[UA_TYPES_INT32])) {
+        value = *(UA_Int32*)variant.data;
+        success = true;
+    } else if (UA_Variant_hasScalarType(&variant, &UA_TYPES[UA_TYPES_INT16])) {
+        value = static_cast<int32_t>(*(UA_Int16*)variant.data);
+        success = true;
+    } else if (UA_Variant_hasScalarType(&variant, &UA_TYPES[UA_TYPES_UINT16])) {
+        value = static_cast<int32_t>(*(UA_UInt16*)variant.data);
+        success = true;
+    }
+
+    UA_Variant_clear(&variant);
+    return success;
+}
+
 bool OpcUaServer::writeBool(const UA_NodeId& node_id, bool value) {
     std::lock_guard<std::mutex> lock(client_mutex_);
     
@@ -500,6 +550,32 @@ bool OpcUaServer::writeFloat(const UA_NodeId& node_id, float value) {
 
     if (status != UA_STATUSCODE_GOOD) {
         RCLCPP_ERROR(bridge_->getNodeLogger(), "[%s] Write failed: %s",
+            name_.c_str(), UA_StatusCode_name(status));
+        if (status == UA_STATUSCODE_BADCONNECTIONCLOSED ||
+            status == UA_STATUSCODE_BADSECURECHANNELCLOSED ||
+            status == UA_STATUSCODE_BADSERVERNOTCONNECTED) {
+            connected_ = false;
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool OpcUaServer::writeInt32(const UA_NodeId& node_id, int32_t value) {
+    std::lock_guard<std::mutex> lock(client_mutex_);
+    
+    if (!connected_) return false;
+
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_Int32 ua_value = value;
+    UA_Variant_setScalar(&variant, &ua_value, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_StatusCode status = UA_Client_writeValueAttribute(client_, node_id, &variant);
+
+    if (status != UA_STATUSCODE_GOOD) {
+        RCLCPP_ERROR(bridge_->getNodeLogger(), "[%s] Write int32 failed: %s",
             name_.c_str(), UA_StatusCode_name(status));
         if (status == UA_STATUSCODE_BADCONNECTIONCLOSED ||
             status == UA_STATUSCODE_BADSECURECHANNELCLOSED ||
@@ -585,6 +661,27 @@ void OpcUaServer::poll() {
                 auto msg = std_msgs::msg::Bool();
                 msg.data = *(UA_Boolean*)variant->data;
                 auto pub = std::dynamic_pointer_cast<rclcpp::Publisher<std_msgs::msg::Bool>>(topic.publisher);
+                if (pub) pub->publish(msg);
+            }
+        } else if (topic.type == "int32") {
+            int32_t value = 0;
+            bool ok = false;
+
+            if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_INT32])) {
+                value = *(UA_Int32*)variant->data;
+                ok = true;
+            } else if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_INT16])) {
+                value = static_cast<int32_t>(*(UA_Int16*)variant->data);
+                ok = true;
+            } else if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_UINT16])) {
+                value = static_cast<int32_t>(*(UA_UInt16*)variant->data);
+                ok = true;
+            }
+
+            if (ok) {
+                auto msg = std_msgs::msg::Int32();
+                msg.data = value;
+                auto pub = std::dynamic_pointer_cast<rclcpp::Publisher<std_msgs::msg::Int32>>(topic.publisher);
                 if (pub) pub->publish(msg);
             }
         }

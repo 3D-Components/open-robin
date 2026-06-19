@@ -6,6 +6,7 @@
 
         <link name="weld_torch">
         <visual>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
                 <mesh filename="package://robin_hardware_fronius/meshes/weld_torch/visual/weld_torch.obj"/>
             </geometry>
