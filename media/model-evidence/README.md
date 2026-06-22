@@ -1,6 +1,6 @@
 # Model Evidence
 
-This folder contains model-performance evidence for the ARISE D4 review.
+This folder contains model-performance evidence for the public review.
 
 ## Open Online Model Benchmark
 
@@ -28,4 +28,4 @@ Source comparison artifacts are retained in `data/comparisons/unified_legacy_arc
 
 ## Proprietary Offline Benchmark
 
-[proprietary-offline-model-r2-096-scatter.png](proprietary-offline-model-r2-096-scatter.png) is D3 evidence for a proprietary/offline benchmark with generalized R2 about 0.96. If referenced in D4, describe it clearly as proprietary/external benchmark evidence, not as the open reusable model.
+[proprietary-offline-model-r2-096-scatter.png](proprietary-offline-model-r2-096-scatter.png) is D3 evidence for a proprietary/offline benchmark with generalized R2 about 0.96. If referenced externally, describe it clearly as proprietary/external benchmark evidence, not as the open reusable model.

@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "process_id": "d4_demo_process",
+  "process_id": "reviewer_demo_process",
   "target_geometry": {
     "height": 3.2,
     "width": 7.0

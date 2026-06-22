@@ -1,5 +1,5 @@
 {
-  "process_id": "d4_demo_process",
+  "process_id": "reviewer_demo_process",
   "deviation_type": "geometry",
   "expected_value": {
     "height": 3.2,
