@@ -99,7 +99,7 @@ Fix:
 
 .. code-block:: bash
 
-   docker compose up -d --force-recreate <service-name>
+   docker compose up -d --force-recreate SERVICE_NAME
 
 UID, GID, or DISPLAY Not Set
 ----------------------------
