@@ -106,6 +106,7 @@ Documentation Structure
 
    reference/configuration
    reference/troubleshooting
+   limitations
 
 .. toctree::
    :maxdepth: 1
