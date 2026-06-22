@@ -347,7 +347,7 @@ process or reset local volumes when you intentionally want a clean slate.
 
 .. code-block:: bash
 
-   ./demo/cleanup-demo.sh <process_id>
+   ./demo/cleanup-demo.sh PROCESS_ID
    docker compose down -v
    docker compose up -d --build
 
