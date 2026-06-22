@@ -4,7 +4,7 @@ D4 Evidence Pack
 The ARISE D4 evidence pack is maintained in the repository-level
 ``media/`` folder:
 
-* Repository index: `media/README.md <../media/README.md>`__
+* Repository index: `media/README.md <https://github.com/3D-Components/open-robin/blob/main/media/README.md>`__
 * Evidence folder on GitHub: `3D-Components/open-robin media folder <https://github.com/3D-Components/open-robin/tree/main/media>`__
 
 Reviewer Entry Points
@@ -15,17 +15,17 @@ Reviewer Entry Points
 * SUS/user-validation folder:
   `Google Drive folder <https://drive.google.com/drive/folders/1JNtOJkZSoUBujClqRHi9FKAKPs3XxdlQ?usp=drive_link>`__
 * Architecture and data-flow diagrams:
-  `media/architecture/ <../media/architecture/>`__
+  `media/architecture/ <https://github.com/3D-Components/open-robin/tree/main/media/architecture>`__
 * ROBIN Dashboard screenshots:
-  `media/screenshots/dashboard/ <../media/screenshots/dashboard/>`__
+  `media/screenshots/dashboard/ <https://github.com/3D-Components/open-robin/tree/main/media/screenshots/dashboard>`__
 * Demonstrator screenshots:
-  `media/screenshots/demonstrator/ <../media/screenshots/demonstrator/>`__
+  `media/screenshots/demonstrator/ <https://github.com/3D-Components/open-robin/tree/main/media/screenshots/demonstrator>`__
 * Example API responses:
-  `media/api-responses/ <../media/api-responses/>`__
+  `media/api-responses/ <https://github.com/3D-Components/open-robin/tree/main/media/api-responses>`__
 * CSV export example:
-  `media/exports/ <../media/exports/>`__
+  `media/exports/ <https://github.com/3D-Components/open-robin/tree/main/media/exports>`__
 * AI model evidence:
-  `media/model-evidence/ <../media/model-evidence/>`__
+  `media/model-evidence/ <https://github.com/3D-Components/open-robin/tree/main/media/model-evidence>`__
 
 Model Evidence Boundary
 -----------------------
