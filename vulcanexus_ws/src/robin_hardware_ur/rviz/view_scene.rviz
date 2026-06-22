@@ -199,11 +199,7 @@ Visualization Manager:
       Name: Laser Frame
       Radius: 0.004999999888241291
       Reference Frame: laser_frame
-<<<<<<< HEAD
       Value: false
-=======
-      Value: true
->>>>>>> test_dds_enabler
     - Class: rviz_default_plugins/Axes
       Enabled: false
       Length: 0.05000000074505806
@@ -338,13 +334,8 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-<<<<<<< HEAD
       Pitch: 0.604796826839447
       Target Frame: laser_frame
-=======
-      Pitch: 0.41479700803756714
-      Target Frame: <Fixed Frame>
->>>>>>> test_dds_enabler
       Value: Orbit (rviz)
       Yaw: 2.460420846939087
     Saved:

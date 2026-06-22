@@ -1058,18 +1058,10 @@ export function RobinPage() {
         await handleControlsApply(nextControls);
         setManualAdjustDraft(null);
         publishRosIntent('MANUAL_ADJUST', {
-<<<<<<< HEAD
             parameters: inputParamsToIntentParameters(
                 nextControls.inputParams,
                 aiInputFeatures,
             ),
-=======
-            parameters: Object.entries(nextControls.inputParams).map(([key, value]) => ({
-                parameter_name: key,
-                new_value: value,
-                unit: aiInputFeatures.find((f) => f.key === key)?.unit ?? '',
-            })),
->>>>>>> 4e30a37 (update Intent data payload messages)
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'MANUAL_ADJUST intent published', 'Intent Bridge'))
             .catch(() => {});
@@ -1127,18 +1119,10 @@ export function RobinPage() {
         publishRosIntent('REQUEST_AI_RECOMMENDATION', {
             process_id: processId ?? '',
             mode: 'geometry_driven',
-<<<<<<< HEAD
             parameters: inputParamsToIntentParameters(
                 nextControls.inputParams,
                 aiInputFeatures,
             ),
-=======
-            parameters: Object.entries(nextControls.inputParams).map(([key, value]) => ({
-                parameter_name: key,
-                new_value: value,
-                unit: aiInputFeatures.find((f) => f.key === key)?.unit ?? '',
-            })),
->>>>>>> 4e30a37 (update Intent data payload messages)
         }, processId ?? 'ros_bridge')
             .then(() => pushAlert('Info', 'REQUEST_AI_RECOMMENDATION intent published', 'Intent Bridge'))
             .catch(() => {});
