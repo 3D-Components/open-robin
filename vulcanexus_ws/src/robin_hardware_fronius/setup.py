@@ -19,10 +19,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='milaipc',
-    maintainer_email='jayant@mil-as.no',
+    maintainer='Daniel Haas, Virgilio Gomez, Jayant Singh',
+    maintainer_email='daniel.haas@3d-components.co, virgilio.gomez@3d-components.co, jayant@mil-as.no',
     description='Fronius welding coordinator - orchestrates welding sequences',
-    license='Apache-2.0',
+    license='AGPL-3.0-only',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

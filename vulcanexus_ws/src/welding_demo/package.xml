@@ -8,8 +8,10 @@
     Master launch package for the ROBIN welding HRI PoC.
     Launches all skill nodes, the HTTP bridge, and the mission controller.
   </description>
-  <maintainer email="dev@example.com">Developer</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="daniel.haas@3d-components.co">Daniel Haas</maintainer>
+  <maintainer email="virgilio.gomez@3d-components.co">Virgilio Gomez</maintainer>
+  <maintainer email="jayant@mil-as.no">Jayant Singh</maintainer>
+  <license>AGPL-3.0-only</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

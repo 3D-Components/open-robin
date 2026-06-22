@@ -31,7 +31,7 @@ Method 1: Using Poetry (Recommended)
 .. code-block:: bash
 
    # Clone the repository
-   git clone https://github.com/Industry40Lab/open-robin.git
+   git clone https://github.com/3D-Components/open-robin.git
    cd open-robin
 
    # Install Poetry if not already installed
@@ -49,7 +49,7 @@ Method 2: Using pip
 .. code-block:: bash
 
    # Clone the repository
-   git clone https://github.com/Industry40Lab/open-robin.git
+   git clone https://github.com/3D-Components/open-robin.git
    cd open-robin
 
    # Create a virtual environment
@@ -64,14 +64,13 @@ Method 3: Docker Installation
 
 .. code-block:: bash
 
-   # Pull the Docker image
-   docker pull industry40lab/open-robin:latest
+   # Clone and build the repository-local Docker images
+   git clone https://github.com/3D-Components/open-robin.git
+   cd open-robin
+   docker compose build
 
-   # Run the container with FIWARE services
+   # Run the stack with FIWARE services
    docker compose up -d
-
-   # Run the application container
-   docker run -it --rm --network container:fiware-orion industry40lab/open-robin:latest
 
 FIWARE Services Setup
 ---------------------

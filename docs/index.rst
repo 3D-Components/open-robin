@@ -118,14 +118,17 @@ Documentation Structure
 Community & Support
 -------------------
 
-* **GitHub**: `ROBIN Repository <https://github.com/Industry40Lab/open-robin>`_
-* **Issues**: `Bug Reports & Feature Requests <https://github.com/Industry40Lab/open-robin/issues>`_
-* **Discussions**: `Community Forum <https://github.com/Industry40Lab/open-robin/discussions>`_
+* **GitHub**: `ROBIN Repository <https://github.com/3D-Components/open-robin>`_
+* **Issues**: `Bug Reports & Feature Requests <https://github.com/3D-Components/open-robin/issues>`_
+* **Discussions**: `Community Forum <https://github.com/3D-Components/open-robin/discussions>`_
+* **Support email**: info@3d-components.co
+* **Maintainers**: Daniel Haas, Virgilio Gomez, Jayant Singh
 
 License
 -------
 
-This project is licensed under the terms specified in the LICENSE file.
+This project is licensed under AGPL-3.0-only as specified in the LICENSE file.
+Third-party and template-origin notices are documented in ``THIRD_PARTY_LICENSES.md``.
 
 Indices and tables
 ==================

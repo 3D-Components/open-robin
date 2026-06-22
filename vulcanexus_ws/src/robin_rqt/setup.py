@@ -16,10 +16,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='ROBIN Team',
-    maintainer_email='operator@robin.local',
+    maintainer='Daniel Haas, Virgilio Gomez, Jayant Singh',
+    maintainer_email='daniel.haas@3d-components.co, virgilio.gomez@3d-components.co, jayant@mil-as.no',
     description='RQT Operator Panel for ROBIN welding system',
-    license='MIT',
+    license='AGPL-3.0-only',
     entry_points={
         'console_scripts': [],
     },
