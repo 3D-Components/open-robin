@@ -1,0 +1,42 @@
+{
+  "process_id": "d4_demo_process",
+  "deviation_type": "geometry",
+  "expected_value": {
+    "height": 3.2,
+    "width": 7.0
+  },
+  "measured_value": {
+    "height": 2.95,
+    "width": 7.48
+  },
+  "deviation_percentage": 7.8125,
+  "recommended_actions": [
+    {
+      "id": "manual_adjust",
+      "label": "Manually adjust process parameters"
+    },
+    {
+      "id": "ai_retry",
+      "label": "Request new AI recommendation"
+    },
+    {
+      "id": "fine_tune",
+      "label": "Add datapoint and fine-tune model"
+    },
+    {
+      "id": "reset_model",
+      "label": "Discard model and start new DOE"
+    }
+  ],
+  "mode": "geometry_driven",
+  "expected_source": "target_geometry",
+  "target_geometry": {
+    "height": 3.2,
+    "width": 7.0
+  },
+  "deviation_breakdown": {
+    "height": 7.8125,
+    "width": 6.857142857142857,
+    "max": 7.8125
+  }
+}

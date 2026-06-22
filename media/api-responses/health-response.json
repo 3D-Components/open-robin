@@ -1,0 +1,28 @@
+{
+  "status": "healthy",
+  "orion_connected": true,
+  "mintaka_connected": true,
+  "services": {
+    "backend": {
+      "connected": true,
+      "latency_ms": 3
+    },
+    "orion": {
+      "connected": true,
+      "status_code": 200,
+      "latency_ms": 5
+    },
+    "mintaka": {
+      "connected": true,
+      "status_code": 200,
+      "latency_ms": 7
+    }
+  },
+  "latency_ms": {
+    "backend": 3,
+    "orion": 5,
+    "mintaka": 7
+  },
+  "uptime_seconds": 86400,
+  "timestamp": "2026-06-16T12:00:00+00:00"
+}

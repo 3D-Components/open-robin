@@ -111,6 +111,7 @@ Documentation Structure
    :maxdepth: 1
    :caption: Architecture & Operations
 
+   evidence
    DDS_BRIDGE_ARCHITECTURE
    RESET_DEMO_DATA
 

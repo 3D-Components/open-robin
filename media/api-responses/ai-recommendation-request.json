@@ -1,0 +1,13 @@
+{
+  "process_id": "d4_demo_process",
+  "mode": "geometry_driven",
+  "target_geometry": {
+    "height": 3.2,
+    "width": 7.0
+  },
+  "input_params": {
+    "wire_feed_speed_mpm_model_input": 10.5,
+    "travel_speed_mps_model_input": 0.021,
+    "arc_length_correction_mm_model_input": 1.5
+  }
+}
