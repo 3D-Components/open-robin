@@ -4,7 +4,9 @@
 
 This document defines what will be published as reusable open-source modules from ROBIN, what remains domain-specific, and how publication will be staged for ARISE catalog onboarding.
 
-Date of this roadmap: **February 22, 2026**.
+Last reviewed: **June 22, 2026**.
+
+Current release target: **v0.1.0 public release readiness**.
 
 ---
 
@@ -67,7 +69,7 @@ The intended message: the same core can be reused for other robotic process doma
 
 ---
 
-## Current Execution Status (as of February 22, 2026)
+## Current Execution Status (as of June 22, 2026)
 
 Completed in repository:
 
@@ -78,6 +80,19 @@ Completed in repository:
 - second non-welding profile added: `demo/profiles/spray_coating_profile.py`
 - ARISE metadata file populated: `arise/catalog-metadata.yaml`
 - CI extended to include Python tests and frontend build evidence (`.github/workflows/ci.yml`)
+- evidence pack, screenshots, example responses, CSV export, and model evidence added under `media/`
+- license, repository metadata, contact details, and third-party notices aligned with AGPL-3.0-only
+- open/reusable boundary documented in `docs/open_boundary.rst`
+- limitations and reviewer troubleshooting documented in `docs/limitations.rst` and `docs/reference/troubleshooting.rst`
+
+Still pending before the final `v0.1.0` tag:
+
+- reviewer quickstart and no-hardware hello world must be verified from a clean clone
+- ROS 2 / Vulcanexus interface reference must be completed
+- ROS4HRI / ROS4RI intent-skill-task-mission mapping must be completed
+- FIWARE / NGSI-LD data model and DDS mapping reference must be completed
+- changelog and release notes draft must be prepared
+- final repository hygiene and clean-clone verification must pass
 
 Execution checklist:
 
@@ -85,35 +100,41 @@ Execution checklist:
 
 ---
 
-## Publication Milestones (Concrete Dates)
+## Publication Milestones
 
-### Milestone 1: Core freeze and cleanup
-- **Target date: March 15, 2026**
-- Deliverables:
-  - remove/mark legacy bridge docs
-  - confirm generic naming across core modules
-  - finalize `ProcessTelemetry` DDS path documentation
+### Milestone 1: Core scope and metadata cleanup
+- **Status: completed for current `dev`**
+- Completed:
+  - legacy bridge docs removed or marked outside the active baseline
+  - generic process-intelligence naming clarified across core docs
+  - `ProcessTelemetry` DDS path documented as the current ROS 2 baseline
+  - license, repository URL, maintainer, and catalog metadata aligned
 
-### Milestone 2: Public module packaging
-- **Target date: March 29, 2026**
-- Deliverables:
-  - versioned release candidate tag for reusable core
-  - module-level READMEs for API, ROS pipeline, UI shell
-  - minimal CI checks (lint, unit tests, smoke startup)
+### Milestone 2: Evidence and open boundary
+- **Status: completed for current `dev`**
+- Completed:
+  - evidence index and media artifacts added
+  - open/reusable, proprietary/excluded, and welding-specific boundaries documented
+  - human-final-authority statement included in evidence docs
+  - reviewer evidence wording kept public and module-oriented
 
-### Milestone 3: ARISE catalog submission package
-- **Target date: April 12, 2026**
-- Deliverables:
-  - ARISE metadata file (`arise/catalog-metadata.yaml`)
-  - architecture and dependency diagram
-  - reproducible demo script and expected outputs
+### Milestone 3: Reviewer reproducibility and interface references
+- **Status: in progress**
+- Target before tagging:
+  - no-hardware quickstart and hello world
+  - basic demo path with expected outputs
+  - ROS 2 / Vulcanexus interface reference
+  - ROS4HRI / ROS4RI mapping
+  - FIWARE / NGSI-LD and DDS mapping reference
+  - troubleshooting and limitations pages kept aligned with the verified path
 
-### Milestone 4: Public release v1
-- **Target date: April 26, 2026**
-- Deliverables:
-  - public repository with release notes
-  - changelog + compatibility statement
-  - support channels and issue templates
+### Milestone 4: Release candidate
+- **Status: pending**
+- Target before tagging:
+  - `CHANGELOG.md` and release notes draft
+  - final repository hygiene pass
+  - final clean-clone verification
+  - approved commit hash for `v0.1.0`
 
 ---
 
