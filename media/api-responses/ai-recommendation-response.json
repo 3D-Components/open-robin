@@ -1,7 +1,7 @@
 {
   "status": "success",
   "recommendation": {
-    "process_id": "d4_demo_process",
+    "process_id": "reviewer_demo_process",
     "mode": "geometry_driven",
     "recommended_params": {
       "wire_feed_speed_mpm_model_input": 10.8,

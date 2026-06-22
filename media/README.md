@@ -1,8 +1,8 @@
-# ROBIN D4 Evidence Pack
+# ROBIN Evidence Pack
 
-This folder is the top-level evidence index for the ARISE D4 "Shareable HRI Module" review of `open-robin`.
+This folder is the top-level evidence index for the public review of `open-robin`.
 
-Use this folder for screenshots, diagrams, logs, exports, video links, and validation references that support the D4 submission. Keep files small enough for GitHub review when possible. Larger videos or datasets can be linked from this README instead of committed directly.
+Use this folder for screenshots, diagrams, logs, exports, video links, and validation references that support the public review. Keep files small enough for GitHub review when possible. Larger videos or datasets can be linked from this README instead of committed directly.
 
 ## Reviewer Entry Points
 
@@ -15,11 +15,11 @@ Use this folder for screenshots, diagrams, logs, exports, video links, and valid
 | Demo screenshots or GIFs | To be added | `media/screenshots/demo/` |
 | Demo logs or terminal output | To be added | `media/logs/` |
 | Example API responses | Added | [API response examples](api-responses/README.md): [health](api-responses/health-response.json), [create process](api-responses/create-process-response.json), [set target](api-responses/set-target-response.json), [measurements](api-responses/process-measurements-response.json), [deviation check](api-responses/check-deviation-response.json), [AI recommendation](api-responses/ai-recommendation-response.json), [operator intent](api-responses/publish-intent-response.json) |
-| CSV export example | Added | [CSV export notes](exports/README.md); [sample History / Reports export](exports/d4_demo_process-history-2026-06-16T12-02-00-000Z.csv) |
+| CSV export example | Added | [CSV export notes](exports/README.md); [sample History / Reports export](exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) |
 | D3 demonstrator video | Available externally | [Google Drive video](https://drive.google.com/file/d/1NPXDISejwRpxbMHidZyFyc0_4-ERQhcg/view?usp=drive_link) |
 | SUS/user-validation folder | Available externally | [Google Drive folder](https://drive.google.com/drive/folders/1JNtOJkZSoUBujClqRHi9FKAKPs3XxdlQ?usp=drive_link) |
 | AI model evidence for open online model, R^2 about 0.90 | Added | [Open online model scatter plot](model-evidence/open-online-model-r2-090-scatter.png); [metrics JSON](model-evidence/open-online-model-r2-090-metrics.json); [predictions CSV](model-evidence/open-online-model-r2-090-predictions.csv); [model evidence notes](model-evidence/README.md) |
-| Proprietary/offline benchmark, R^2 about 0.96 | Added as D3 evidence | [Offline benchmark scatter plot](model-evidence/proprietary-offline-model-r2-096-scatter.png). This is evidence for the D3 benchmark and should be described as proprietary/offline if referenced in D4. |
+| Proprietary/offline benchmark, R^2 about 0.96 | Added as D3 evidence | [Offline benchmark scatter plot](model-evidence/proprietary-offline-model-r2-096-scatter.png). This is evidence for the D3 benchmark and should be described as proprietary/offline if referenced externally. |
 
 ## Bundled Image Evidence
 
@@ -45,7 +45,7 @@ Use this folder for screenshots, diagrams, logs, exports, video links, and valid
 | --- | --- |
 | [api-responses/README.md](api-responses/README.md) | Reviewer-facing index of representative API responses and the curl commands they correspond to. |
 | [api-responses/health-response.json](api-responses/health-response.json) | Example `GET /health` response showing backend, Orion-LD, and Mintaka connectivity fields. |
-| [api-responses/create-process-response.json](api-responses/create-process-response.json) | Example `POST /create-process` success response for the no-hardware D4 demo process. |
+| [api-responses/create-process-response.json](api-responses/create-process-response.json) | Example `POST /create-process` success response for the no-hardware reviewer demo process. |
 | [api-responses/set-target-response.json](api-responses/set-target-response.json) | Example `POST /process/{process_id}/target` response showing a geometry target persisted for geometry-driven mode. |
 | [api-responses/process-measurements-response.json](api-responses/process-measurements-response.json) | Example `GET /process/{process_id}/measurements?last=1` response showing a mock or recorded telemetry sample. |
 | [api-responses/check-deviation-response.json](api-responses/check-deviation-response.json) | Example `POST /check-deviation` response showing expected geometry, measured geometry, deviation breakdown, and operator action options. |
@@ -57,7 +57,7 @@ Use this folder for screenshots, diagrams, logs, exports, video links, and valid
 | File | Description |
 | --- | --- |
 | [exports/README.md](exports/README.md) | Notes for the ROBIN Dashboard History / Reports CSV export path. |
-| [exports/d4_demo_process-history-2026-06-16T12-02-00-000Z.csv](exports/d4_demo_process-history-2026-06-16T12-02-00-000Z.csv) | Representative CSV export containing twelve telemetry rows and one persisted warning/deviation row for `d4_demo_process`. |
+| [exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv](exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) | Representative CSV export containing twelve telemetry rows and one persisted warning/deviation row for `reviewer_demo_process`. |
 
 ## Human Authority Statement
 

@@ -12,13 +12,13 @@ The example file below mirrors the current UI export column set and filename pat
 
 | File | Description |
 | --- | --- |
-| [d4_demo_process-history-2026-06-16T12-02-00-000Z.csv](d4_demo_process-history-2026-06-16T12-02-00-000Z.csv) | Representative History / Reports export for a no-hardware D4 demo process, including twelve telemetry rows and one warning row. |
+| [reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv](reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) | Representative History / Reports export for a no-hardware reviewer demo process, including twelve telemetry rows and one warning row. |
 
 ## How Reviewers Generate This From The UI
 
 1. Open the ROBIN Dashboard.
 2. Go to **History / Reports**.
-3. Select the process ID, for example `d4_demo_process`.
+3. Select the process ID, for example `reviewer_demo_process`.
 4. Click **Refresh**.
 5. Click **Download CSV**.
 
@@ -31,7 +31,7 @@ The downloaded filename follows:
 ## Notes
 
 - This committed CSV is a representative example aligned with the dashboard export code, not a fresh clean-clone runtime capture.
-- Once the D4 quickstart/demo is finalized, replace or supplement it with a CSV downloaded from the reviewer demo run.
+- Once the reviewer quickstart/demo is finalized, replace or supplement it with a CSV downloaded from the reviewer demo run.
 - `record_type=measurement` rows are telemetry samples.
 - `record_type=warning` rows are persisted deviation alerts.
 - `raw_payload_json` preserves the backend payload used by the dashboard for traceability.

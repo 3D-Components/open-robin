@@ -13,6 +13,11 @@ ROBIN provides **two open-source modules** and a **documented integration patter
 
 This repository ships the modules together with integration examples and demo profiles that show them in action across different industrial domains.
 
+The open/reusable module boundary is documented in
+[`docs/open_boundary.rst`](docs/open_boundary.rst). In short, `open-robin` is
+the reusable process-intelligence module; the welding setup is a reference
+demonstrator and not the definition of the module scope.
+
 ## AI Training Scope (Open vs Private)
 
 ROBIN's open-source scope is centered on **telemetry intelligence and model
@@ -333,7 +338,7 @@ This repository is structured for ARISE catalog onboarding:
 - Catalog metadata: `arise/catalog-metadata.yaml`
 - Publication roadmap: `ARISE_PUBLICATION_ROADMAP.md`
 - Submission checklist: `ARISE_PUBLICATION_CHECKLIST.md`
-- D4 evidence pack: [`media/README.md`](media/README.md)
+- Evidence pack: [`media/README.md`](media/README.md)
 
 ## Quality Evidence
 

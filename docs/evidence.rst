@@ -1,7 +1,7 @@
-D4 Evidence Pack
+Evidence Pack
 ================
 
-The ARISE D4 evidence pack is maintained in the repository-level
+The evidence pack is maintained in the repository-level
 ``media/`` folder:
 
 * Repository index: `media/README.md <https://github.com/3D-Components/open-robin/blob/main/media/README.md>`__

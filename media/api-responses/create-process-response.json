@@ -1,6 +1,6 @@
 {
   "status": "success",
-  "process_id": "d4_demo_process",
+  "process_id": "reviewer_demo_process",
   "mode": "parameter_driven",
-  "message": "Process d4_demo_process created successfully"
+  "message": "Process reviewer_demo_process created successfully"
 }
