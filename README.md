@@ -338,7 +338,7 @@ This repository is structured for ARISE catalog onboarding:
 - Catalog metadata: `arise/catalog-metadata.yaml`
 - Publication roadmap: `ARISE_PUBLICATION_ROADMAP.md`
 - Submission checklist: `ARISE_PUBLICATION_CHECKLIST.md`
-- evidence pack: [`media/README.md`](media/README.md)
+- Evidence pack: [`media/README.md`](media/README.md)
 
 ## Quality Evidence
 
