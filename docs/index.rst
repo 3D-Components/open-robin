@@ -116,6 +116,7 @@ Documentation Structure
    open_boundary
    evidence
    DDS_BRIDGE_ARCHITECTURE
+   LAUNCH_AND_VERIFY_INTENTS
    RESET_DEMO_DATA
 
 Community & Support

@@ -56,7 +56,7 @@ components:
     reusable: true
 
   - id: "ui-shell"
-    name: "FAROS Monitoring UI Shell"
+    name: "ROBIN Dashboard UI Shell"
     path: "robin-dashboard/"
     type: "web-ui"
     reusable: true

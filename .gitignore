@@ -284,5 +284,15 @@ data/rosbags/exp001_rosbag_real
 .claude/
 humble_workspace/.pixi/
 .env
+.env.*
+!.env.example
+.venv/
+.venv-*/
 .venv-docs/
 .venv-test/
+
+# Local exploratory MLOps outputs
+mlops/notebooks/*.ipynb
+mlops/notebooks/*.csv
+mlops/notebooks/*.png
+mlops/notebooks/*.html

@@ -75,7 +75,7 @@ Completed in repository:
 
 - DDS-first telemetry flow documented and active (`demo/simulation-demo-rosbag.sh`, `config-dds.json`)
 - legacy HTTP NGSI bridge removed from active baseline and docs
-- FAROS domain vocabulary overrides documented (`VITE_TERM_*`)
+- dashboard domain vocabulary fallback overrides documented (`VITE_TERM_*`)
 - welding content reframed as **profile layer** in demo docs/scripts
 - second non-welding profile added: `demo/profiles/spray_coating_profile.py`
 - ARISE metadata file populated: `arise/catalog-metadata.yaml`
