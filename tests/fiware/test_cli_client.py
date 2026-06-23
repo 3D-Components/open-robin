@@ -1,6 +1,12 @@
+import requests
 from typer.testing import CliRunner
 
-from robin.cli import RobinFiwareClient, OperationMode, app as cli_app
+from robin.cli import (
+    RobinFiwareClient,
+    OperationMode,
+    app as cli_app,
+    parse_input_param_items,
+)
 
 
 class DummyResponse:
@@ -83,6 +89,10 @@ def test_create_measurement_with_params_success(monkeypatch):
         speed=10.5,
         current=150.0,
         voltage=24.0,
+        input_params={
+            'wire_feed_speed_mpm_model_input': 10.5,
+            'travel_speed_mps_model_input': 0.02,
+        },
     )
     assert ok is True
     assert calls['post_entity'] == 1
@@ -90,6 +100,8 @@ def test_create_measurement_with_params_success(monkeypatch):
     assert last['post_url'].endswith('/ngsi-ld/v1/entities')
     # Ensure process TROE patch targets Process entity
     assert '/entities/urn:ngsi-ld:Process:PROC/attrs' in last['patch_url']
+    assert 'inputParams' in last['post_json']
+    assert 'inputParams' in last['patch_json']
 
 
 def test_create_ai_recommendation_payload(monkeypatch):
@@ -272,6 +284,51 @@ def test_set_operation_mode_failure(monkeypatch):
     assert ok is False
 
 
+def test_parse_input_param_items_rejects_empty_key_and_bad_number():
+    for item in ['=1.0', 'wire_feed_speed_mpm_model_input=not-a-number']:
+        try:
+            parse_input_param_items([item])
+        except ValueError as exc:
+            assert item in str(exc)
+        else:
+            raise AssertionError('Expected ValueError')
+
+
+def test_set_operation_mode_and_input_params_handle_request_errors(monkeypatch):
+    def fake_patch(*_args, **_kwargs):
+        raise requests.RequestException('offline')
+
+    monkeypatch.setattr('robin.cli.requests.patch', fake_patch)
+    client = RobinFiwareClient()
+
+    assert client.set_operation_mode('P3', OperationMode.PARAMETER_DRIVEN) is False
+    assert client.set_input_params('P3', {'wire_feed_speed_mpm_model_input': 10.0}) is False
+
+
+def test_set_input_params_payload(monkeypatch):
+    captured = {}
+
+    def fake_patch(url, headers=None, json=None, **kwargs):
+        captured['url'] = url
+        captured['json'] = json
+        return DummyResponse(204)
+
+    monkeypatch.setattr('robin.cli.requests.patch', fake_patch)
+    client = RobinFiwareClient()
+
+    ok = client.set_input_params(
+        'PIN',
+        {
+            'wire_feed_speed_mpm_model_input': 10.0,
+            'travel_speed_mps_model_input': 0.02,
+        },
+    )
+
+    assert ok is True
+    assert '/entities/urn:ngsi-ld:Process:PIN/attrs' in captured['url']
+    assert captured['json']['inputParams']['value']['travel_speed_mps_model_input'] == 0.02
+
+
 def test_create_measurement_fail_entity(monkeypatch):
     def fake_post(url, headers=None, json=None, **kwargs):
         return DummyResponse(500, text='entity create failed')
@@ -325,6 +382,27 @@ def test_stop_process_not_found(monkeypatch):
     assert 'not found' in msg.lower()
 
 
+def test_stop_process_fetch_error_and_already_stopped(monkeypatch):
+    responses = [
+        DummyResponse(500),
+        DummyResponse(200, json_data={'processStatus': {'value': 'stopped'}}),
+    ]
+
+    monkeypatch.setattr(
+        'robin.cli.requests.get',
+        lambda *_args, **_kwargs: responses.pop(0),
+    )
+    client = RobinFiwareClient()
+
+    ok, msg = client.stop_process('PERR')
+    assert ok is False
+    assert 'Failed to fetch' in msg
+
+    ok, msg = client.stop_process('PSTOP')
+    assert ok is False
+    assert 'already stopped' in msg
+
+
 def test_stop_process_patch_failure(monkeypatch):
     def fake_get(url, headers=None, **kwargs):
         return DummyResponse(
@@ -342,6 +420,50 @@ def test_stop_process_patch_failure(monkeypatch):
     assert 'Failed to update process status' in msg
 
 
+def test_stop_process_stop_attribute_failure(monkeypatch):
+    monkeypatch.setattr(
+        'robin.cli.requests.get',
+        lambda *_args, **_kwargs: DummyResponse(
+            200, json_data={'processStatus': {'value': 'active'}}
+        ),
+    )
+    monkeypatch.setattr(
+        'robin.cli.requests.patch',
+        lambda *_args, **_kwargs: DummyResponse(204),
+    )
+    monkeypatch.setattr(
+        'robin.cli.requests.post',
+        lambda *_args, **_kwargs: DummyResponse(500, text='cannot append'),
+    )
+
+    ok, msg = RobinFiwareClient().stop_process('PFAIL')
+    assert ok is False
+    assert 'Failed to stop process' in msg
+
+
+def test_patch_process_intent_fast_append_create_and_failure(monkeypatch):
+    patch_codes = [204, 207, 204, 404, 204, 500]
+    calls = {'patch': 0, 'post': 0}
+
+    def fake_patch(url, headers=None, json=None):
+        calls['patch'] += 1
+        return DummyResponse(patch_codes.pop(0))
+
+    def fake_post(url, headers=None, json=None):
+        calls['post'] += 1
+        return DummyResponse(204)
+
+    monkeypatch.setattr('robin.cli.requests.patch', fake_patch)
+    monkeypatch.setattr('robin.cli.requests.post', fake_post)
+
+    client = RobinFiwareClient()
+    assert client.patch_process_intent('P1', 'START', {'a': 1}) is True
+    assert client.patch_process_intent('P1', 'PAUSE', {}) is True
+    assert client.patch_process_intent('P2', 'STOP', {}) is True
+    assert client.patch_process_intent('P3', 'ABORT', {}) is False
+    assert calls['post'] == 2
+
+
 def test_resume_process_already_active(monkeypatch):
     def fake_get(url, headers=None, **kwargs):
         return DummyResponse(
@@ -353,6 +475,34 @@ def test_resume_process_already_active(monkeypatch):
     ok, msg = client.resume_process('P8')
     assert ok is False
     assert 'already active' in msg
+
+
+def test_resume_process_not_found_fetch_error_and_patch_failure(monkeypatch):
+    responses = [
+        DummyResponse(404),
+        DummyResponse(500),
+        DummyResponse(200, json_data={'processStatus': {'value': 'stopped'}}),
+    ]
+
+    monkeypatch.setattr(
+        'robin.cli.requests.get',
+        lambda *_args, **_kwargs: responses.pop(0),
+    )
+    monkeypatch.setattr(
+        'robin.cli.requests.patch',
+        lambda *_args, **_kwargs: DummyResponse(500, text='patch failed'),
+    )
+    client = RobinFiwareClient()
+
+    ok, msg = client.resume_process('P404')
+    assert ok is False
+    assert 'not found' in msg
+    ok, msg = client.resume_process('PERR')
+    assert ok is False
+    assert 'Failed to fetch' in msg
+    ok, msg = client.resume_process('PPATCH')
+    assert ok is False
+    assert 'Failed to update process status' in msg
 
 
 def test_resume_process_remove_attr_failure(monkeypatch):
@@ -428,3 +578,23 @@ def test_get_process_status_success(monkeypatch):
     assert info['started_at'] == '2025-01-01T00:00:00Z'
     assert info['stopped_at'] == '2025-01-02T00:00:00Z'
     assert info['stop_reason'] == 'operator_request'
+
+
+def test_get_process_status_includes_input_params_in_telemetry(monkeypatch):
+    payload = {
+        'processStatus': {'value': 'active'},
+        'operationMode': {'value': 'parameter_driven'},
+        'startedAt': {'value': '2025-01-01T00:00:00Z'},
+        'processTelemetry': {'value': {'height': 2.0}},
+        'inputParams': {'value': {'wire_feed_speed_mpm_model_input': 10.0}},
+    }
+
+    monkeypatch.setattr(
+        'robin.cli.requests.get',
+        lambda *_args, **_kwargs: DummyResponse(200, json_data=payload),
+    )
+
+    info, err = RobinFiwareClient().get_process_status('PIN')
+    assert err is None
+    assert info['telemetry']['height'] == 2.0
+    assert info['telemetry']['input_params']['wire_feed_speed_mpm_model_input'] == 10.0

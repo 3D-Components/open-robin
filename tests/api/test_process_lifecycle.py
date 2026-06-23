@@ -15,6 +15,9 @@ async def test_create_process_parameter_driven_success(monkeypatch, client):
         def create_geometry_target(self, *args, **kwargs):  # not used
             return True
 
+        def set_input_params(self, process_id, input_params):
+            return True
+
     # Route uses module-level RobinFiwareClient
     monkeypatch.setattr(ae, 'RobinFiwareClient', FakeClient)
 

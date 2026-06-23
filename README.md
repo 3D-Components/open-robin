@@ -1,7 +1,7 @@
 # ROBIN - Reusable Building Blocks for Robotic Process Intelligence
-[![Python Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=python&label=python)](https://codecov.io/gh/3D-Components/open-robin)
-[![TypeScript Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=typescript&label=typescript)](https://codecov.io/gh/3D-Components/open-robin)
-[![CI](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml/badge.svg)](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml)
+[![Python Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=python-robin-mlops&label=python%20robin%2Bmlops)](https://codecov.io/gh/3D-Components/open-robin)
+[![Dashboard Unit Coverage](https://img.shields.io/codecov/c/github/3D-Components/open-robin/main?flag=dashboard-unit&label=dashboard%20unit)](https://codecov.io/gh/3D-Components/open-robin)
+[![CI](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/3D-Components/open-robin/actions/workflows/ci.yml?query=branch%3Amain)
 [![Docs](https://readthedocs.org/projects/open-robin/badge/?version=latest)](https://open-robin.readthedocs.io/en/latest/?badge=latest)
 [![license](https://img.shields.io/github/license/3D-Components/open-robin)](https://github.com/3D-Components/open-robin/blob/main/LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
@@ -347,10 +347,27 @@ This repository is structured for ARISE catalog onboarding:
 
 ```bash
 poetry run pytest -q                          # Backend tests
-cd robin-dashboard && npm ci && npm run build  # Frontend build
+poetry run pytest \
+  --cov=robin \
+  --cov=mlops \
+  --cov-report=term-missing:skip-covered \
+  --cov-report=xml:coverage-python.xml        # Python coverage regression check
+cd robin-dashboard && npm ci && npm run coverage && npm run build
 ```
 
 CI pipeline: `.github/workflows/ci.yml`
+
+Coverage scope and targets:
+
+| Scope | CI signal | Current threshold | Release target |
+|---|---|---:|---:|
+| Python backend and MLOps (`robin`, `mlops`) | pytest plus Codecov flag `python-robin-mlops` | 90% line coverage gate | 90%+ line coverage |
+| Dashboard unit scope (`robin-dashboard/src/utils`, `src/config/aiInputFeatures.ts`, `src/hooks/useRobinAPI.ts`, `src/components/ui`) | Vitest plus Codecov flag `dashboard-unit`; `npm run build` remains required | 90% line coverage gate for the scoped unit surface | expand toward feature/page and E2E coverage |
+| ROS 2/Vulcanexus packages | documented/manual checks | no coverage badge | future `launch_testing` coverage |
+
+Public README badges intentionally report the `main` branch as the release
+baseline. The CI workflow also runs on `dev` so release-readiness PRs get the
+same checks before they are promoted to `main`.
 
 ## License
 
