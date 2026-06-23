@@ -547,8 +547,9 @@ Validate local services:
 
 Expected output:
 
-* Compose lists ``orion-ld``, ``mongo-db``, ``timescaledb``, ``mintaka``,
-  ``alert-processor``, and ``robin-dashboard`` as running or healthy.
+* Compose lists ``orion-ld``, ``vulcanexus``, ``mongo-db``, ``timescaledb``,
+  ``mintaka``, ``alert-processor``, ``lichtblick``, and
+  ``robin-dashboard`` as running or healthy.
 * Orion returns version metadata.
 * Mintaka returns a health response.
 * API health returns ``"status": "healthy"`` when Orion-LD and Mintaka are
@@ -585,9 +586,7 @@ Validate DDS topic and Orion-LD mapping on a Linux ROS 2/Vulcanexus setup:
 .. code-block:: bash
 
    docker exec vulcanexus-bridge bash -lc \
-     'source /opt/ros/jazzy/setup.bash 2>/dev/null || true;
-      source /workspace/ros2_packages/install/setup.bash 2>/dev/null || true;
-      ros2 topic list | grep /robin/telemetry'
+     'source /workspace/ros2_packages/ws_setup.sh && ros2 topic list | grep /robin/telemetry'
 
    curl -s \
      "http://localhost:1026/ngsi-ld/v1/entities/urn:ngsi-ld:Process:ros_bridge" \
