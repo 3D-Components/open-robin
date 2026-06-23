@@ -363,7 +363,7 @@ the Orion-LD container by ``docker-compose.yaml``:
      - ./config-dds.json:/root/.orionld
    command: -dbhost 127.0.0.1 -logLevel DEBUG -troe -wip dds
 
-Current mapping:
+Relevant ``config-dds.json`` excerpt:
 
 .. code-block:: json
 
