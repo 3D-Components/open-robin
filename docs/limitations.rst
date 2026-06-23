@@ -80,8 +80,15 @@ Safety and Certification
 Testing Gaps
 ------------
 
-* Unit and API tests cover selected backend behavior, and the dashboard has a
-  production build check.
+* Unit and API tests cover selected backend behavior, and the dashboard has
+  first-party Vitest tests for shared utilities, API helpers, AI input
+  normalization, and reusable UI primitives.
+* The release-critical Python coverage scope is currently ``robin`` plus
+  ``mlops``.  CI enforces a 90% line-coverage gate for that scope.
+* Dashboard unit coverage is published under the Codecov flag
+  ``dashboard-unit`` and has a 90% line-coverage gate for the scoped unit
+  surface.  Full dashboard feature/page coverage and browser end-to-end tests
+  remain future work.
 * ROS 2 ``launch_testing`` coverage is future work and is not complete in this
   release baseline.
 * Hardware-in-the-loop testing automation is future work and is not included in

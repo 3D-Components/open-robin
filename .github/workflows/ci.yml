@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   test-python:
@@ -29,17 +29,22 @@ jobs:
       - name: Run Python tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: poetry run python -m pytest --cov=robin --cov=robin-dashboard --cov-report=xml:coverage-python.xml
+        run: |
+          poetry run python -m pytest \
+            --cov=robin \
+            --cov=mlops \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml:coverage-python.xml
 
       - name: Upload Python coverage
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-python.xml
-          flags: python
-          name: python-coverage
+          flags: python-robin-mlops
+          name: python-robin-mlops-coverage
 
-  test-typescript-coverage:
+  test-dashboard:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -61,26 +66,18 @@ jobs:
         working-directory: ${{ matrix.frontend }}
         run: npm ci
 
-      - name: Install coverage runner
+      - name: Run dashboard unit tests with coverage
         working-directory: ${{ matrix.frontend }}
-        run: npm install --no-save vitest@3.2.4 @vitest/coverage-v8@3.2.4
+        run: npm run coverage
 
-      - name: Run TypeScript coverage (allow zero)
-        working-directory: ${{ matrix.frontend }}
-        run: |
-          npx vitest run --passWithNoTests \
-            --coverage.enabled \
-            --coverage.provider=v8 \
-            --coverage.reporter=lcov \
-            --coverage.reportsDirectory=coverage \
-            --coverage.all \
-            --coverage.include='src/**/*.ts' \
-            --coverage.include='src/**/*.tsx'
-
-      - name: Upload TypeScript coverage
+      - name: Upload dashboard unit coverage
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.frontend }}/coverage/lcov.info
-          flags: typescript
-          name: typescript-coverage-${{ matrix.frontend_label }}
+          flags: dashboard-unit
+          name: dashboard-unit-coverage-${{ matrix.frontend_label }}
+
+      - name: Build dashboard
+        working-directory: ${{ matrix.frontend }}
+        run: npm run build
