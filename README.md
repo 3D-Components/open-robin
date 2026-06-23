@@ -80,6 +80,9 @@ Modules 1 and 2 work without this pattern - you can feed data through the CLI or
 REST API instead of ROS 2.
 
 Details: [`vulcanexus_ws/src/robin_core_data/README.md`](vulcanexus_ws/src/robin_core_data/README.md).
+FIWARE/NGSI-LD entity mappings, DDS Enabler configuration, curl validation
+commands, and history/export behavior are documented in
+[`docs/reference/fiware_ngsi_ld_dds_mapping.rst`](docs/reference/fiware_ngsi_ld_dds_mapping.rst).
 
 ## How the Components Fit Together
 

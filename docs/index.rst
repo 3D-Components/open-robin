@@ -105,6 +105,7 @@ Documentation Structure
    :caption: Reference
 
    reference/configuration
+   reference/fiware_ngsi_ld_dds_mapping
    reference/troubleshooting
    limitations
 
