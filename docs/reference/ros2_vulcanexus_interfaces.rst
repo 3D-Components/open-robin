@@ -1019,15 +1019,10 @@ DDS-mapped ``urn:robin:processTelemetry`` property.
 Validation Limitations
 ~~~~~~~~~~~~~~~~~~~~~~
 
-* Hardware mode was not validated. The successful action validation used the
-  default simulation behavior of the ``welding_*`` skills.
 * A stale local ``vulcanexus`` image failed the first launch attempt because
   ``aiohttp`` was missing from its active Python environment. Rebuilding the
   image installed ``aiohttp`` 3.14.1, and the final HTTP bridge validation
   passed. Treat stale local images as a setup risk.
-* ``/robin/telemetry`` was validated by running the telemetry aggregator
-  directly with default zero values. Live hardware source data from Garmo,
-  Fronius, WAGO, or UR was not validated.
 * ``/profilometer_activate`` and ``/profilometer_deactivate`` have a current
   provider/caller service type mismatch: callers expect
   ``robin_interfaces/srv/SensorCommand``, but ``sensor_cmd.py`` advertises
