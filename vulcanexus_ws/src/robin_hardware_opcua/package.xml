@@ -4,8 +4,10 @@
   <name>robin_hardware_opcua</name>
   <version>0.0.1</version>
   <description>OPC UA hardware interface using open62541 library for WAGO PLC and Fronius welder</description>
-  <maintainer email="robin@3dcomponents.fi">ROBIN Team</maintainer>
-  <license>Apache-2.0</license>
+  <maintainer email="daniel.haas@3d-components.co">Daniel Haas</maintainer>
+  <maintainer email="virgilio.gomez@3d-components.co">Virgilio Gomez</maintainer>
+  <maintainer email="jayant@mil-as.no">Jayant Singh</maintainer>
+  <license>AGPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
