@@ -732,7 +732,7 @@ image was rebuilt and the container was recreated before final validation:
 
 .. code-block:: console
 
-   $ python -c 'import aiohttp; print(aiohttp.__version__)'
+   $ docker exec vulcanexus-bridge python -c 'import aiohttp; print(aiohttp.__version__)'
    3.14.1
 
 ROS workspace build after recreating the container:
@@ -740,11 +740,11 @@ ROS workspace build after recreating the container:
 .. code-block:: console
 
    $ docker exec vulcanexus-bridge bash -lc \
-       "cd /workspace/ros2_packages && source /opt/ros/jazzy/setup.bash && \
-        source /opt/vulcanexus/jazzy/setup.bash && colcon build --symlink-install"
+       "cd /workspace/ros2_packages && source ws_setup.sh && \
+        colcon build --symlink-install"
    Summary: 22 packages finished [22.7s]
 
-Package inventory:
+Package inventory (inside ``vulcanexus-bridge`` after ``source ws_setup.sh``):
 
 .. code-block:: console
 
