@@ -83,13 +83,6 @@ RUN python3 -m venv --system-site-packages /opt/venv && \
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONPATH="/opt/venv/lib/python3.12/site-packages:/opt/ros/jazzy/lib/python3.12/site-packages"
 
-COPY vulcanexus_ws/ws_setup.sh /workspace/ros2_packages/ws_setup.sh
-RUN chown 1000:1000 /workspace/ros2_packages
-
 WORKDIR /workspace/ros2_packages
 
-# Auto-source ROS2 + Vulcanexus for every interactive bash session
-# (prevents "ament_cmake not found" when running colcon build after docker exec)
-RUN echo "source /opt/ros/jazzy/setup.bash" >> /root/.bashrc && \
-    echo "source /opt/vulcanexus/jazzy/setup.bash" >> /root/.bashrc && \
-    echo "if [ -f /workspace/ros2_packages/install/setup.bash ]; then source /workspace/ros2_packages/install/setup.bash; fi" >> /root/.bashrc
+RUN chown 1000:1000 /workspace/ros2_packages

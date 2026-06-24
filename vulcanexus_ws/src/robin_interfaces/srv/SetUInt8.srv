@@ -1,6 +1,0 @@
-# Request
-uint8 value
----
-# Response
-bool success
-string message

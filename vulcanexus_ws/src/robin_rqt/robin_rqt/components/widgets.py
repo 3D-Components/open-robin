@@ -3,10 +3,76 @@ Reusable Qt widgets and constants for the ROBIN Operator Panel.
 """
 
 from python_qt_binding.QtCore import Qt
-from python_qt_binding.QtWidgets import QLabel, QPushButton
+from python_qt_binding.QtWidgets import QLabel, QPushButton, QWidget
 
 from rclpy.node import Node
 from std_srvs.srv import SetBool
+
+
+# ---------------------------------------------------------------------------
+# Touch-friendly style constants (target: quarter of 24" display ≈ 960×540)
+# ---------------------------------------------------------------------------
+
+# Minimum interactive element sizes (compact touch targets for ~960×540)
+TOUCH_MIN_H = 28       # px
+TOUCH_MIN_W = 56       # px
+TOUCH_SPACING = 4      # px gap between adjacent interactive elements
+
+# Font sizes
+FONT_BODY = 11         # px — labels, readouts
+FONT_HEADER = 12       # px — group headers
+FONT_MONO = 10         # px — log text, monospaced readouts
+
+# Shared stylesheets applied via apply_touch_style()
+_BTN_BASE = (
+    'QPushButton {{'
+    '  min-height: {h}px; min-width: {w}px;'
+    '  font-size: {fs}px; padding: 4px 10px;'
+    '}}'
+)
+TOUCH_BTN_CSS = _BTN_BASE.format(h=TOUCH_MIN_H, w=TOUCH_MIN_W, fs=FONT_BODY)
+
+TOUCH_BTN_ACCENT_CSS = (
+    f'QPushButton {{'
+    f'  min-height: {TOUCH_MIN_H}px; min-width: {TOUCH_MIN_W}px;'
+    f'  font-size: {FONT_BODY}px; font-weight: bold; padding: 4px 10px;'
+    f'}}'
+)
+
+TOUCH_LABEL_CSS = f'QLabel {{ font-size: {FONT_BODY}px; }}'
+
+TOUCH_GROUP_CSS = (
+    f'QGroupBox {{'
+    f'  font-size: {FONT_HEADER}px; font-weight: bold;'
+    f'  padding-top: 12px; margin-top: 2px;'
+    f'}}'
+    f'QGroupBox::title {{ subcontrol-origin: margin;'
+    f'  left: 6px; padding: 0 4px; }}'
+)
+
+TOUCH_LOG_CSS = (
+    f'QTextEdit {{ font-family: monospace; font-size: {FONT_MONO}px; }}'
+)
+
+
+def apply_touch_style(widget: QWidget):
+    """Apply base touch-friendly stylesheet to a top-level tab widget."""
+    widget.setStyleSheet(
+        f'QLabel {{ font-size: {FONT_BODY}px; }}'
+        f'QGroupBox {{ font-size: {FONT_HEADER}px; font-weight: bold;'
+        f'  padding-top: 12px; margin-top: 2px; }}'
+        f'QGroupBox::title {{ subcontrol-origin: margin;'
+        f'  left: 6px; padding: 0 4px; }}'
+        f'QPushButton {{ min-height: {TOUCH_MIN_H}px; font-size: {FONT_BODY}px; padding: 2px 6px; }}'
+        f'QDoubleSpinBox, QSpinBox, QComboBox, QLineEdit {{'
+        f'  min-height: {TOUCH_MIN_H - 4}px; font-size: {FONT_BODY}px;'
+        f'}}'
+        f'QDoubleSpinBox::up-button, QDoubleSpinBox::down-button,'
+        f'QSpinBox::up-button, QSpinBox::down-button {{'
+        f'  min-width: 20px; min-height: 14px;'
+        f'}}'
+        f'QTextEdit {{ font-family: monospace; font-size: {FONT_MONO}px; }}'
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -86,16 +152,17 @@ class StatusIndicator(QLabel):
         "  background-color: {bg}; "
         "  color: {fg}; "
         "  border: 1px solid #555; "
-        "  border-radius: 4px; "
-        "  padding: 2px 8px; "
+        "  border-radius: 3px; "
+        "  padding: 1px 4px; "
         "  font-weight: bold; "
+        "  font-size: 10px; "
         "}}"
     )
 
     def __init__(self, label_text: str, parent=None):
         super().__init__(label_text, parent)
         self.setAlignment(Qt.AlignCenter)
-        self.setMinimumWidth(100)
+        self.setMinimumWidth(50)
         self._set_state(False)
 
     def _set_state(self, on: bool):
@@ -115,14 +182,14 @@ class FloatReadout(QLabel):
     """Numeric readout label for float topics."""
 
     _CSS = (
-        "QLabel { font-family: monospace; font-size: 14px; padding: 2px 6px; }"
+        "QLabel { font-family: monospace; font-size: 11px; padding: 1px 4px; }"
     )
 
     def __init__(self, parent=None):
         super().__init__('---', parent)
         self.setStyleSheet(self._CSS)
         self.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.setMinimumWidth(90)
+        self.setMinimumWidth(70)
 
     def set_value(self, v: float):
         self.setText(f'{v:.1f}')
@@ -187,12 +254,12 @@ class ToggleServiceButton(QPushButton):
         if self._state:
             self.setStyleSheet(
                 'QPushButton { background-color: #4CAF50; color: white; '
-                'font-weight: bold; padding: 6px 12px; }')
+                'font-weight: bold; padding: 2px 6px; }')
             self.setText(f'{self._label}  ● ON')
         else:
             self.setStyleSheet(
                 'QPushButton { background-color: #424242; color: #ccc; '
-                'padding: 6px 12px; }')
+                'padding: 2px 6px; }')
             self.setText(f'{self._label}  ○ OFF')
 
 
@@ -210,7 +277,7 @@ class MomentaryServiceButton(QPushButton):
         self._client = node.create_client(SetBool, service_name)
         self._panel = panel
         self.setStyleSheet(
-            'QPushButton { padding: 6px 12px; } '
+            'QPushButton { padding: 2px 6px; } '
             'QPushButton:pressed { background-color: #FFA726; color: black; font-weight: bold; }')
         self.pressed.connect(lambda: self._send(True))
         self.released.connect(lambda: self._send(False))

@@ -1,9 +1,4 @@
-# Fronius Welding Package (Example Domain Adapter)
-
-> **Note:** This is an **example domain adapter**, not a reusable ROBIN module.
-> It shows how to integrate a specific piece of industrial hardware (Fronius
-> welding machine) with the ROBIN telemetry pipeline (Module 3).
-> Use this as a reference when writing your own hardware adapter.
+# Fronius Welding Package
 
 ## Nodes
 

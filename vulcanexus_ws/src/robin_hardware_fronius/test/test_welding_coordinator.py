@@ -3,9 +3,13 @@
 Unit tests for Welding Coordinator signal sequencing.
 
 Tests verify:
-1. Correct signal ordering (robot_ready -> gas_on -> welding_start)
-2. Gas purge timing
-3. Stop sequence (welding_start -> gas_on -> robot_ready)
+1. Correct signal ordering (robot_ready -> welding_start)
+2. robot_motion_release feedback handling
+3. Stop sequence (welding_start -> wait robot_motion_release drop -> robot_ready)
+
+The Fronius power source automatically handles gas pre-flow, ignition, and
+gas post-flow. The coordinator uses the robot_motion_release feedback signal
+to know when the arc is stable (start) and when post-flow is complete (stop).
 """
 
 import pytest
@@ -32,94 +36,96 @@ class WeldingSequenceValidator:
     def __init__(self):
         self.signal_history = []
         self.robot_ready = False
-        self.gas_on = False
         self.welding_start = False
+        self.robot_motion_release = False
     
     def set_robot_ready(self, value: bool) -> tuple[bool, str]:
         self.signal_history.append(('robot_ready', value, time.time()))
         self.robot_ready = value
         return True, "OK"
     
-    def set_gas_on(self, value: bool) -> tuple[bool, str]:
-        self.signal_history.append(('gas_on', value, time.time()))
-        self.gas_on = value
-        return True, "OK"
-    
     def set_welding_start(self, value: bool) -> tuple[bool, str]:
         self.signal_history.append(('welding_start', value, time.time()))
         self.welding_start = value
         return True, "OK"
+
+    def simulate_robot_motion_release(self, value: bool):
+        """Simulate the machine's robot_motion_release feedback signal."""
+        self.signal_history.append(('robot_motion_release', value, time.time()))
+        self.robot_motion_release = value
     
     def validate_start_sequence(self) -> bool:
         """Validate that start sequence is correct.
         
         Expected order:
         1. robot_ready=True
-        2. gas_on=True
-        3. welding_start=True
+        2. welding_start=True
         """
-        # Filter for start signals (value=True)
-        starts = [(s, v) for s, v, _ in self.signal_history if v is True]
+        starts = [(s, v) for s, v, _ in self.signal_history
+                  if v is True and s in ('robot_ready', 'welding_start')]
         
-        if len(starts) < 3:
+        if len(starts) < 2:
             return False
         
         expected = [
             ('robot_ready', True),
-            ('gas_on', True),
             ('welding_start', True),
         ]
         
-        return starts[:3] == expected
+        return starts[:2] == expected
     
     def validate_stop_sequence(self) -> bool:
         """Validate that stop sequence is correct.
         
         Expected order:
         1. welding_start=False
-        2. gas_on=False
-        3. robot_ready=False
+        2. robot_ready=False
         """
-        # Filter for stop signals (value=False)
-        stops = [(s, v) for s, v, _ in self.signal_history if v is False]
+        stops = [(s, v) for s, v, _ in self.signal_history
+                 if v is False and s in ('robot_ready', 'welding_start')]
         
-        if len(stops) < 3:
+        if len(stops) < 2:
             return False
         
         expected = [
             ('welding_start', False),
-            ('gas_on', False),
             ('robot_ready', False),
         ]
         
-        return stops[:3] == expected
-    
-    def get_gas_purge_duration(self) -> float:
-        """Get time between gas_on=True and welding_start=True."""
-        gas_on_time = None
+        return stops[:2] == expected
+
+    def validate_robot_motion_release_before_move(self) -> bool:
+        """Validate robot_motion_release went True after welding_start=True."""
         welding_start_time = None
-        
-        for signal, value, timestamp in self.signal_history:
-            if signal == 'gas_on' and value is True:
-                gas_on_time = timestamp
-            elif signal == 'welding_start' and value is True:
-                welding_start_time = timestamp
-        
-        if gas_on_time and welding_start_time:
-            return welding_start_time - gas_on_time
-        return 0.0
+        release_time = None
+        for signal, value, ts in self.signal_history:
+            if signal == 'welding_start' and value is True:
+                welding_start_time = ts
+            elif signal == 'robot_motion_release' and value is True and welding_start_time:
+                release_time = ts
+        return welding_start_time is not None and release_time is not None and release_time > welding_start_time
+
+    def validate_postflow_complete_before_robot_ready_off(self) -> bool:
+        """Validate robot_motion_release dropped before robot_ready=False."""
+        release_drop_idx = None
+        robot_ready_off_idx = None
+        for i, (signal, value, _) in enumerate(self.signal_history):
+            if signal == 'robot_motion_release' and value is False:
+                release_drop_idx = i
+            elif signal == 'robot_ready' and value is False:
+                robot_ready_off_idx = i
+        return (release_drop_idx is not None and robot_ready_off_idx is not None
+                and release_drop_idx < robot_ready_off_idx)
 
 
 class TestWeldingStartSequence:
     """Test welding start signal sequence."""
     
-    def test_robot_ready_before_gas_on(self):
-        """Robot ready must be set before gas on."""
+    def test_robot_ready_before_welding_start(self):
+        """Robot ready must be set before welding_start."""
         validator = WeldingSequenceValidator()
         
-        # Simulate correct start sequence
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
         validator.set_welding_start(True)
         
         assert validator.validate_start_sequence()
@@ -128,40 +134,39 @@ class TestWeldingStartSequence:
         """Wrong sequence should fail validation."""
         validator = WeldingSequenceValidator()
         
-        # Wrong order: gas_on before robot_ready
-        validator.set_gas_on(True)
-        validator.set_robot_ready(True)
+        # Wrong order: welding_start before robot_ready
         validator.set_welding_start(True)
+        validator.set_robot_ready(True)
         
         assert not validator.validate_start_sequence()
-    
-    def test_gas_on_before_welding_start(self):
-        """Gas must be on before striking arc."""
+
+    def test_robot_motion_release_after_welding_start(self):
+        """Machine must signal robot_motion_release after arc stabilises."""
         validator = WeldingSequenceValidator()
-        
-        # Wrong order: welding_start before gas_on
+
         validator.set_robot_ready(True)
         validator.set_welding_start(True)
-        validator.set_gas_on(True)
-        
-        assert not validator.validate_start_sequence()
+        # Machine feedback arrives after GPr + ignition + starting current
+        validator.simulate_robot_motion_release(True)
+
+        assert validator.validate_robot_motion_release_before_move()
 
 
 class TestWeldingStopSequence:
     """Test welding stop signal sequence."""
     
-    def test_arc_off_before_gas_off(self):
-        """Arc must be off before gas."""
+    def test_welding_start_off_before_robot_ready_off(self):
+        """welding_start must be off before robot_ready."""
         validator = WeldingSequenceValidator()
         
         # Simulate start
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
         validator.set_welding_start(True)
+        validator.simulate_robot_motion_release(True)
         
         # Correct stop sequence
         validator.set_welding_start(False)
-        validator.set_gas_on(False)
+        validator.simulate_robot_motion_release(False)
         validator.set_robot_ready(False)
         
         assert validator.validate_stop_sequence()
@@ -172,44 +177,29 @@ class TestWeldingStopSequence:
         
         # Simulate start
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
         validator.set_welding_start(True)
         
-        # Wrong order: gas_off before welding_start off
-        validator.set_gas_on(False)
-        validator.set_welding_start(False)
+        # Wrong order: robot_ready off before welding_start off
         validator.set_robot_ready(False)
+        validator.set_welding_start(False)
         
         assert not validator.validate_stop_sequence()
 
+    def test_postflow_complete_before_robot_ready_off(self):
+        """robot_motion_release must drop (post-flow done) before clearing robot_ready."""
+        validator = WeldingSequenceValidator()
 
-class TestGasPurgeTiming:
-    """Test gas purge timing requirements."""
-    
-    def test_gas_purge_minimum_duration(self):
-        """Gas must flow for minimum time before arc."""
-        validator = WeldingSequenceValidator()
-        min_purge_time = 2.0  # seconds
-        
+        # Start
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
-        time.sleep(min_purge_time)  # Simulate purge delay
         validator.set_welding_start(True)
-        
-        purge_duration = validator.get_gas_purge_duration()
-        assert purge_duration >= min_purge_time
-    
-    def test_no_purge_time_detected(self):
-        """Detect when no purge time is used."""
-        validator = WeldingSequenceValidator()
-        
-        validator.set_robot_ready(True)
-        validator.set_gas_on(True)
-        # No delay
-        validator.set_welding_start(True)
-        
-        purge_duration = validator.get_gas_purge_duration()
-        assert purge_duration < 0.1  # Very short, almost immediate
+        validator.simulate_robot_motion_release(True)
+
+        # Stop
+        validator.set_welding_start(False)
+        validator.simulate_robot_motion_release(False)  # post-flow complete
+        validator.set_robot_ready(False)
+
+        assert validator.validate_postflow_complete_before_robot_ready_off()
 
 
 class TestWeldingCoordinatorLogic:
@@ -221,24 +211,23 @@ class TestWeldingCoordinatorLogic:
         
         # Start welding
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
-        time.sleep(0.1)  # Short purge for test
         validator.set_welding_start(True)
+        validator.simulate_robot_motion_release(True)
         
         # Verify started
         assert validator.robot_ready is True
-        assert validator.gas_on is True
         assert validator.welding_start is True
+        assert validator.robot_motion_release is True
         
         # Stop welding
         validator.set_welding_start(False)
-        validator.set_gas_on(False)
+        validator.simulate_robot_motion_release(False)
         validator.set_robot_ready(False)
         
         # Verify stopped
         assert validator.robot_ready is False
-        assert validator.gas_on is False
         assert validator.welding_start is False
+        assert validator.robot_motion_release is False
     
     def test_emergency_stop_order(self):
         """Emergency stop should still follow correct sequence."""
@@ -246,12 +235,10 @@ class TestWeldingCoordinatorLogic:
         
         # Start welding
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
         validator.set_welding_start(True)
         
         # Emergency stop (still follows sequence for safety)
         validator.set_welding_start(False)  # Arc off first!
-        validator.set_gas_on(False)
         validator.set_robot_ready(False)
         
         assert validator.validate_stop_sequence()
@@ -261,10 +248,10 @@ class TestWeldingCoordinatorLogic:
         validator = WeldingSequenceValidator()
         
         validator.set_robot_ready(True)
-        validator.set_gas_on(True)
         validator.set_welding_start(True)
+        validator.simulate_robot_motion_release(True)
         validator.set_welding_start(False)
-        validator.set_gas_on(False)
+        validator.simulate_robot_motion_release(False)
         validator.set_robot_ready(False)
         
         assert len(validator.signal_history) == 6
@@ -272,7 +259,7 @@ class TestWeldingCoordinatorLogic:
         # All should have timestamps
         for signal, value, timestamp in validator.signal_history:
             assert timestamp > 0
-            assert signal in ('robot_ready', 'gas_on', 'welding_start')
+            assert signal in ('robot_ready', 'welding_start', 'robot_motion_release')
             assert isinstance(value, bool)
 
 

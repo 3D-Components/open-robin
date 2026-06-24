@@ -1,4 +1,4 @@
-"""Plates tab — define/capture/calibrate plates from one corner and show plane fit."""
+"""Plates tab — define/capture/calibrate plates by corner position and plane."""
 
 import json
 import math
@@ -10,11 +10,12 @@ from python_qt_binding.QtWidgets import (
     QHeaderView, QMessageBox, QFileDialog,
 )
 from python_qt_binding.QtCore import Qt, QPointF
-from python_qt_binding.QtGui import QPainter, QPen, QBrush, QColor
+from python_qt_binding.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF
 
 import rclpy
 from geometry_msgs.msg import Point
 from robin_interfaces.srv import CalibratePlatePlane
+from robin_core.plate_geometry import corner_to_center
 
 
 DEFAULT_MARGIN_M = 0.040
@@ -29,7 +30,7 @@ class CornerSelectorWidget(QWidget):
         super().__init__(parent)
         self._on_corner_selected = on_corner_selected
         self._selected = 'front_left'
-        self.setMinimumSize(180, 180)
+        self.setMinimumSize(70, 70)
 
     def set_selected_corner(self, corner_id: str):
         if corner_id in self._KEYS:
@@ -42,11 +43,13 @@ class CornerSelectorWidget(QWidget):
         h = max(80, self.height() - 2 * pad)
         x0 = (self.width() - w) / 2.0
         y0 = (self.height() - h) / 2.0
+        # Operator-view map (top-down) rotated 180° vs world map:
+        # screen top = robot rear (+X), screen bottom = robot front (-X).
         return {
-            'front_left': QPointF(x0, y0),
-            'front_right': QPointF(x0 + w, y0),
-            'rear_left': QPointF(x0, y0 + h),
-            'rear_right': QPointF(x0 + w, y0 + h),
+            'rear_right': QPointF(x0, y0),
+            'rear_left': QPointF(x0 + w, y0),
+            'front_right': QPointF(x0, y0 + h),
+            'front_left': QPointF(x0 + w, y0 + h),
         }
 
     def mousePressEvent(self, event):
@@ -82,6 +85,12 @@ class CornerSelectorWidget(QWidget):
         pts = self._corner_points()
         order = ['front_left', 'front_right', 'rear_right', 'rear_left', 'front_left']
 
+        # Plate fill for better visual readability.
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QBrush(QColor('#ECEFF1')))
+        poly = QPolygonF([pts[k] for k in ['front_left', 'front_right', 'rear_right', 'rear_left']])
+        painter.drawPolygon(poly)
+
         painter.setPen(QPen(QColor('#607D8B'), 2))
         for i in range(len(order) - 1):
             a = pts[order[i]]
@@ -90,9 +99,9 @@ class CornerSelectorWidget(QWidget):
 
         for key, q in pts.items():
             is_sel = (key == self._selected)
-            painter.setPen(QPen(QColor('#263238'), 1))
-            painter.setBrush(QBrush(QColor('#4CAF50') if is_sel else QColor('#B0BEC5')))
-            painter.drawEllipse(q, 6, 6)
+            painter.setPen(QPen(QColor('#263238'), 1.5 if is_sel else 1))
+            painter.setBrush(QBrush(QColor('#43A047') if is_sel else QColor('#B0BEC5')))
+            painter.drawEllipse(q, 8 if is_sel else 6, 8 if is_sel else 6)
 
         labels = {
             'front_left': 'FL', 'front_right': 'FR',
@@ -102,14 +111,17 @@ class CornerSelectorWidget(QWidget):
         for key, q in pts.items():
             painter.drawText(QPointF(q.x() + 8, q.y() - 8), labels[key])
 
-        # base_link axis hint (schematic)
+        # base_link axis hint (operator-view schematic)
         origin = QPointF(18, self.height() - 18)
         painter.setPen(QPen(QColor('#E53935'), 2))
-        painter.drawLine(origin, QPointF(origin.x() + 28, origin.y()))
-        painter.drawText(QPointF(origin.x() + 30, origin.y() + 4), '+X')
-        painter.setPen(QPen(QColor('#1E88E5'), 2))
         painter.drawLine(origin, QPointF(origin.x(), origin.y() - 28))
-        painter.drawText(QPointF(origin.x() - 2, origin.y() - 32), '+Y')
+        painter.drawText(QPointF(origin.x() + 4, origin.y() - 32), '+X')
+        painter.setPen(QPen(QColor('#1E88E5'), 2))
+        painter.drawLine(origin, QPointF(origin.x() + 28, origin.y()))
+        painter.drawText(QPointF(origin.x() + 30, origin.y() + 4), '+Y')
+
+        painter.setPen(QPen(QColor('#455A64'), 1))
+        painter.drawText(QPointF(self.width() * 0.5 - 46, self.height() - 6), 'Operator side')
 
 
 def build_plates_tab(panel) -> QWidget:
@@ -121,9 +133,9 @@ def build_plates_tab(panel) -> QWidget:
         panel._plate_defaults = {'margin_x': DEFAULT_MARGIN_M, 'margin_y': DEFAULT_MARGIN_M}
 
     # ---- Plate table ----
-    panel._plate_table = QTableWidget(0, 10)
+    panel._plate_table = QTableWidget(0, 11)
     panel._plate_table.setHorizontalHeaderLabels([
-        'Plate ID', 'Corner', 'Corner X', 'Corner Y',
+        'On', 'Plate ID', 'Corner', 'Corner X', 'Corner Y',
         'W (m)', 'L (m)', 'Mx (m)', 'My (m)',
         'Surface Z', 'Cal',
     ])
@@ -251,7 +263,7 @@ def locate_plates_config() -> str:
 
     Search order:
     1. $ROBIN_PLATES_CONFIG  (env-var override)
-    2. robin_core_bringup share dir (installed package)
+    2. robin_bringup share dir (installed package)
     3. Source-tree default (developer convenience)
     """
     env_path = os.environ.get('ROBIN_PLATES_CONFIG', '')
@@ -260,7 +272,7 @@ def locate_plates_config() -> str:
 
     try:
         from ament_index_python.packages import get_package_share_directory
-        share = get_package_share_directory('robin_core_bringup')
+        share = get_package_share_directory('robin_bringup')
         pkg_path = os.path.join(share, 'config', 'plates.json')
         if os.path.isfile(pkg_path):
             return pkg_path
@@ -269,7 +281,7 @@ def locate_plates_config() -> str:
 
     src_path = os.path.join(
         os.path.dirname(__file__), '..', '..', '..', '..',
-        'robin_core_bringup', 'config', 'plates.json')
+        'robin_bringup', 'config', 'plates.json')
     src_path = os.path.normpath(src_path)
     if os.path.isfile(src_path):
         return src_path
@@ -298,9 +310,11 @@ def load_plates_from_config(panel):
                 'plate_defaults', {'margin_x': DEFAULT_MARGIN_M, 'margin_y': DEFAULT_MARGIN_M})
         panel._plates_path = path
         if hasattr(panel, '_global_margin_x'):
-            panel._global_margin_x.setValue(float(panel._plate_defaults.get('margin_x', DEFAULT_MARGIN_M)))
+            panel._global_margin_x.setValue(
+                float(panel._plate_defaults.get('margin_x', DEFAULT_MARGIN_M)) * 1000.0)
         if hasattr(panel, '_global_margin_y'):
-            panel._global_margin_y.setValue(float(panel._plate_defaults.get('margin_y', DEFAULT_MARGIN_M)))
+            panel._global_margin_y.setValue(
+                float(panel._plate_defaults.get('margin_y', DEFAULT_MARGIN_M)) * 1000.0)
         refresh_plate_table(panel)
         panel._node.get_logger().info(
             f'Loaded {len(panel._plates)} plate(s) from {path}')
@@ -327,31 +341,59 @@ def auto_save_plates(panel):
         panel._node.get_logger().warn(f'Auto-save plates failed: {e}')
 
 
+def toggle_selected_plates(panel):
+    """Toggle enabled/disabled state for selected plates."""
+    rows = set(idx.row() for idx in panel._plate_table.selectedIndexes())
+    if not rows:
+        return
+    col = 1 if panel._plate_table.columnCount() == 11 else 0
+    for r in rows:
+        pid = panel._plate_table.item(r, col).text()
+        for p in panel._plates:
+            if p['plate_id'] == pid:
+                p['enabled'] = not p.get('enabled', True)
+                break
+    refresh_plate_table(panel)
+    auto_save_plates(panel)
+
+
 def refresh_plate_table(panel):
     """Re-populate the plate table from panel._plates."""
     panel._plate_table.setRowCount(0)
+    has_on_col = panel._plate_table.columnCount() == 11
+    disabled_fg = QColor('#999999')
     for p in panel._plates:
         row = panel._plate_table.rowCount()
         panel._plate_table.insertRow(row)
-        panel._plate_table.setItem(row, 0, QTableWidgetItem(p['plate_id']))
-        panel._plate_table.setItem(row, 1, QTableWidgetItem(str(p.get('corner_id', 'front_left'))))
-        panel._plate_table.setItem(row, 2, QTableWidgetItem(f"{p['corner_x']:.4f}"))
-        panel._plate_table.setItem(row, 3, QTableWidgetItem(f"{p['corner_y']:.4f}"))
-        panel._plate_table.setItem(row, 4, QTableWidgetItem(f"{p['width']:.4f}"))
-        panel._plate_table.setItem(row, 5, QTableWidgetItem(f"{p['length']:.4f}"))
-        panel._plate_table.setItem(row, 6, QTableWidgetItem(f"{p['margin_x']:.4f}"))
-        panel._plate_table.setItem(row, 7, QTableWidgetItem(f"{p['margin_y']:.4f}"))
-        panel._plate_table.setItem(row, 8, QTableWidgetItem(f"{p['surface_z']:.4f}"))
-        cal_item = QTableWidgetItem('Yes' if p.get('is_calibrated') else 'No')
-        panel._plate_table.setItem(row, 9, cal_item)
+        enabled = p.get('enabled', True)
+        if has_on_col:
+            on_item = QTableWidgetItem('\u2713' if enabled else '')
+            on_item.setTextAlignment(Qt.AlignCenter)
+            panel._plate_table.setItem(row, 0, on_item)
+        off = 1 if has_on_col else 0
+        panel._plate_table.setItem(row, off + 0, QTableWidgetItem(p['plate_id']))
+        panel._plate_table.setItem(row, off + 1, QTableWidgetItem(p.get('corner_id', 'front_left')))
+        panel._plate_table.setItem(row, off + 2, QTableWidgetItem(f"{p['corner_x']:.4f}"))
+        panel._plate_table.setItem(row, off + 3, QTableWidgetItem(f"{p['corner_y']:.4f}"))
+        panel._plate_table.setItem(row, off + 4, QTableWidgetItem(f"{p['width'] * 1000:.0f}"))
+        panel._plate_table.setItem(row, off + 5, QTableWidgetItem(f"{p['length'] * 1000:.0f}"))
+        panel._plate_table.setItem(row, off + 6, QTableWidgetItem(f"{p['margin_x'] * 1000:.0f}"))
+        panel._plate_table.setItem(row, off + 7, QTableWidgetItem(f"{p['margin_y'] * 1000:.0f}"))
+        panel._plate_table.setItem(row, off + 8, QTableWidgetItem(f"{p.get('surface_z', 0.0):.4f}"))
+        panel._plate_table.setItem(row, off + 9, QTableWidgetItem('Yes' if p.get('is_calibrated') else 'No'))
+        if not enabled:
+            for c in range(panel._plate_table.columnCount()):
+                item = panel._plate_table.item(row, c)
+                if item:
+                    item.setForeground(disabled_fg)
 
     if hasattr(panel, '_cal_plate_combo'):
         panel._cal_plate_combo.clear()
         for p in panel._plates:
             panel._cal_plate_combo.addItem(p['plate_id'])
 
-    if hasattr(panel, '_refresh_stickout_sources'):
-        panel._refresh_stickout_sources()
+    if hasattr(panel, '_refresh_ctwd_sources'):
+        panel._refresh_ctwd_sources()
 
     if hasattr(panel, '_update_contact_point_label'):
         panel._update_contact_point_label()
@@ -364,30 +406,56 @@ def add_or_update_plate(panel):
         return
 
     panel._plate_defaults = {
-        'margin_x': panel._global_margin_x.value(),
-        'margin_y': panel._global_margin_y.value(),
+        'margin_x': panel._global_margin_x.value() / 1000.0,
+        'margin_y': panel._global_margin_y.value() / 1000.0,
     }
+
+    # Read form values — W/L/margins are in mm, position in m
+    corner_x = panel._plate_ox.value()
+    corner_y = panel._plate_oy.value()
+    corner_z = panel._plate_oz.value() if hasattr(panel, '_plate_oz') else 0.0
+    corner_id = panel._corner_id
+    width_m = panel._plate_w.value() / 1000.0
+    length_m = panel._plate_l.value() / 1000.0
+    yaw_deg = panel._plate_yaw.value()
+    yaw_rad = math.radians(yaw_deg)
+    mx_m = panel._plate_mx.value() / 1000.0
+    my_m = panel._plate_my.value() / 1000.0
+
+    center_x, center_y = corner_to_center(
+        corner_x, corner_y, yaw_rad, corner_id, length_m, width_m)
+
+    # Preserve calibration data / surface_z from existing plate
+    surface_z = corner_z
+    existing = next((p for p in panel._plates if p['plate_id'] == pid), None)
+    cal_fields = {}
+    if existing:
+        surface_z = existing.get('surface_z', surface_z)
+        for k in ('is_calibrated', 'plane_calibrated', 'plane_a', 'plane_b',
+                  'plane_c', 'probe_points'):
+            cal_fields[k] = existing.get(k)
 
     entry = {
         'plate_id': pid,
-        'corner_id': panel._corner_id,
-        'corner_x': panel._plate_ox.value(),
-        'corner_y': panel._plate_oy.value(),
-        'corner_z': panel._plate_oz.value(),
-        'origin_x': panel._plate_ox.value(),
-        'origin_y': panel._plate_oy.value(),
-        'width':  panel._plate_w.value(),
-        'length': panel._plate_l.value(),
-        'yaw_deg': panel._plate_yaw.value(),
-        'margin_x': panel._plate_mx.value(),
-        'margin_y': panel._plate_my.value(),
-        'surface_z': panel._plate_oz.value(),
-        'is_calibrated': False,
-        'plane_calibrated': False,
-        'plane_a': 0.0,
-        'plane_b': 0.0,
-        'plane_c': panel._plate_oz.value(),
-        'probe_points': [],
+        'enabled': existing.get('enabled', True) if existing else True,
+        'corner_id': corner_id,
+        'corner_x': corner_x,
+        'corner_y': corner_y,
+        'corner_z': corner_z,
+        'center_x': center_x,
+        'center_y': center_y,
+        'width': width_m,
+        'length': length_m,
+        'yaw_deg': yaw_deg,
+        'margin_x': mx_m,
+        'margin_y': my_m,
+        'surface_z': surface_z,
+        'is_calibrated': cal_fields.get('is_calibrated', False),
+        'plane_calibrated': cal_fields.get('plane_calibrated', False),
+        'plane_a': cal_fields.get('plane_a', 0.0),
+        'plane_b': cal_fields.get('plane_b', 0.0),
+        'plane_c': cal_fields.get('plane_c', surface_z),
+        'probe_points': cal_fields.get('probe_points', []),
     }
 
     for i, p in enumerate(panel._plates):
@@ -405,8 +473,9 @@ def delete_selected_plate(panel):
     rows = set(idx.row() for idx in panel._plate_table.selectedIndexes())
     if not rows:
         return
+    col = 1 if panel._plate_table.columnCount() == 11 else 0
     ids_to_remove = {
-        panel._plate_table.item(r, 0).text() for r in rows
+        panel._plate_table.item(r, col).text() for r in rows
     }
     panel._plates = [p for p in panel._plates if p['plate_id'] not in ids_to_remove]
     refresh_plate_table(panel)
@@ -414,19 +483,21 @@ def delete_selected_plate(panel):
 
 
 def load_plate_to_form(panel, row):
-    pid = panel._plate_table.item(row, 0).text()
+    col = 1 if panel._plate_table.columnCount() == 11 else 0
+    pid = panel._plate_table.item(row, col).text()
     for p in panel._plates:
         if p['plate_id'] == pid:
             panel._plate_id_edit.setText(p['plate_id'])
             _set_corner(panel, p.get('corner_id', 'front_left'))
-            panel._plate_ox.setValue(p.get('corner_x', p.get('origin_x', 0.0)))
-            panel._plate_oy.setValue(p.get('corner_y', p.get('origin_y', 0.0)))
-            panel._plate_oz.setValue(p.get('corner_z', p.get('surface_z', 0.0)))
-            panel._plate_w.setValue(p['width'])
-            panel._plate_l.setValue(p['length'])
+            panel._plate_ox.setValue(p.get('corner_x', 0.0))
+            panel._plate_oy.setValue(p.get('corner_y', 0.0))
+            if hasattr(panel, '_plate_oz'):
+                panel._plate_oz.setValue(p.get('corner_z', p.get('surface_z', 0.0)))
+            panel._plate_w.setValue(p['width'] * 1000.0)   # m → mm
+            panel._plate_l.setValue(p['length'] * 1000.0)
             panel._plate_yaw.setValue(p['yaw_deg'])
-            panel._plate_mx.setValue(p.get('margin_x', DEFAULT_MARGIN_M))
-            panel._plate_my.setValue(p.get('margin_y', DEFAULT_MARGIN_M))
+            panel._plate_mx.setValue(p.get('margin_x', DEFAULT_MARGIN_M) * 1000.0)
+            panel._plate_my.setValue(p.get('margin_y', DEFAULT_MARGIN_M) * 1000.0)
             break
 
 
@@ -449,9 +520,11 @@ def load_plates_json(panel):
                 'plate_defaults', {'margin_x': DEFAULT_MARGIN_M, 'margin_y': DEFAULT_MARGIN_M})
         panel._plates_path = path
         if hasattr(panel, '_global_margin_x'):
-            panel._global_margin_x.setValue(float(panel._plate_defaults.get('margin_x', DEFAULT_MARGIN_M)))
+            panel._global_margin_x.setValue(
+                float(panel._plate_defaults.get('margin_x', DEFAULT_MARGIN_M)) * 1000.0)
         if hasattr(panel, '_global_margin_y'):
-            panel._global_margin_y.setValue(float(panel._plate_defaults.get('margin_y', DEFAULT_MARGIN_M)))
+            panel._global_margin_y.setValue(
+                float(panel._plate_defaults.get('margin_y', DEFAULT_MARGIN_M)) * 1000.0)
         refresh_plate_table(panel)
     except Exception as e:
         QMessageBox.warning(panel._widget, 'Load Error', str(e))
@@ -480,10 +553,12 @@ def save_plates_json(panel):
 
 
 def plates_to_msgs(panel) -> list:
-    """Convert internal plate dicts to robin_interfaces/WeldPlate msgs."""
+    """Convert enabled plate dicts to robin_interfaces/WeldPlate msgs."""
     from robin_interfaces.msg import WeldPlate
     msgs = []
     for p in panel._plates:
+        if not p.get('enabled', True):
+            continue
         wp = WeldPlate()
         wp.plate_id = p['plate_id']
         corner_x = float(p.get('corner_x', p.get('origin_x', 0.0)))
@@ -518,6 +593,12 @@ def _set_corner(panel, corner_id: str):
     panel._corner_id = corner_id
     if hasattr(panel, '_corner_selector'):
         panel._corner_selector.set_selected_corner(corner_id)
+    if hasattr(panel, '_corner_combo'):
+        panel._corner_combo.blockSignals(True)
+        idx = panel._corner_combo.findText(corner_id)
+        if idx >= 0:
+            panel._corner_combo.setCurrentIndex(idx)
+        panel._corner_combo.blockSignals(False)
 
 
 def _apply_global_margins_to_plate(panel):
@@ -529,18 +610,31 @@ def _normalize_plate_entry(raw: dict) -> dict:
     corner_x = float(raw.get('corner_x', raw.get('origin_x', 0.0)))
     corner_y = float(raw.get('corner_y', raw.get('origin_y', 0.0)))
     corner_z = float(raw.get('corner_z', raw.get('surface_z', 0.0)))
+    corner_id = str(raw.get('corner_id', 'front_left'))
     surface_z = float(raw.get('surface_z', corner_z))
+    width = float(raw.get('width', 0.30))
+    length = float(raw.get('length', 0.30))
+    yaw_deg = float(raw.get('yaw_deg', 0.0))
+    yaw_rad = math.radians(yaw_deg)
+    # Compute center from corner (backward-compat for old JSON), or use stored
+    if 'center_x' in raw and 'center_y' in raw:
+        center_x = float(raw['center_x'])
+        center_y = float(raw['center_y'])
+    else:
+        center_x, center_y = corner_to_center(
+            corner_x, corner_y, yaw_rad, corner_id, length, width)
     return {
         'plate_id': str(raw.get('plate_id', 'plate')),
-        'corner_id': str(raw.get('corner_id', 'front_left')),
+        'enabled': bool(raw.get('enabled', True)),
+        'corner_id': corner_id,
         'corner_x': corner_x,
         'corner_y': corner_y,
         'corner_z': corner_z,
-        'origin_x': corner_x,
-        'origin_y': corner_y,
-        'width': float(raw.get('width', 0.15)),
-        'length': float(raw.get('length', 0.20)),
-        'yaw_deg': float(raw.get('yaw_deg', 0.0)),
+        'center_x': center_x,
+        'center_y': center_y,
+        'width': width,
+        'length': length,
+        'yaw_deg': yaw_deg,
         'margin_x': float(raw.get('margin_x', DEFAULT_MARGIN_M)),
         'margin_y': float(raw.get('margin_y', DEFAULT_MARGIN_M)),
         'surface_z': surface_z,
@@ -561,13 +655,15 @@ def _normalize_plate_entry(raw: dict) -> dict:
 
 
 def capture_corner_pose(panel):
+    """Capture wire_tip TF as the plate corner position."""
     try:
         tf = panel._tf_buffer.lookup_transform(
             'base_link', 'wire_tip', rclpy.time.Time())
         t = tf.transform.translation
         panel._plate_ox.setValue(float(t.x))
         panel._plate_oy.setValue(float(t.y))
-        panel._plate_oz.setValue(float(t.z))
+        if hasattr(panel, '_plate_oz'):
+            panel._plate_oz.setValue(float(t.z))
     except Exception as e:
         QMessageBox.warning(panel._widget, 'Capture Error', str(e))
 
@@ -578,7 +674,8 @@ def calibrate_selected_plate(panel):
         QMessageBox.warning(panel._widget, 'No Selection', 'Select one plate row first.')
         return
 
-    pid = panel._plate_table.item(rows[0], 0).text()
+    col = 1 if panel._plate_table.columnCount() == 11 else 0
+    pid = panel._plate_table.item(rows[0], col).text()
     plate = next((p for p in panel._plates if p['plate_id'] == pid), None)
     if plate is None:
         QMessageBox.warning(panel._widget, 'Error', f'Plate not found: {pid}')

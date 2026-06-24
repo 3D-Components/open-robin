@@ -6,6 +6,7 @@ Experiment workflow UI component:
 """
 
 import json
+import re
 
 from python_qt_binding.QtCore import Qt
 from python_qt_binding.QtWidgets import (
@@ -18,9 +19,9 @@ from python_qt_binding.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSpinBox,
     QTextEdit,
     QVBoxLayout,
-    QWidget,
 )
 from std_srvs.srv import Trigger
 
@@ -51,7 +52,7 @@ def build_experiment_workflow_group(panel) -> QGroupBox:
     panel._exp_spacing_x = QDoubleSpinBox()
     panel._exp_spacing_x.setRange(0.0, 200.0)
     panel._exp_spacing_x.setDecimals(1)
-    panel._exp_spacing_x.setValue(30.0)
+    panel._exp_spacing_x.setValue(20.0)
     panel._exp_spacing_x.setSuffix(' mm')
     top.addWidget(panel._exp_spacing_x, 0, 3)
 
@@ -59,7 +60,7 @@ def build_experiment_workflow_group(panel) -> QGroupBox:
     panel._exp_spacing_y = QDoubleSpinBox()
     panel._exp_spacing_y.setRange(0.0, 200.0)
     panel._exp_spacing_y.setDecimals(1)
-    panel._exp_spacing_y.setValue(30.0)
+    panel._exp_spacing_y.setValue(20.0)
     panel._exp_spacing_y.setSuffix(' mm')
     top.addWidget(panel._exp_spacing_y, 0, 5)
 
@@ -79,13 +80,18 @@ def build_experiment_workflow_group(panel) -> QGroupBox:
     panel._exp_margin_y.setSuffix(' mm')
     top.addWidget(panel._exp_margin_y, 1, 3)
 
-    panel._exp_staggered = QCheckBox('Staggered placement')
-    panel._exp_staggered.setChecked(True)
-    top.addWidget(panel._exp_staggered, 1, 4)
-
     panel._exp_dry_run = QCheckBox('Execute as dry-run')
     panel._exp_dry_run.setChecked(False)
-    top.addWidget(panel._exp_dry_run, 1, 5)
+    top.addWidget(panel._exp_dry_run, 1, 4)
+
+    top.addWidget(QLabel('Beads per batch:'), 2, 0)
+    panel._exp_beads_per_batch = QSpinBox()
+    panel._exp_beads_per_batch.setRange(0, 1000)
+    panel._exp_beads_per_batch.setValue(12)
+    panel._exp_beads_per_batch.setSpecialValueText('No pause')
+    panel._exp_beads_per_batch.setToolTip(
+        'Pause for nozzle cleaning every N beads (0 = no pause)')
+    top.addWidget(panel._exp_beads_per_batch, 2, 1)
 
     layout.addLayout(top)
 
@@ -94,10 +100,11 @@ def build_experiment_workflow_group(panel) -> QGroupBox:
     panel._exp_schema_edit.setStyleSheet('font-family: monospace; font-size: 11px;')
     panel._exp_schema_edit.setMinimumHeight(120)
     panel._exp_schema_edit.setPlainText(
-        '[\n'
-        '  {"weld_current": 180.0, "weld_speed": 0.006, "stickout": 0.015, "scan_speed": 0.006},\n'
-        '  {"weld_current": 200.0, "weld_speed": 0.007, "stickout": 0.015, "scan_speed": 0.007}\n'
-        ']'
+        '{\n'
+        '  "beads": [\n'
+        '    {"input_id": "LHS48-45", "wire_feed_speed": 13.88, "weld_speed": 0.0174, "arc_length_correction_mm": 5.8}\n'
+        '  ]\n'
+        '}'
     )
     layout.addWidget(panel._exp_schema_edit)
 
@@ -112,17 +119,21 @@ def build_experiment_workflow_group(panel) -> QGroupBox:
     plan_btn = QPushButton('Plan')
     approve_btn = QPushButton('Approve')
     execute_btn = QPushButton('Execute Approved Plan')
+    continue_btn = QPushButton('Continue (nozzle cleaned)')
+    continue_btn.setStyleSheet('background-color: #4CAF50; font-weight: bold;')
     terminate_btn = QPushButton('Terminate + Lift 100mm')
     terminate_btn.setStyleSheet('font-weight: bold;')
 
     plan_btn.clicked.connect(lambda: _plan_experiment(panel))
     approve_btn.clicked.connect(lambda: _approve_plan(panel, True))
     execute_btn.clicked.connect(lambda: _execute_approved_plan(panel))
+    continue_btn.clicked.connect(lambda: _continue_experiment(panel))
     terminate_btn.clicked.connect(lambda: _terminate_experiment(panel))
 
     btns.addWidget(plan_btn)
     btns.addWidget(approve_btn)
     btns.addWidget(execute_btn)
+    btns.addWidget(continue_btn)
     btns.addWidget(terminate_btn)
     layout.addLayout(btns)
 
@@ -135,7 +146,9 @@ def build_experiment_workflow_group(panel) -> QGroupBox:
 
 
 def _parse_schema(text: str):
-    payload = json.loads(text)
+    # Strip trailing commas before ] or } (common user mistake)
+    cleaned = re.sub(r',\s*([}\]])', r'\1', text)
+    payload = json.loads(cleaned)
     if isinstance(payload, dict):
         payload = payload.get('beads', [])
     if not isinstance(payload, list):
@@ -148,15 +161,15 @@ def _parse_schema(text: str):
 
         spec = ExperimentBeadSpec()
         spec.input_id = str(bead.get('input_id', f'in-{idx:03d}'))
-        current = bead.get('weld_current', bead.get('current'))
+        wfs = bead.get('wire_feed_speed')
         speed = bead.get('weld_speed', bead.get('tcp_speed'))
-        stickout = bead.get('stickout')
-        if current is None or speed is None or stickout is None:
+        arc_corr = bead.get('arc_length_correction_mm')
+        if wfs is None or speed is None or arc_corr is None:
             raise ValueError(
-                f'Entry #{idx} requires current/weld_current, tcp_speed/weld_speed, and stickout')
+            f'Entry #{idx} requires wire_feed_speed, tcp_speed/weld_speed, '
+            'and arc_length_correction_mm')
 
         raw_speed = float(speed)
-        raw_scan_speed = float(bead.get('scan_speed', 0.0))
 
         # Accept tcp_speed commonly provided in mm/s and convert to m/s.
         # If weld_speed is used and >0.2, assume mm/s as a safety heuristic.
@@ -165,18 +178,9 @@ def _parse_schema(text: str):
         else:
             weld_speed_mps = raw_speed / 1000.0 if raw_speed > 0.2 else raw_speed
 
-        if 'scan_speed' in bead and raw_scan_speed > 0.0:
-            scan_speed_mps = raw_scan_speed / 1000.0 if raw_scan_speed > 0.2 else raw_scan_speed
-        else:
-            scan_speed_mps = 0.0
-
-        raw_stickout = float(stickout)
-        stickout_m = raw_stickout / 1000.0 if raw_stickout > 1.0 else raw_stickout
-
-        spec.weld_current = float(current)
+        spec.wire_feed_speed = float(wfs)
         spec.weld_speed = weld_speed_mps
-        spec.stickout = stickout_m
-        spec.scan_speed = scan_speed_mps
+        spec.arc_length_correction_mm = float(arc_corr)
         specs.append(spec)
 
     if not specs:
@@ -208,7 +212,6 @@ def _plan_experiment(panel):
     request.spacing_y = panel._exp_spacing_y.value() / 1000.0
     request.margin_x = panel._exp_margin_x.value() / 1000.0
     request.margin_y = panel._exp_margin_y.value() / 1000.0
-    request.staggered = panel._exp_staggered.isChecked()
     request.publish_preview = True
 
     _log(panel,
@@ -223,7 +226,7 @@ def _load_schema_file(panel):
     path, _ = QFileDialog.getOpenFileName(
         panel._widget,
         'Load Experiment Schema JSON',
-        '',
+        '/workspace/ros2_packages/src/robin_core/doe',
         'JSON (*.json)',
     )
     if not path:
@@ -295,15 +298,12 @@ def _execute_approved_plan(panel):
     goal.plates = []
     goal.layout = PlateLayout()
     goal.dry_run = panel._exp_dry_run.isChecked()
+    goal.beads_per_batch = panel._exp_beads_per_batch.value()
 
     _log(panel,
         f'Sending /weld_experiment goal for plan_id={goal.plan_id}, dry_run={goal.dry_run}')
 
-    process_plot = getattr(panel, '_exp_process_plot', None)
-    if process_plot is not None:
-        process_plot.clear()
-
-    if not panel._weld_experiment_action_client.wait_for_server(timeout_sec=2.0):
+    if not panel._weld_experiment_action_client.server_is_ready():
         _log(panel, 'ERROR: /weld_experiment action server not available')
         return
 
@@ -328,8 +328,13 @@ def _on_goal_response(panel, future):
 
 def _on_weld_feedback(panel, feedback_msg):
     fb = feedback_msg.feedback
-    _log(panel,
-        f"Feedback: {fb.status} | {fb.progress_percentage:.1f}% | bead={fb.current_bead_id}")
+    if fb.paused_for_cleaning:
+        _log(panel,
+            f"PAUSED for nozzle cleaning after bead {fb.current_bead_id} "
+            f"({fb.progress_percentage:.1f}%) — press 'Continue' when ready")
+    else:
+        _log(panel,
+            f"Feedback: {fb.status} | {fb.progress_percentage:.1f}% | bead={fb.current_bead_id}")
 
 
 def _on_weld_result(panel, future):
@@ -367,6 +372,31 @@ def _terminate_experiment(panel):
     _log(panel, 'Requesting immediate termination + 100mm lift...')
     future = terminate_client.call_async(Trigger.Request())
     future.add_done_callback(lambda f: _on_terminate_done(panel, f))
+
+
+def _continue_experiment(panel):
+    continue_client = getattr(panel, '_continue_experiment_client', None)
+    if continue_client is None:
+        _log(panel, 'ERROR: continue client is not configured')
+        return
+    if not continue_client.service_is_ready():
+        _log(panel, 'ERROR: /experiment/continue service not available')
+        return
+
+    _log(panel, 'Sending continue signal (nozzle cleaned)...')
+    future = continue_client.call_async(Trigger.Request())
+    future.add_done_callback(lambda f: _on_continue_done(panel, f))
+
+
+def _on_continue_done(panel, future):
+    result = future.result()
+    if result is None:
+        _log(panel, 'ERROR: /experiment/continue call failed')
+        return
+    if result.success:
+        _log(panel, f'CONTINUE OK: {result.message}')
+    else:
+        _log(panel, f'CONTINUE FAILED: {result.message}')
 
 
 def _on_terminate_done(panel, future):

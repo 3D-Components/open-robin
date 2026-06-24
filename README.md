@@ -65,7 +65,7 @@ A React operator dashboard for live process monitoring, deviation alerts, AI mod
 For robotic processes that use ROS 2, the repository documents a proven pattern for
 getting telemetry data into FIWARE without custom bridge code:
 
-1. A **telemetry aggregator node** (`vulcanexus_ws/src/robin_core_data/`) subscribes to
+1. A **telemetry aggregator node** (`vulcanexus_ws/src/robin_core/`) subscribes to
    your robot/sensor topics and publishes a normalized `ProcessTelemetry` message.
 2. **Orion-LD's built-in DDS bridge** (started with the `-dds` flag) picks up the
    message and writes it into FIWARE as an NGSI-LD entity automatically.
@@ -79,7 +79,9 @@ for correct temporal indexing, and documentation of how to wire it all together.
 Modules 1 and 2 work without this pattern - you can feed data through the CLI or
 REST API instead of ROS 2.
 
-Details: [`vulcanexus_ws/src/robin_core_data/README.md`](vulcanexus_ws/src/robin_core_data/README.md).
+Details: the telemetry aggregator node lives in
+[`vulcanexus_ws/src/robin_core/`](vulcanexus_ws/src/robin_core/); the ROS 2 nodes are
+documented in [`vulcanexus_ws/ROS2_NODES.md`](vulcanexus_ws/ROS2_NODES.md).
 FIWARE/NGSI-LD entity mappings, DDS Enabler configuration, curl validation
 commands, and history/export behavior are documented in
 [`docs/reference/fiware_ngsi_ld_dds_mapping.rst`](docs/reference/fiware_ngsi_ld_dds_mapping.rst).
@@ -229,6 +231,10 @@ The dashboard fetches the active profile from the API at startup.
 Example profile files: [`config/profiles/`](config/profiles/).
 Full schema and how to add your own: [`demo/profiles/README.md`](demo/profiles/README.md).
 
+How operator intents, dashboard actions, profile skills, and ROS/API interfaces align
+with ROS4HRI/ROS4RI (with a full action-mapping table and implementation evidence):
+[`docs/reference/ros4hri_ros4ri_alignment.rst`](docs/reference/ros4hri_ros4ri_alignment.rst).
+
 ## Quick Start
 
 ```bash
@@ -305,7 +311,7 @@ robin-dashboard/               MODULE 2: Monitoring Dashboard
 
 vulcanexus_ws/src/
   robin_interfaces/             Integration pattern: generic telemetry message types
-  robin_core_data/              Integration pattern: telemetry aggregator node
+  robin_core/                   ROS 2 core: telemetry aggregator, planner, experiment nodes
 config-dds.json                 Integration pattern: DDS → FIWARE mapping template
 
 config/profiles/                Profile configs (one YAML per domain)

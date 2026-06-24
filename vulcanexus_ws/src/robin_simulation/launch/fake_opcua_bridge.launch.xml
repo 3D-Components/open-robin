@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="robin_simulation" exec="fake_opcua_bridge" name="opcua_bridge" output="screen">
+    <param name="use_sim_time" value="true"/>
+  </node>
+</launch>

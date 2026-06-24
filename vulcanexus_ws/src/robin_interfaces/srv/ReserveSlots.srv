@@ -1,0 +1,29 @@
+# ReserveSlots.srv - Mark plate regions as occupied (for partially-used plates)
+#
+# Two reservation modes:
+#   A) Physical coordinates (preferred): provide x_starts, x_ends, y_centers
+#   B) Grid mode: provide slot_rows, slot_cols AND spacing params so the
+#      physical coordinates can be computed automatically.
+# Mode A is used when x_starts is non-empty; otherwise mode B is used.
+
+string plate_id             # Plate to reserve on
+
+# --- Mode A: physical coordinates (plate-local inward, metres) ---
+float32[] x_starts          # Bead X start for each reservation
+float32[] x_ends            # Bead X end for each reservation
+float32[] y_centers         # Bead Y centre-line for each reservation
+
+# --- Mode B: grid indices + spacing (used only when x_starts is empty) ---
+int32[] slot_rows           # Row indices (parallel with slot_cols)
+int32[] slot_cols           # Column indices (parallel with slot_rows)
+float32 spacing_x           # Edge-to-edge column gap (m)
+float32 spacing_y           # Row pitch (m)
+float32 margin_x            # X margin (m)
+float32 margin_y            # Y margin (m)
+float32 bead_length         # Bead length (m)
+float32 plate_length        # Plate length (m) — needed for slot computation
+float32 plate_width         # Plate width (m)
+---
+bool success
+string message
+int32 slots_reserved        # Number of newly reserved regions

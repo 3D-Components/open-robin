@@ -13,13 +13,13 @@ class CalibrationController:
         if hasattr(self._panel, '_cal_log') and self._panel._cal_log is not None:
             self._panel._cal_log.append(text)
 
-    def set_stickout(self, value_m: float, done_cb):
-        if not self._panel._set_stickout_client.service_is_ready():
-            self.log('ERROR: /tcp/set_stickout service not available')
+    def set_wire_tip(self, value_m: float, done_cb):
+        if not self._panel._set_ctwd_client.service_is_ready():
+            self.log('ERROR: /tcp/set_ctwd service not available')
             return False
-        req = self._panel._set_stickout_client.srv_type.Request()
+        req = self._panel._set_ctwd_client.srv_type.Request()
         req.data = value_m
-        future = self._panel._set_stickout_client.call_async(req)
+        future = self._panel._set_ctwd_client.call_async(req)
         future.add_done_callback(done_cb)
         return True
 
@@ -33,11 +33,11 @@ class CalibrationController:
         future.add_done_callback(done_cb)
         return True
 
-    def calibrate_stickout(self, req, done_cb):
-        if not self._panel._calibrate_stickout_client.service_is_ready():
-            self.log('ERROR: /calibration/calibrate_stickout not available')
+    def calibrate_wire_tip(self, req, done_cb):
+        if not self._panel._calibrate_wire_tip_client.service_is_ready():
+            self.log('ERROR: /calibration/calibrate_wire_tip not available')
             return False
-        future = self._panel._calibrate_stickout_client.call_async(req)
+        future = self._panel._calibrate_wire_tip_client.call_async(req)
         future.add_done_callback(done_cb)
         return True
 

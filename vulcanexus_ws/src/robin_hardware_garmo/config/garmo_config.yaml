@@ -1,0 +1,12 @@
+garmo_sensor_node:
+  ros__parameters:
+    sensor_ip: "192.168.1.212"
+    ctrl_port: 5020
+    data_port: 66
+    fps: 42
+    frame_id: "garmo_laser_frame"
+    parent_frame: "tool0"
+    frame_xyz: [0.0, 0.0, 0.0]
+    frame_rpy: [0.0, 0.0, 0.0]
+    smoothing_window: 51
+    smoothing_sigma_r: 0.001

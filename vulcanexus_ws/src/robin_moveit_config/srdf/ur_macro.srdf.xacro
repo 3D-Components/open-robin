@@ -13,17 +13,17 @@
     
     <!-- Main planning group - using ur_manipulator for compatibility with standard UR configs -->
     <group name="ur_manipulator">
-      <chain base_link="base_link" tip_link="weld_torch_tip" />
+      <chain base_link="base_link" tip_link="wire_tip" />
     </group>
     
     <!--GROUP STATES - Purpose - Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
     <group_state name="home" group="ur_manipulator">
-      <joint name="shoulder_pan_joint" value="0" />
-      <joint name="shoulder_lift_joint" value="-1.5707" />
-      <joint name="elbow_joint" value="0" />
-      <joint name="wrist_1_joint" value="-1.5707" />
-      <joint name="wrist_2_joint" value="0" />
-      <joint name="wrist_3_joint" value="0" />
+      <joint name="shoulder_pan_joint" value="2.763658" />
+      <joint name="shoulder_lift_joint" value="-1.64229" />
+      <joint name="elbow_joint" value="1.7227086" />
+      <joint name="wrist_1_joint" value="-2.143056" />
+      <joint name="wrist_2_joint" value="-1.384997" />
+      <joint name="wrist_3_joint" value="-0.331205" />
     </group_state>
     <group_state name="up" group="ur_manipulator">
       <joint name="shoulder_pan_joint" value="0" />
@@ -33,20 +33,12 @@
       <joint name="wrist_2_joint" value="0" />
       <joint name="wrist_3_joint" value="0" />
     </group_state>
-    <group_state name="test_configuration" group="ur_manipulator">
-      <joint name="shoulder_pan_joint" value="1.54" />
-      <joint name="shoulder_lift_joint" value="-1.62" />
-      <joint name="elbow_joint" value="1.4" />
-      <joint name="wrist_1_joint" value="-1.2" />
-      <joint name="wrist_2_joint" value="-1.6" />
-      <joint name="wrist_3_joint" value="-0.11" />
-    </group_state>
     
-    <!--END EFFECTOR - Commented out since weld_torch_tip is part of the ur_manipulator chain -->
-    <!-- <end_effector name="weld_torch" parent_group="ur_manipulator" group="ur_manipulator" parent_link="weld_torch_tip" /> -->
+    <!--END EFFECTOR - Commented out since contact_tip is part of the ur_manipulator chain -->
+    <!-- <end_effector name="weld_torch" parent_group="ur_manipulator" group="ur_manipulator" parent_link="contact_tip" /> -->
     
     <!--VIRTUAL JOINT - Purpose - this element defines a virtual joint between a robot link and an external frame of reference (considered fixed with respect to the robot)-->
-    <!-- <virtual_joint name="world_joint" type="fixed" parent_frame="world" child_link="base_link" /> -->
+    <virtual_joint name="world_joint" type="fixed" parent_frame="world" child_link="base_link" />
     
     <!--DISABLE COLLISIONS - By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
     <disable_collisions link1="base_link" link2="robot_platform" reason="Adjacent" />
@@ -66,5 +58,10 @@
     <disable_collisions link1="wrist_2_link" link2="wrist_3_link" reason="Adjacent" />
     <disable_collisions link1="wrist_2_link" link2="weld_torch" reason="Never" />
     <disable_collisions link1="wrist_3_link" link2="weld_torch" reason="Adjacent" />
+    <disable_collisions link1="weld_torch" link2="contact_tip" reason="Adjacent" />
+    <disable_collisions link1="contact_tip" link2="wire_tip" reason="Adjacent" />
+    <disable_collisions link1="wire_tip" link2="weld_table" reason="Never" />
+    <disable_collisions link1="weld_torch" link2="weld_table" reason="Never" />
+    <disable_collisions link1="contact_tip" link2="weld_table" reason="Never" />
   </xacro:macro>
 </robot>
