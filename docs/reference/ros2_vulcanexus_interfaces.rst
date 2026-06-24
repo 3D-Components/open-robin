@@ -865,7 +865,7 @@ Demo launch after rebuilding the image:
 The final launch validated the HTTP bridge, skill nodes, and supervisor in
 simulation mode.
 
-ROS graph during the final demo launch:
+ROS graph during the final validation session:
 
 .. code-block:: console
 
