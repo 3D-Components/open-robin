@@ -52,36 +52,22 @@ services:
       dockerfile: vulcanexus_ws/Dockerfile
     container_name: vulcanexus-bridge
     hostname: vulcanexus-bridge
-    # network_mode: host is mutually exclusive with networks. 
-    # Since we need to communicate with other containers, let's use the bridge network
-    # OR if host mode is strictly required for DDS, we must remove the networks block.
-    # Given the error, I'll remove the networks block to satisfy host mode requirement.
+    # Host networking is used for the Linux ROS 2/DDS integration path.
+    # Hardware, GUI, and GPU device access is intentionally kept out of this
+    # base file; use docker-compose.linux-gpu.override.yaml for the validated
+    # physical demonstrator profile.
     network_mode: host
     privileged: true
     ipc: host
-    user: "${UID}:${GID}"
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
-      # This passes your host's DISPLAY variable for GUIs
       - ROS_WS=/workspace/ros2_packages
-      - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=52
       - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
-      # Gazebo / OpenGL rendering
-      - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=/tmp/.docker.xauth
       # welding_http_bridge: both orion-ld and vulcanexus use network_mode: host,
       # so localhost:8766 is the same host interface for both containers.
       - NOTIFY_URL=http://localhost:8766/orion-notify
     volumes:
-      # GUI/X11 Forwarding
-      - /dev/dri/renderD128:/dev/dri/renderD128  # GPU access for rendering
-      - /dev/dri/card1:/dev/dri/card1  # GPU access for rendering
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
-      - /etc/localtime:/etc/localtime:ro
-      - /dev/input:/dev/input
       # Mount workspace packages into the expected container path
       - ./vulcanexus_ws/src:/workspace/ros2_packages/src
       # Mount helper shell scripts
@@ -92,14 +78,6 @@ services:
 
     security_opt:
       - seccomp=unconfined
-    gpus: all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 

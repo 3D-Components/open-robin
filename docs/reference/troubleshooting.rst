@@ -101,18 +101,21 @@ Fix:
 
    docker compose up -d --force-recreate SERVICE_NAME
 
-UID, GID, or DISPLAY Not Set
-----------------------------
+UID, GID, or Linux GPU/GUI Settings Not Set
+-------------------------------------------
 
-The ``vulcanexus`` service runs as ``${UID}:${GID}`` and forwards
-``${DISPLAY}`` for GUI/X11 tools.
+The default stack runs ``vulcanexus`` as ``${UID:-1000}:${GID:-1000}`` and does
+not require GUI/X11 or GPU device access.  The Linux GPU override is only needed
+for the full physical demonstrator profile with RViz/Gazebo/GUI forwarding and
+host device access.
 
 Symptoms:
 
-* ``The UID variable is not set``
-* ``The GID variable is not set``
-* GUI or RViz tools cannot open a display
 * file permission errors in ``vulcanexus_ws/install``
+* GUI, RViz, or Gazebo tools cannot open a display when using
+  ``docker-compose.linux-gpu.override.yaml``
+* NVIDIA runtime or ``/dev/dri`` device errors when using the physical
+  demonstrator profile
 
 Checks:
 
@@ -122,17 +125,25 @@ Checks:
    echo "GID=${GID}"
    echo "DISPLAY=${DISPLAY}"
 
-Linux shell setup:
+Reviewer/demo stack:
 
 .. code-block:: bash
 
-   env UID="$(id -u)" GID="$(id -g)" DISPLAY="${DISPLAY:-:0}" docker compose up -d
+   docker compose up -d
+
+Physical demonstrator stack on the validated Linux/NVIDIA workstation:
+
+.. code-block:: bash
+
+   env UID="$(id -u)" GID="$(id -g)" DISPLAY="${DISPLAY:-:0}" \
+     docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml up -d
 
 macOS note:
 
 Docker Desktop does not provide Linux host-network and X11 behavior exactly like
 native Linux.  Use ``docker-compose.macos.override.yaml`` for the bridged Orion
-configuration, and prefer Linux for full ROS 2/Vulcanexus/RViz validation.
+configuration.  The Linux GPU override documents the validated physical setup
+and is not intended for macOS.
 
 .. code-block:: bash
 

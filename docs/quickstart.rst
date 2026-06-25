@@ -51,6 +51,13 @@ Step 1 - Launch the Stack
 
    docker compose up -d
 
+This starts the hardware-neutral reviewer stack. It does not require NVIDIA GPU
+access, Linux GUI device mounts, the physical robot, or the industrial cell
+network. For macOS/Docker Desktop, use ``docker-compose.macos.override.yaml`` as
+described in :doc:`installation`. The full physical demonstrator profile uses the
+separate ``docker-compose.linux-gpu.override.yaml`` file and is not required for
+this quickstart.
+
 Verify all services are healthy:
 
 .. code-block:: bash

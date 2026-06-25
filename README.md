@@ -171,7 +171,8 @@ graph TD
 ## Integration Example
 
 `docker-compose.yaml` shows how to compose the modules and integration pattern with
-FIWARE into a complete stack:
+FIWARE into a complete stack. The default stack is hardware-neutral and is the
+recommended reviewer path for API, dashboard, FIWARE, and no-hardware demo checks:
 
 ```bash
 docker compose up -d        # start FIWARE + both modules + ROS 2 container
@@ -184,6 +185,18 @@ On macOS (Docker Desktop), use:
 docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d
 ./demo/validate-setup.sh
 ```
+
+For the full physical ROBIN demonstrator profile on the validated Linux/NVIDIA
+workstation, add the Linux GPU override:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml up -d
+```
+
+This override enables NVIDIA runtime settings, X11/GUI forwarding, and Linux host
+device mounts used by the physical robot/cell setup. It is not required for the
+portable reviewer/demo path and is not expected to work on macOS or non-NVIDIA
+hosts.
 
 This is an **example integration**, not part of the modules themselves. You can deploy
 each module independently in your own infrastructure.

@@ -30,6 +30,12 @@ Hardware and Deployment Constraints
 * ROS 2/DDS discovery behavior can differ between native Linux, Docker Desktop
   on macOS, and customer networks.  Linux remains the preferred environment for
   full ROS 2/Vulcanexus/DDS validation.
+* The default Docker Compose stack is hardware-neutral and intended for reviewer
+  quickstart and no-hardware demo paths.  The full physical demonstrator profile
+  uses ``docker-compose.linux-gpu.override.yaml`` and was validated on the
+  specific Linux/NVIDIA workstation and industrial cell setup available to the
+  project team.  macOS and non-NVIDIA hosts should be treated as supported only
+  for the portable core/demo stack unless separately validated.
 * The Docker Compose stack is an integration example.  Production deployments
   should adapt networking, service discovery, persistent storage, secrets, and
   observability to the target site.
