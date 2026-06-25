@@ -2,22 +2,8 @@
 """
 WeldingHomeSkillNode: lifecycle action server for MOVE_TO_HOME.
 
-ros4hri concept: maps to motion_skills/action/ExecuteJointTrajectory.
-
-Modes (controlled by ROS2 parameter 'use_simulation', default True):
-  use_simulation=True  — relay/override strategy:
-    * Subscribes to /joint_states_manual (joint_state_publisher_gui output,
-      remapped in the launch file so it doesn't fight /joint_states directly).
-    * A 10 Hz hold timer relays those slider values to /joint_states, so the
-      GUI controls the robot normally.
-    * On a MOVE_TO_HOME goal: homing_active=True suppresses the relay;
-      the execute callback publishes interpolated positions at 20 Hz,
-      animating from the current arm pose to HOME_RADIANS over 3 s.
-    * After homing: held_positions is set to HOME_RADIANS; the relay
-      resumes and holds home until the user moves the GUI sliders again.
-  use_simulation=False — hardware mode: currently falls back to mock with a warning.
-                         Production integration requires a /move_home action server
-                         in robin_moveit_control (MoveItPy set_named_target('home')).
+Uses Gazebo and MoveIt for motion control.
+Calls the /move_home action server in robin_moveit_control to move to home.
 
 Preemption safety:
   goal_handle.is_active is checked on every loop iteration so that when two
@@ -28,14 +14,12 @@ Preemption safety:
 from __future__ import annotations
 
 import threading
-import time
 
 import rclpy
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
-from sensor_msgs.msg import JointState
 
 from welding_msgs.action import MoveToHome
 
@@ -59,68 +43,31 @@ class WeldingHomeSkillNode(LifecycleNode):
     ]
 
     # Home position from robin_moveit_config/srdf/ur_macro.srdf.xacro
-    HOME_RADIANS = [0.0, -1.5707, 0.0, -1.5707, 0.0, 0.0]
+    HOME_RADIANS = [2.763658, -1.64229, 1.7227086, -2.143056, -1.384997, -0.331205]
 
     # Labels used in action feedback
     JOINTS = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
 
     def __init__(self):
         super().__init__('welding_home_skill')
-        self._action_server: ActionServer | None = None
+        self._skill_action_server: ActionServer | None = None
+        self._move_home_action_client: ActionClient | None = None
         self._goal_lock = threading.Lock()
         self._current_goal_handle = None
-        self._use_simulation: bool = True
-
-        self._js_pub       = None   # publishes to /joint_states
-        self._gui_sub      = None   # subscribes to /joint_states_manual (GUI output)
-        self._hold_timer   = None   # 10 Hz relay timer
-
-        # Start at home so the arm is in a known position before the user
-        # touches the GUI sliders for the first time.
-        self._held_positions: list[float] = list(self.HOME_RADIANS)
-        self._homing_active: bool = False
-        self._positions_lock = threading.Lock()
+        self._current_moveit_goal_handle = None
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
-
-    def on_configure(self, state) -> TransitionCallbackReturn:
-        self.declare_parameter('use_simulation', True)
-        self._use_simulation = (
-            self.get_parameter('use_simulation').get_parameter_value().bool_value
-        )
-        mode = 'SIMULATION' if self._use_simulation else 'HARDWARE'
-        self.get_logger().info(f'welding_home_skill: configuring [{mode} mode]')
-        if not self._use_simulation:
-            self.get_logger().warning(
-                'welding_home_skill: hardware mode selected but /move_home action '
-                'server is not yet implemented in robin_moveit_control — '
-                'falling back to simulation behaviour. '
-                'Add a /move_home action to robin_planner.py to enable real motion.'
-            )
-        return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state) -> TransitionCallbackReturn:
         self.get_logger().info(
             f'welding_home_skill: activating — advertising {self.ACTION_NAME}'
         )
-        # Sole /joint_states publisher in simulation
-        self._js_pub = self.create_publisher(JointState, '/joint_states', 10)
 
-        # Relay: subscribe to the GUI's remapped output and pass it through
-        # to /joint_states while not homing
-        self._gui_sub = self.create_subscription(
-            JointState,
-            '/joint_states_manual',
-            self._gui_joint_states_callback,
-            10,
-        )
+        # Create action client to call MoveIt home motion
+        self._move_home_action_client = ActionClient(self, MoveToHome, '/move_home')
 
-        # Hold timer: publishes held_positions at 10 Hz when not homing
-        self._hold_timer = self.create_timer(
-            1.0 / self.HOLD_HZ, self._publish_held_positions
-        )
-
-        self._action_server = ActionServer(
+        # Create skill action server
+        self._skill_action_server = ActionServer(
             self,
             MoveToHome,
             self.ACTION_NAME,
@@ -134,12 +81,12 @@ class WeldingHomeSkillNode(LifecycleNode):
 
     def on_deactivate(self, state) -> TransitionCallbackReturn:
         self.get_logger().info('welding_home_skill: deactivating')
-        if self._hold_timer:
-            self._hold_timer.cancel()
-            self._hold_timer = None
-        if self._action_server:
-            self._action_server.destroy()
-            self._action_server = None
+        if self._skill_action_server:
+            self._skill_action_server.destroy()
+            self._skill_action_server = None
+        if self._move_home_action_client:
+            self._move_home_action_client.destroy()
+            self._move_home_action_client = None
         return TransitionCallbackReturn.SUCCESS
 
     def on_cleanup(self, state) -> TransitionCallbackReturn:
@@ -147,35 +94,6 @@ class WeldingHomeSkillNode(LifecycleNode):
 
     def on_shutdown(self, state) -> TransitionCallbackReturn:
         return TransitionCallbackReturn.SUCCESS
-
-    # ── GUI relay ────────────────────────────────────────────────────────────
-
-    def _gui_joint_states_callback(self, msg: JointState) -> None:
-        """Pass GUI slider values into _held_positions when not homing.
-
-        During homing this callback is ignored — the execute callback is the
-        sole publisher and _held_positions is only written at goal completion.
-        """
-        if self._homing_active:
-            return
-        with self._positions_lock:
-            for i, name in enumerate(self.UR_JOINTS):
-                if name in msg.name:
-                    idx = list(msg.name).index(name)
-                    if idx < len(msg.position):
-                        self._held_positions[i] = msg.position[idx]
-
-    def _publish_held_positions(self) -> None:
-        """Timer callback: relays the current held positions to /joint_states."""
-        if self._homing_active or self._js_pub is None:
-            return
-        with self._positions_lock:
-            positions = list(self._held_positions)
-        js = JointState()
-        js.header.stamp = self.get_clock().now().to_msg()
-        js.name     = list(self.UR_JOINTS)
-        js.position = positions
-        self._js_pub.publish(js)
 
     # ── Action server callbacks ───────────────────────────────────────────────
 
@@ -198,8 +116,7 @@ class WeldingHomeSkillNode(LifecycleNode):
         return CancelResponse.ACCEPT
 
     def _execute_callback(self, goal_handle) -> MoveToHome.Result:
-        mode = '[sim]' if self._use_simulation else '[hw→sim fallback]'
-        self.get_logger().info(f'MOVE_TO_HOME {mode}: executing ...')
+        self.get_logger().info('MOVE_TO_HOME: executing via MoveIt ...')
 
         result = MoveToHome.Result()
 
@@ -209,73 +126,111 @@ class WeldingHomeSkillNode(LifecycleNode):
             result.message = 'Goal preempted before execution started'
             return result
 
-        # Snapshot current position as the animation start point
-        with self._positions_lock:
-            start_positions = list(self._held_positions)
-
-        self._homing_active = True   # suppresses GUI relay and hold timer
-
-        n_steps      = int(self.MOCK_DURATION_S * self.PUBLISH_HZ)
-        step_delay_s = 1.0 / self.PUBLISH_HZ
-        n_joints     = len(self.UR_JOINTS)
-        feedback     = MoveToHome.Feedback()
-
-        try:
-            for step in range(n_steps + 1):
-                # Exit: preempted by a newer goal
-                if not goal_handle.is_active:
-                    self.get_logger().info('MOVE_TO_HOME: preempted — exiting cleanly')
-                    result.success = False
-                    result.message = 'Goal preempted'
-                    return result
-
-                # Exit: operator cancel
-                if goal_handle.is_cancel_requested:
-                    goal_handle.canceled()
-                    result.success = False
-                    result.message = 'Goal cancelled by operator'
-                    return result
-
-                # Interpolate from current pose to home
-                alpha = step / n_steps
-                positions = [
-                    start_positions[j] + alpha * (self.HOME_RADIANS[j] - start_positions[j])
-                    for j in range(n_joints)
-                ]
-
-                js = JointState()
-                js.header.stamp = self.get_clock().now().to_msg()
-                js.name     = list(self.UR_JOINTS)
-                js.position = positions
-                if self._js_pub is not None:
-                    self._js_pub.publish(js)
-
-                joint_idx = min(int(alpha * n_joints), n_joints - 1)
-                feedback.progress_pct  = alpha * 100.0
-                feedback.current_joint = self.JOINTS[joint_idx]
-                goal_handle.publish_feedback(feedback)
-
-                time.sleep(step_delay_s)
-
-        finally:
-            # Always release the relay, even on exception
-            self._homing_active = False
-
-        # Check again — could have been preempted on the very last step
-        if not goal_handle.is_active:
+        # Check if MoveIt action server is available
+        if not self._move_home_action_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error('/move_home action server not available')
             result.success = False
-            result.message = 'Goal preempted'
+            result.message = 'MoveIt /move_home action server not available'
+            goal_handle.abort()
             return result
 
-        # Persist home position: relay will now hold here until GUI sliders move
-        with self._positions_lock:
-            self._held_positions = list(self.HOME_RADIANS)
+        # Send goal to MoveIt /move_home
+        moveit_goal = MoveToHome.Goal()
+        moveit_goal.use_fast_speed = goal_handle.request.use_fast_speed
 
-        goal_handle.succeed()
-        result.success = True
-        result.message = 'Robot moved to home position successfully'
-        self.get_logger().info('MOVE_TO_HOME: complete')
+        send_goal_future = self._move_home_action_client.send_goal_async(
+            moveit_goal,
+            feedback_callback=lambda fb: self._moveit_feedback_callback(
+                fb, goal_handle),
+        )
+
+        # Wait for goal acceptance
+        rclpy.spin_until_future_complete(self, send_goal_future, timeout_sec=5.0)
+        if not send_goal_future.done():
+            self.get_logger().error('MOVE_TO_HOME: timed out waiting for goal acceptance')
+            result.success = False
+            result.message = 'Timed out sending goal to /move_home'
+            goal_handle.abort()
+            return result
+
+        moveit_goal_handle = send_goal_future.result()
+        if not moveit_goal_handle.accepted:
+            self.get_logger().warning('MOVE_TO_HOME: MoveIt rejected goal')
+            result.success = False
+            result.message = '/move_home rejected the goal'
+            goal_handle.abort()
+            return result
+
+        self.get_logger().info('MoveIt home goal accepted')
+        self._current_moveit_goal_handle = moveit_goal_handle
+
+        # Request the result (this returns a Future that completes when the
+        # action finishes, succeeds, aborts, or is cancelled).
+        result_future = moveit_goal_handle.get_result_async()
+
+        # Poll until the result arrives, checking for cancellation
+        while rclpy.ok() and not result_future.done():
+            if not goal_handle.is_active:
+                self.get_logger().info('MOVE_TO_HOME: preempted, cancelling MoveIt goal')
+                moveit_goal_handle.cancel_goal_async()
+                result.success = False
+                result.message = 'Goal preempted'
+                return result
+
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info(
+                    'MOVE_TO_HOME: cancel requested, cancelling MoveIt goal')
+                moveit_goal_handle.cancel_goal_async()
+                goal_handle.canceled()
+                result.success = False
+                result.message = 'Goal cancelled by operator'
+                return result
+
+            rclpy.spin_until_future_complete(self, result_future, timeout_sec=0.1)
+
+        self._current_moveit_goal_handle = None
+
+        # Extract result from the GetResult response wrapper
+        if not result_future.done():
+            self.get_logger().error('MOVE_TO_HOME: result future not completed')
+            result.success = False
+            result.message = 'No result from /move_home'
+            goal_handle.abort()
+            return result
+
+        try:
+            moveit_response = result_future.result()
+            moveit_result = moveit_response.result  # unwrap GetResult_Response
+            result.success = moveit_result.success
+            result.message = moveit_result.message
+        except Exception as e:
+            self.get_logger().error(
+                f'MOVE_TO_HOME: Exception reading MoveIt result: {e}')
+            result.success = False
+            result.message = f'Exception: {e}'
+
+        if result.success:
+            if goal_handle.is_active:
+                goal_handle.succeed()
+            self.get_logger().info('MOVE_TO_HOME: complete')
+        else:
+            if goal_handle.is_active:
+                goal_handle.abort()
+            self.get_logger().error(
+                f'MOVE_TO_HOME: failed — {result.message}')
+
         return result
+
+    def _moveit_feedback_callback(self, feedback_msg, skill_goal_handle) -> None:
+        """Forward MoveIt feedback to the skill caller."""
+        if skill_goal_handle and skill_goal_handle.is_active:
+            fb = feedback_msg.feedback
+            skill_feedback = MoveToHome.Feedback()
+            if hasattr(fb, 'progress_pct'):
+                skill_feedback.progress_pct = fb.progress_pct
+            if hasattr(fb, 'current_joint'):
+                skill_feedback.current_joint = fb.current_joint
+            skill_goal_handle.publish_feedback(skill_feedback)
 
 
 def main(args=None):

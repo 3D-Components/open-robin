@@ -4,7 +4,7 @@ Welding Coordinator Node
 
 Orchestrates welding operations by coordinating:
 - WAGO PLC signals via GVL_Fronius_IN (control) and GVL_Fronius_OUT (feedback)
-- Fronius welder parameters (current, voltage, wire_speed)
+- Fronius welder parameters (wire_speed, arc_length_correction)
 
 Services:
 - /welding/start - Set parameters and start welding sequence
@@ -13,17 +13,20 @@ Services:
 
 Welding Start Sequence:
 1. Check power source ready (from WAGO OUT)
-2. Set WorkingMode if needed
-3. Set Fronius parameters (primary + optional overrides)
-4. Set robot_ready (must be before gas_on for proper flow)
-5. Activate gas_on
-6. Wait for gas purge (configurable, default 2.0s)
-7. Activate welding_start (arc on)
-8. Return success - robot can now move
+2. Set WorkingMode to synergetic
+3. Set Fronius wire feed speed
+4. Set arc length correction
+5. Activate welding_start (arc on)
+6. Wait for robot_motion_release = True (machine confirms arc stable, safe to move)
+7. Return success - robot can now move
+
+The Fronius power source automatically handles gas pre-flow (GPr), ignition,
+starting current ramp, and signals robot_motion_release when the arc is stable
+and the starting current phase has elapsed.
 
 Welding Stop Sequence:
 1. Deactivate welding_start (arc off)
-2. Deactivate gas_on
+2. Wait for robot_motion_release = False (machine finished post-flow/GPo)
 3. Deactivate robot_ready
 
 WAGO WorkingMode enum values:
@@ -37,12 +40,13 @@ WAGO WorkingMode enum values:
 """
 
 import time
+import threading
 import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from std_srvs.srv import SetBool, Trigger
 from std_msgs.msg import Bool
-from robin_interfaces.srv import StartWeld, SetFloat32, SetInt32, FindSurface, CalibrateStickout
+from robin_interfaces.srv import StartWeld, SetFloat32, SetInt32
 
 
 class WeldingCoordinator(Node):
@@ -50,131 +54,145 @@ class WeldingCoordinator(Node):
 
     # WorkingMode constants
     WORKING_MODE_INTERNAL = 0   # Synergetic mode
-    WORKING_MODE_MANUAL = 9     # MIG/MAG Manual (all params external)
-
-    # Primary parameter constants (match StartWeld.srv)
-    PRIMARY_CURRENT = 0
-    PRIMARY_VOLTAGE = 1
-    PRIMARY_WIRE_FEED_SPEED = 2
 
     def __init__(self):
         super().__init__('welding_coordinator')
-        
-        # Declare parameters
-        self.declare_parameter('gas_purge_time', 2.0)  # seconds to wait after gas_on before arc
+
         self.declare_parameter('wire_retract_speed_mm_s', 10.0)
-        self.gas_purge_time = self.get_parameter('gas_purge_time').value
+        self.declare_parameter('robot_motion_release_timeout', 10.0)
+        self.declare_parameter('arc_length_correction_min_mm', -10.0)
+        self.declare_parameter('arc_length_correction_max_mm', 10.0)
+
+        self._abort_wire_ops = threading.Event()
+        self.is_welding = False
+        self._subscriptions = []
+        self._wago_signals = {}
+
+        # -- Configuration (formerly on_configure) -------------------------
+
         self.wire_retract_speed_mm_s = self.get_parameter('wire_retract_speed_mm_s').value
-        
+        self.robot_motion_release_timeout = self.get_parameter('robot_motion_release_timeout').value
+        self.arc_length_correction_min_mm = float(
+            self.get_parameter('arc_length_correction_min_mm').value)
+        self.arc_length_correction_max_mm = float(
+            self.get_parameter('arc_length_correction_max_mm').value)
+
         self.callback_group = ReentrantCallbackGroup()
-        
-        # ----- Service clients for WAGO PLC (GVL_Fronius_IN) -----
-        self.gas_on_client = self.create_client(
-            SetBool, '/wago/in/gas_on', callback_group=self.callback_group)
+
+        # WAGO service clients
         self.robot_ready_client = self.create_client(
-            SetBool, '/wago/in/robot_ready', callback_group=self.callback_group)
+            SetBool, 'wago/in/robot_ready', callback_group=self.callback_group)
         self.welding_start_client = self.create_client(
-            SetBool, '/wago/in/welding_start', callback_group=self.callback_group)
+            SetBool, 'wago/in/welding_start', callback_group=self.callback_group)
         self.touch_sensing_client = self.create_client(
-            SetBool, '/wago/in/touch_sensing', callback_group=self.callback_group)
+            SetBool, 'wago/in/touch_sensing', callback_group=self.callback_group)
         self.error_quit_client = self.create_client(
-            SetBool, '/wago/in/error_quit', callback_group=self.callback_group)
+            SetBool, 'wago/in/error_quit', callback_group=self.callback_group)
         self.wire_forward_client = self.create_client(
-            SetBool, '/wago/in/wire_forward', callback_group=self.callback_group)
+            SetBool, 'wago/in/wire_forward', callback_group=self.callback_group)
         self.wire_backward_client = self.create_client(
-            SetBool, '/wago/in/wire_backward', callback_group=self.callback_group)
+            SetBool, 'wago/in/wire_backward', callback_group=self.callback_group)
         self.wire_move_length_client = self.create_client(
-            SetFloat32, '/wago/in/wire_move_length', callback_group=self.callback_group)
+            SetFloat32, 'wago/in/wire_move_length', callback_group=self.callback_group)
         self.working_mode_client = self.create_client(
-            SetInt32, '/wago/in/working_mode', callback_group=self.callback_group)
+            SetInt32, 'wago/in/working_mode', callback_group=self.callback_group)
         self.welding_speed_client = self.create_client(
-            SetFloat32, '/wago/in/welding_speed', callback_group=self.callback_group)
-        
-        # ----- Service clients for Fronius parameters (direct OPC UA) -----
+            SetFloat32, 'wago/in/welding_speed', callback_group=self.callback_group)
+        self.arc_length_correction_client = self.create_client(
+            SetFloat32, 'fronius/set_arc_length_correction', callback_group=self.callback_group)
+
+        # Fronius parameter clients (direct OPC UA)
         self.set_current_client = self.create_client(
-            SetFloat32, '/fronius/set_current', callback_group=self.callback_group)
+            SetFloat32, 'fronius/set_current', callback_group=self.callback_group)
         self.set_voltage_client = self.create_client(
-            SetFloat32, '/fronius/set_voltage', callback_group=self.callback_group)
+            SetFloat32, 'fronius/set_voltage', callback_group=self.callback_group)
         self.set_wire_speed_client = self.create_client(
-            SetFloat32, '/fronius/set_wire_speed', callback_group=self.callback_group)
-        
-        # ----- Subscriptions to WAGO OUT feedback signals -----
-        self._power_source_ready = False
-        self._process_active = False
-        self._touch_signal = False
-        self._warning = False
-        
-        self.create_subscription(
-            Bool, '/wago/out/power_source_ready',
-            self._power_source_ready_cb, 10, callback_group=self.callback_group)
-        self.create_subscription(
-            Bool, '/wago/out/process_active',
-            self._process_active_cb, 10, callback_group=self.callback_group)
-        self.create_subscription(
-            Bool, '/wago/out/touch_signal',
-            self._touch_signal_cb, 10, callback_group=self.callback_group)
-        self.create_subscription(
-            Bool, '/wago/out/warning',
-            self._warning_cb, 10, callback_group=self.callback_group)
-        
-        # ----- Services provided by this node -----
+            SetFloat32, 'fronius/set_wire_speed', callback_group=self.callback_group)
+
+        # WAGO OUT feedback subscriptions
+        self._wago_signals = {
+            'power_source_ready': False,
+            'process_active': False,
+            'touch_signal': False,
+            'warning': False,
+            'robot_motion_release': False,
+            'current_flow': False,
+            'main_current_signal': False,
+        }
+        self._subscriptions = []
+        for name in self._wago_signals:
+            sub = self.create_subscription(
+                Bool, f'wago/out/{name}',
+                lambda msg, n=name: self._wago_signal_cb(msg, n),
+                10, callback_group=self.callback_group)
+            self._subscriptions.append(sub)
+
+        # Service servers
         self.start_srv = self.create_service(
-            StartWeld, '/welding/start', self.start_weld_callback,
+            StartWeld, 'welding/start', self.start_weld_callback,
             callback_group=self.callback_group)
         self.stop_srv = self.create_service(
-            Trigger, '/welding/stop', self.stop_weld_callback,
+            Trigger, 'welding/stop', self.stop_weld_callback,
             callback_group=self.callback_group)
         self.set_params_srv = self.create_service(
-            StartWeld, '/welding/set_params', self.set_params_callback,
+            StartWeld, 'welding/set_params', self.set_params_callback,
             callback_group=self.callback_group)
         self.touch_probe_srv = self.create_service(
-            Trigger, '/welding/touch_probe', self.touch_probe_callback,
+            Trigger, 'welding/touch_probe', self.touch_probe_callback,
             callback_group=self.callback_group)
         self.wire_feed_until_touch_srv = self.create_service(
-            Trigger, '/welding/wire_feed_until_touch',
+            Trigger, 'welding/wire_feed_until_touch',
             self.wire_feed_until_touch_callback,
             callback_group=self.callback_group)
         self.wire_retract_srv = self.create_service(
-            SetFloat32, '/welding/wire_retract',
+            SetFloat32, 'welding/wire_retract',
             self.wire_retract_callback,
             callback_group=self.callback_group)
-        
-        # Track welding state
+
+        self.get_logger().info('Configured: 13 service clients, 7 subscriptions, 6 service servers')
+
+        # -- Activation (formerly on_activate) -----------------------------
+
         self.is_welding = False
-        
-        self.get_logger().info('Welding Coordinator started')
-        self.get_logger().info(
-            'Services: /welding/start, /welding/stop, /welding/set_params, '
-            '/welding/touch_probe, /welding/wire_feed_until_touch, /welding/wire_retract')
+        self._abort_wire_ops.clear()
 
-        # Set robot_ready on startup so the operator panel / PLC signals work
-        self._startup_timer = self.create_timer(
-            2.0, self._set_robot_ready_on_startup)
+        # Set robot_ready so operator panel / PLC signals work
+        try:
+            ok, msg = self._set_wago_signal(self.robot_ready_client, True)
+            if ok:
+                self.get_logger().info('robot_ready set to True')
+            else:
+                self.get_logger().warn(
+                    f'Could not set robot_ready during init: {msg}')
+        except Exception as e:
+            self.get_logger().warn(
+                f'robot_ready service not available yet: {e}')
 
-    def _set_robot_ready_on_startup(self):
-        """Set robot_ready=True once on startup after services are available."""
-        self._startup_timer.cancel()
-        self.get_logger().info('Setting robot_ready=True on startup...')
-        ok, msg = self._set_wago_signal(self.robot_ready_client, True)
-        if ok:
-            self.get_logger().info('robot_ready set to True')
-        else:
-            self.get_logger().warn(f'Failed to set robot_ready on startup: {msg}')
+        self.get_logger().info('Welding services ready')
 
-    # ----- WAGO OUT feedback callbacks -----
-    def _power_source_ready_cb(self, msg: Bool):
-        self._power_source_ready = msg.data
+    def destroy_node(self):
+        """Safety shutdown: abort wire ops, stop welding, clear signals."""
+        self._abort_wire_ops.set()
 
-    def _process_active_cb(self, msg: Bool):
-        self._process_active = msg.data
+        if hasattr(self, 'welding_start_client'):
+            # Emergency stop if welding
+            if self.is_welding:
+                self.get_logger().warn(
+                    'Shutting down while welding — sending emergency stop')
+                self._set_wago_signal(self.welding_start_client, False)
+                self.is_welding = False
 
-    def _touch_signal_cb(self, msg: Bool):
-        self._touch_signal = msg.data
+            # Clear robot_ready
+            self._set_wago_signal(self.robot_ready_client, False)
 
-    def _warning_cb(self, msg: Bool):
-        if msg.data and not self._warning:
+        self.get_logger().info('Shutdown complete')
+        super().destroy_node()
+
+    # ----- WAGO OUT feedback callback -----
+    def _wago_signal_cb(self, msg: Bool, name: str):
+        if name == 'warning' and msg.data and not self._wago_signals['warning']:
             self.get_logger().warn('Fronius power source warning active!')
-        self._warning = msg.data
+        self._wago_signals[name] = msg.data
 
     # ----- Service call helpers -----
     def _call_service_sync(self, client, request, timeout=2.0):
@@ -209,14 +227,32 @@ class WeldingCoordinator(Node):
             return False, error
         return result.success, result.message
 
-    def _set_fronius_param(self, client, value: float) -> tuple[bool, str]:
-        """Set a Fronius parameter (float)."""
+    def _set_fronius_param(self, client, value: float,
+                           retries: int = 2, delay: float = 0.15,
+                           ) -> tuple[bool, str]:
+        """Set a Fronius parameter (float), retrying on transient failures.
+
+        After a working-mode change the Fronius OPC UA node may briefly
+        return BadNotWritable until the mode transition completes.  A short
+        retry loop absorbs this race without blocking on success.
+        """
         request = SetFloat32.Request()
         request.data = value
-        result, error = self._call_service_sync(client, request)
-        if error:
-            return False, error
-        return result.success, result.message
+        last_msg = ""
+        for attempt in range(1 + retries):
+            result, error = self._call_service_sync(client, request)
+            if error:
+                last_msg = error
+            elif result.success:
+                return True, result.message
+            else:
+                last_msg = result.message
+            if attempt < retries:
+                self.get_logger().warn(
+                    f'Fronius write attempt {attempt + 1} failed ({last_msg}), '
+                    f'retrying in {delay}s...')
+                time.sleep(delay)
+        return False, last_msg
 
     def _set_working_mode(self, mode: int) -> tuple[bool, str]:
         """Set the WAGO WorkingMode (int32 enum)."""
@@ -227,190 +263,228 @@ class WeldingCoordinator(Node):
             return False, error
         return result.success, result.message
 
-    def _set_welding_params_synergy(self, request: StartWeld.Request) -> list[str]:
-        """Set welding parameters respecting synergy mode.
-        
-        If only the primary parameter is set (others are 0.0), use synergetic mode.
-        If overrides are provided (non-zero), set those too.
+    def _set_wago_float(self, client, value: float) -> tuple[bool, str]:
+        """Set a WAGO PLC float value."""
+        request = SetFloat32.Request()
+        request.data = float(value)
+        result, error = self._call_service_sync(client, request)
+        if error:
+            return False, error
+        return result.success, result.message
+
+    def _clamp_arc_length_correction(self, value_mm: float) -> float:
+        return max(self.arc_length_correction_min_mm,
+                   min(self.arc_length_correction_max_mm, float(value_mm)))
+
+    def _set_welding_params(self, request: StartWeld.Request) -> list[str]:
+        """Set welding parameters
         """
         errors = []
-        primary = request.primary_parameter
 
-        # Determine if we need manual mode (overrides provided)
-        has_overrides = False
-        if primary == self.PRIMARY_CURRENT:
-            has_overrides = request.voltage > 0.0 or request.wire_speed > 0.0
-        elif primary == self.PRIMARY_VOLTAGE:
-            has_overrides = request.current > 0.0 or request.wire_speed > 0.0
-        elif primary == self.PRIMARY_WIRE_FEED_SPEED:
-            has_overrides = request.current > 0.0 or request.voltage > 0.0
+        # Always synergetic
+        self.get_logger().info('Setting synergetic working mode')
+        ok, msg = self._set_working_mode(self.WORKING_MODE_INTERNAL)
+        if not ok:
+            errors.append(f"working_mode: {msg}")
 
-        # Set working mode
-        if has_overrides:
-            self.get_logger().info('Setting manual working mode (overrides provided)')
-            ok, msg = self._set_working_mode(self.WORKING_MODE_MANUAL)
-            if not ok:
-                errors.append(f"working_mode: {msg}")
-        else:
-            self.get_logger().info('Setting synergetic working mode')
-            ok, msg = self._set_working_mode(self.WORKING_MODE_INTERNAL)
-            if not ok:
-                errors.append(f"working_mode: {msg}")
+        # Set wire feed speed
+        ok, msg = self._set_fronius_param(self.set_wire_speed_client, request.wire_speed)
+        if not ok:
+            errors.append(f"wire_speed: {msg}")
 
-        # Set primary parameter
-        if primary == self.PRIMARY_CURRENT:
-            self.get_logger().info(f'Setting primary: current={request.current}A')
-            ok, msg = self._set_fronius_param(self.set_current_client, request.current)
-            if not ok:
-                errors.append(f"current: {msg}")
-        elif primary == self.PRIMARY_VOLTAGE:
-            self.get_logger().info(f'Setting primary: voltage={request.voltage}V')
-            ok, msg = self._set_fronius_param(self.set_voltage_client, request.voltage)
-            if not ok:
-                errors.append(f"voltage: {msg}")
-        elif primary == self.PRIMARY_WIRE_FEED_SPEED:
-            self.get_logger().info(f'Setting primary: wire_speed={request.wire_speed}m/min')
-            ok, msg = self._set_fronius_param(self.set_wire_speed_client, request.wire_speed)
-            if not ok:
-                errors.append(f"wire_speed: {msg}")
+        # Arc length correction
+        requested_arc_corr = float(request.arc_length_correction_mm)
+        clamped_arc_corr = self._clamp_arc_length_correction(requested_arc_corr)
+        if clamped_arc_corr != requested_arc_corr:
+            self.get_logger().warn(
+                f"arc_length_correction clamped: {requested_arc_corr:.1f}% -> "
+                f"{clamped_arc_corr:.1f}%")
+        self.get_logger().info(
+            f"Setting arc length correction: {clamped_arc_corr:.1f}%")
+        ok, msg = self._set_wago_float(
+            self.arc_length_correction_client,
+            clamped_arc_corr,
+        )
+        if not ok:
+            errors.append(f"arc_length_correction_mm: {msg}")
 
-        # Set overrides if non-zero
-        if primary != self.PRIMARY_CURRENT and request.current > 0.0:
-            self.get_logger().info(f'Setting override: current={request.current}A')
-            ok, msg = self._set_fronius_param(self.set_current_client, request.current)
+        # Set travel speed on the PLC (used by sim bridge for Gazebo bead model)
+        if request.weld_speed > 0.0:
+            ok, msg = self._set_wago_float(
+                self.welding_speed_client, request.weld_speed)
             if not ok:
-                errors.append(f"current_override: {msg}")
-
-        if primary != self.PRIMARY_VOLTAGE and request.voltage > 0.0:
-            self.get_logger().info(f'Setting override: voltage={request.voltage}V')
-            ok, msg = self._set_fronius_param(self.set_voltage_client, request.voltage)
-            if not ok:
-                errors.append(f"voltage_override: {msg}")
-
-        if primary != self.PRIMARY_WIRE_FEED_SPEED and request.wire_speed > 0.0:
-            self.get_logger().info(f'Setting override: wire_speed={request.wire_speed}m/min')
-            ok, msg = self._set_fronius_param(self.set_wire_speed_client, request.wire_speed)
-            if not ok:
-                errors.append(f"wire_speed_override: {msg}")
+                errors.append(f"welding_speed: {msg}")
 
         return errors
 
     # ----- Service callbacks -----
-    def set_params_callback(self, request: StartWeld.Request, 
+    def set_params_callback(self, request: StartWeld.Request,
                             response: StartWeld.Response) -> StartWeld.Response:
         """Set welding parameters without starting."""
         self.get_logger().info(
-            f'Setting params: primary={request.primary_parameter}, '
-            f'current={request.current}A, voltage={request.voltage}V, '
-            f'wire_speed={request.wire_speed}m/min')
-        
-        errors = self._set_welding_params_synergy(request)
-        
+            f'Setting params: WFS={request.wire_speed:.1f}m/min, '
+            f'ArcCorr={request.arc_length_correction_mm:.1f}%')
+
+        errors = self._set_welding_params(request)
+
         if errors:
             response.success = False
             response.message = "Failed: " + ", ".join(errors)
         else:
             response.success = True
-            response.message = (f"Parameters set: primary={request.primary_parameter}, "
-                              f"current={request.current}A, voltage={request.voltage}V, "
-                              f"wire_speed={request.wire_speed}m/min")
-        
+            response.message = (f"Parameters set: WFS={request.wire_speed:.1f}m/min, "
+                              f"ArcCorr={request.arc_length_correction_mm:.1f}%")
+
         return response
 
-    def start_weld_callback(self, request: StartWeld.Request, 
+    def _wait_for_signal(self, signal_name: str, expected: bool, timeout: float) -> bool:
+        """Poll-wait for a feedback signal to reach the expected value."""
+        poll_interval = 0.02  # 20 ms
+        elapsed = 0.0
+        while elapsed < timeout:
+            if self._wago_signals[signal_name] == expected:
+                return True
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+        return self._wago_signals[signal_name] == expected
+
+    def start_weld_callback(self, request: StartWeld.Request,
                             response: StartWeld.Response) -> StartWeld.Response:
-        """Start welding: set parameters, then robot_ready -> gas_on -> purge -> welding_start.
-        
+        """Start welding: set parameters, then robot_ready -> welding_start -> wait for robot_motion_release.
+
+        The Fronius power source automatically handles gas pre-flow, ignition,
+        and starting current. It signals robot_motion_release when the arc is
+        stable and it is safe to move the robot.
+
         Sequence:
         1. Check power source readiness
         2. Set welding parameters (with synergy support)
-        3. Set robot_ready (must be before gas_on)
-        4. Activate gas_on
-        5. Wait for gas purge (gas_purge_time seconds)
-        6. Activate welding_start (arc on)
-        7. Return success - robot can now start weld motion
+        3. Set robot_ready
+        4. Activate welding_start (arc on)
+        5. Wait for robot_motion_release = True (machine confirms safe to move)
+        6. Return success - robot can now start weld motion
         """
         self.get_logger().info(
-            f'START WELD: primary={request.primary_parameter}, '
-            f'current={request.current}A, voltage={request.voltage}V, '
-            f'wire_speed={request.wire_speed}m/min')
-        
-        errors = []
+            f'START WELD: WFS={request.wire_speed:.1f}m/min, '
+            f'ArcCorr={request.arc_length_correction_mm:.1f}%')
+
+        # Clear any previous abort flag
+        self._abort_wire_ops.clear()
 
         # 0. Check power source (warn but don't block - signal may not be available yet)
-        if not self._power_source_ready:
+        if not self._wago_signals['power_source_ready']:
             self.get_logger().warn('Power source not confirmed ready (proceeding anyway)')
-        
+
         # 1. Set welding parameters with synergy support
-        param_errors = self._set_welding_params_synergy(request)
-        errors.extend(param_errors)
-        
-        # 2. Set robot_ready FIRST (required before gas_on for proper gas flow)
+        param_errors = self._set_welding_params(request)
+        if param_errors:
+            response.success = False
+            response.message = "Start failed (params): " + ", ".join(param_errors)
+            self.get_logger().error(response.message)
+            return response
+
+        # 2. Set robot_ready
         self.get_logger().info('Setting robot_ready...')
         ok, msg = self._set_wago_signal(self.robot_ready_client, True)
         if not ok:
-            errors.append(f"robot_ready: {msg}")
-        
-        # 3. Activate gas_on
-        self.get_logger().info('Activating gas_on...')
-        ok, msg = self._set_wago_signal(self.gas_on_client, True)
-        if not ok:
-            errors.append(f"gas_on: {msg}")
-        
-        # 4. Gas purge delay - wait for gas to flow before striking arc
-        if not errors:
-            self.get_logger().info(f'Gas purge: waiting {self.gas_purge_time}s...')
-            time.sleep(self.gas_purge_time)
-        
-        # 5. Activate welding_start (arc on)
+            response.success = False
+            response.message = f"Start failed: robot_ready: {msg}"
+            self.get_logger().error(response.message)
+            return response
+
+        # 3. Activate welding_start (machine handles GPr + ignition automatically)
         self.get_logger().info('Activating welding_start (arc on)...')
         ok, msg = self._set_wago_signal(self.welding_start_client, True)
         if not ok:
-            errors.append(f"welding_start: {msg}")
-        
-        if errors:
+            self._set_wago_signal(self.robot_ready_client, False)
             response.success = False
-            response.message = "Start failed: " + ", ".join(errors)
+            response.message = f"Start failed: welding_start: {msg}"
             self.get_logger().error(response.message)
+            return response
+
+        # 4. Wait for main_current_signal AND robot_motion_release
+        #    main_current_signal = main welding current is flowing (arc ignited)
+        #    robot_motion_release = starting current elapsed, safe to move
+        self.get_logger().info('Waiting for main_current_signal (arc ignition)...')
+        if not self._wait_for_signal('main_current_signal', True,
+                                     self.robot_motion_release_timeout):
+            self.get_logger().error('main_current_signal timeout — arc did not ignite, aborting')
+            self._set_wago_signal(self.welding_start_client, False)
+            self._set_wago_signal(self.robot_ready_client, False)
+            response.success = False
+            response.message = (
+                f'Start failed: main_current_signal timeout '
+                f'({self.robot_motion_release_timeout}s) '
+                '- arc did not ignite')
+            self.get_logger().error(response.message)
+            return response
+        self.get_logger().info('main_current_signal confirmed — arc is burning')
+
+        self.get_logger().info('Waiting for robot_motion_release (arc stable)...')
+        if self._wait_for_signal('robot_motion_release', True,
+                                 self.robot_motion_release_timeout):
+            self.get_logger().info('robot_motion_release received - safe to move')
         else:
-            self.is_welding = True
-            response.success = True
-            response.message = "Welding started - arc is on, robot can move"
-            self.get_logger().info('Welding started successfully - robot can begin weld motion')
-        
+            # Arc fired but didn't stabilise — stop and rollback
+            self.get_logger().error('robot_motion_release timeout — aborting weld')
+            self._set_wago_signal(self.welding_start_client, False)
+            self._set_wago_signal(self.robot_ready_client, False)
+            response.success = False
+            response.message = (
+                f'Start failed: robot_motion_release timeout '
+                f'({self.robot_motion_release_timeout}s) '
+                '- arc may not have stabilised')
+            self.get_logger().error(response.message)
+            return response
+
+        self.is_welding = True
+        response.success = True
+        response.message = "Welding started - arc stable, robot can move"
+        self.get_logger().info('Welding started successfully - robot can begin weld motion')
         return response
 
-    def stop_weld_callback(self, request: Trigger.Request, 
+    def stop_weld_callback(self, request: Trigger.Request,
                            response: Trigger.Response) -> Trigger.Response:
-        """Stop welding: welding_start(false) -> gas_on(false) -> robot_ready(false).
-        
+        """Stop welding: welding_start(false) -> wait for robot_motion_release=false -> robot_ready(false).
+
+        The Fronius power source automatically handles end-current ramp-down
+        and gas post-flow (GPo). robot_motion_release drops Low once the full
+        cycle (including GPo) is complete.
+
         Sequence:
         1. Deactivate welding_start (arc off)
-        2. Deactivate gas_on
+        2. Wait for robot_motion_release = False (post-flow complete)
         3. Deactivate robot_ready
         """
         self.get_logger().info('STOP WELD')
-        
+
+        # Signal any in-progress wire operations to abort immediately
+        self._abort_wire_ops.set()
+
         errors = []
-        
+
         # 1. Stop arc first
         self.get_logger().info('Deactivating welding_start (arc off)...')
         ok, msg = self._set_wago_signal(self.welding_start_client, False)
         if not ok:
             errors.append(f"welding_start: {msg}")
-        
-        # 2. Stop gas
-        self.get_logger().info('Deactivating gas_on...')
-        ok, msg = self._set_wago_signal(self.gas_on_client, False)
-        if not ok:
-            errors.append(f"gas_on: {msg}")
-        
+
+        # 2. Wait for robot_motion_release to drop (post-flow / GPo complete)
+        self.get_logger().info('Waiting for robot_motion_release to drop (post-flow)...')
+        if self._wait_for_signal('robot_motion_release', False,
+                                 self.robot_motion_release_timeout):
+            self.get_logger().info('robot_motion_release dropped - post-flow complete')
+        else:
+            self.get_logger().warn(
+                f'robot_motion_release did not drop within '
+                f'{self.robot_motion_release_timeout}s (proceeding with stop)')
+
         # 3. Clear robot_ready
         self.get_logger().info('Clearing robot_ready...')
         ok, msg = self._set_wago_signal(self.robot_ready_client, False)
         if not ok:
             errors.append(f"robot_ready: {msg}")
-        
+
         if errors:
             response.success = False
             response.message = "Stop failed: " + ", ".join(errors)
@@ -418,30 +492,30 @@ class WeldingCoordinator(Node):
         else:
             self.is_welding = False
             response.success = True
-            response.message = "Welding stopped"
+            response.message = "Welding stopped - post-flow complete"
             self.get_logger().info('Welding stopped successfully')
-        
+
         return response
 
     def touch_probe_callback(self, request: Trigger.Request,
                              response: Trigger.Response) -> Trigger.Response:
         """Activate/deactivate touch sensing mode on the WAGO PLC.
-        
+
         This enables the Fronius touch sensing circuit. When active, the wire
         is energised with a low detection voltage. Contact with the workpiece
         triggers the touch_signal feedback from the WAGO OUT side.
-        
+
         The planner calls this to enable touch sensing before probing,
         then monitors /wago/out/touch_signal and disables it afterwards.
-        
+
         Returns:
             Trigger.Response with success/message
         """
         self.get_logger().info('Enabling touch sensing mode...')
-        
+
         # Enable touch sensing via WAGO
         ok, msg = self._set_wago_signal(self.touch_sensing_client, True)
-        
+
         if not ok:
             response.success = False
             response.message = f"Failed to enable touch sensing: {msg}"
@@ -450,7 +524,7 @@ class WeldingCoordinator(Node):
             response.success = True
             response.message = "Touch sensing enabled - wire energised for contact detection"
             self.get_logger().info(response.message)
-        
+
         return response
 
     def touch_probe_disable(self):
@@ -460,13 +534,13 @@ class WeldingCoordinator(Node):
             self.get_logger().error(f"Failed to disable touch sensing: {msg}")
         else:
             self.get_logger().info("Touch sensing disabled")
-        self._touch_signal = False
+        self._wago_signals['touch_signal'] = False
         return ok
 
     # ----- Wire feed / retract helpers -----
     def _set_wire_move_length(self, length_mm: float) -> tuple[bool, str]:
         """Set the WAGO WireMoveLength parameter (float, in mm).
-        
+
         When set to 0, the wire feeds/retracts continuously while the
         forward/backward flag is active. When > 0, the wire moves a
         fixed distance per forward/backward activation.
@@ -481,48 +555,70 @@ class WeldingCoordinator(Node):
     def wire_feed_until_touch_callback(self, request: Trigger.Request,
                                        response: Trigger.Response) -> Trigger.Response:
         """Feed wire continuously until touch contact is detected.
-        
-        Sequence:
-        1. Set WireMoveLength = 0 (continuous feed mode)
-        2. Activate WireForward
-        3. Wait for TouchSignal = True (Fronius auto-stops wire on contact)
-        4. Deactivate WireForward
-        
-        Touch sensing MUST be enabled before calling this service.
-        The Fronius machine automatically stops wire feed when
-        the touch-sensing circuit detects workpiece contact.
-        
+
+        Self-contained sequence:
+        1. Clear any stale abort flag
+        2. Enable touch sensing
+        3. Set WireMoveLength = 0 (continuous feed mode)
+        4. Activate WireForward
+        5. Wait for TouchSignal = True (Fronius auto-stops wire on contact)
+        6. Deactivate WireForward
+        7. Disable touch sensing
+
         Returns:
             Trigger.Response with success/message
         """
-        self.get_logger().info('Wire feed until touch: starting continuous feed...')
+        self.get_logger().info('Wire feed until touch: starting...')
 
-        # Guard: do not start if touch is already active (stale/ongoing contact)
-        if self._touch_signal:
+        # Clear stale abort flag from previous stop
+        self._abort_wire_ops.clear()
+
+        # 1. Ensure robot_ready is set (required for wire motor to engage)
+        ok, msg = self._set_wago_signal(self.robot_ready_client, True)
+        if not ok:
             response.success = False
-            response.message = (
-                'Touch signal already active before wire feed. '
-                'Reposition tool / clear contact and retry calibration.')
-            self.get_logger().warn(response.message)
+            response.message = f"Failed to set robot_ready: {msg}"
+            self.get_logger().error(response.message)
             return response
 
-        # 1. Set continuous feed mode (length = 0)
+        # 2. Enable touch sensing
+        ok, msg = self._set_wago_signal(self.touch_sensing_client, True)
+        if not ok:
+            response.success = False
+            response.message = f"Failed to enable touch sensing: {msg}"
+            self.get_logger().error(response.message)
+            return response
+        self.get_logger().info('Touch sensing enabled')
+        time.sleep(0.2)  # allow touch circuit to stabilise
+
+        # Guard: do not start if touch is already active (wire already in contact)
+        if self._wago_signals['touch_signal']:
+            # Wire is already touching — that's actually success
+            self._set_wago_signal(self.touch_sensing_client, False)
+            response.success = True
+            response.message = 'Wire already in contact with workpiece'
+            self.get_logger().info(response.message)
+            return response
+
+        # 2. Set continuous feed mode (length = 0)
         ok, msg = self._set_wire_move_length(0.0)
         if not ok:
+            self._set_wago_signal(self.touch_sensing_client, False)
             response.success = False
             response.message = f"Failed to set wire_move_length=0: {msg}"
             self.get_logger().error(response.message)
             return response
 
-        # 2. Start feeding
+        # 3. Start feeding
         ok, msg = self._set_wago_signal(self.wire_forward_client, True)
         if not ok:
+            self._set_wago_signal(self.touch_sensing_client, False)
             response.success = False
             response.message = f"Failed to activate wire_forward: {msg}"
             self.get_logger().error(response.message)
             return response
 
-        # 3. Wait for touch signal (timeout after 30s for safety)
+        # 4. Wait for touch signal (timeout after 30s for safety)
         timeout = 30.0
         poll_interval = 0.05  # 50ms
         elapsed = 0.0
@@ -531,10 +627,18 @@ class WeldingCoordinator(Node):
         required_stable_counts = 2  # 2 x 50ms = 100ms
 
         while elapsed < timeout:
+            if self._abort_wire_ops.is_set():
+                self._set_wago_signal(self.wire_forward_client, False)
+                self._set_wago_signal(self.touch_sensing_client, False)
+                response.success = False
+                response.message = "Wire feed aborted"
+                self.get_logger().warn(response.message)
+                return response
+
             time.sleep(poll_interval)
             elapsed += poll_interval
 
-            if self._touch_signal:
+            if self._wago_signals['touch_signal']:
                 stable_touch_count += 1
                 if stable_touch_count >= required_stable_counts:
                     self.get_logger().info(
@@ -545,15 +649,17 @@ class WeldingCoordinator(Node):
         else:
             # Timeout — stop wire and report failure
             self._set_wago_signal(self.wire_forward_client, False)
+            self._set_wago_signal(self.touch_sensing_client, False)
             response.success = False
             response.message = (
                 f"Wire feed timeout ({timeout}s) — no touch signal detected. "
-                "Check touch sensing is enabled and wire can reach workpiece.")
+                "Check wire can reach workpiece.")
             self.get_logger().error(response.message)
             return response
 
-        # 4. Stop wire forward (may already be stopped by Fronius, but ensure)
+        # 5. Stop wire forward and disable touch sensing
         self._set_wago_signal(self.wire_forward_client, False)
+        self._set_wago_signal(self.touch_sensing_client, False)
 
         response.success = True
         response.message = f"Wire touched workpiece after {elapsed:.2f}s"
@@ -562,62 +668,68 @@ class WeldingCoordinator(Node):
 
     def wire_retract_callback(self, request: SetFloat32.Request,
                               response: SetFloat32.Response) -> SetFloat32.Response:
-        """Retract wire by a specified distance (mm) or continuously.
-        
-        If request.data > 0: retract by that distance in mm
-        If request.data == 0: retract continuously for a brief period (1s)
-        
+        """Retract wire by a specified distance (mm) using timed backward signal.
+
+        Holds wire_backward=True for the time needed to retract the
+        requested distance at the configured wire_retract_speed, then
+        releases the signal.
+
         Args:
             request.data: Retraction distance in mm (0 = continuous for 1s)
         """
         retract_mm = request.data
         self.get_logger().info(f'Wire retract: {retract_mm:.1f}mm')
 
+        # Clear stale abort flag from previous stop
+        self._abort_wire_ops.clear()
+
+        # Ensure robot_ready is set (required for wire motor to engage).
+        # stop_weld clears robot_ready, but wire retract runs after stop.
+        ok, msg = self._set_wago_signal(self.robot_ready_client, True)
+        if not ok:
+            response.success = False
+            response.message = f"Failed to set robot_ready: {msg}"
+            self.get_logger().error(response.message)
+            return response
+
+        # Ensure continuous mode — no fixed-distance PLC mode
+        ok, msg = self._set_wire_move_length(0.0)
+        if not ok:
+            self.get_logger().warn(f"Could not clear wire_move_length: {msg}")
+
+        # Activate backward signal
+        ok, msg = self._set_wago_signal(self.wire_backward_client, True)
+        if not ok:
+            response.success = False
+            response.message = f"Failed to activate wire_backward: {msg}"
+            return response
+
+        # Hold for the time needed to cover the distance
+        speed_mm_s = max(1.0, float(self.wire_retract_speed_mm_s))
         if retract_mm > 0:
-            # Fixed-distance retract
-            ok, msg = self._set_wire_move_length(retract_mm)
-            if not ok:
-                response.success = False
-                response.message = f"Failed to set wire_move_length: {msg}"
-                return response
-
-            # Activate backward — the PLC will retract the set distance
-            ok, msg = self._set_wago_signal(self.wire_backward_client, True)
-            if not ok:
-                response.success = False
-                response.message = f"Failed to activate wire_backward: {msg}"
-                return response
-
-            # Wait for the retraction to complete
-            speed_mm_s = max(1.0, float(self.wire_retract_speed_mm_s))
-            wait_time = max(0.5, (retract_mm / speed_mm_s) + 0.3)
-            self.get_logger().info(
-                f'Wire retract wait={wait_time:.2f}s for {retract_mm:.1f}mm '
-                f'(speed_est={speed_mm_s:.1f}mm/s)')
-            time.sleep(wait_time)
-
-            # Deactivate backward
-            self._set_wago_signal(self.wire_backward_client, False)
-            # Small pause before next operation
-            time.sleep(0.2)
-
+            hold_time = (retract_mm / speed_mm_s) + 0.5
         else:
-            # Continuous retract for a brief period
-            ok, msg = self._set_wire_move_length(0.0)
-            if not ok:
-                response.success = False
-                response.message = f"Failed to set wire_move_length=0: {msg}"
-                return response
+            hold_time = 1.0
+        self.get_logger().info(
+            f'Wire retract hold={hold_time:.2f}s for {retract_mm:.1f}mm '
+            f'(speed={speed_mm_s:.1f}mm/s)')
 
-            ok, msg = self._set_wago_signal(self.wire_backward_client, True)
-            if not ok:
-                response.success = False
-                response.message = f"Failed to activate wire_backward: {msg}"
-                return response
+        # Sleep in small increments so we can respond to abort
+        elapsed = 0.0
+        poll = 0.05
+        while elapsed < hold_time:
+            if self._abort_wire_ops.is_set():
+                self.get_logger().warn("Wire retract aborted")
+                break
+            time.sleep(min(poll, hold_time - elapsed))
+            elapsed += poll
 
-            time.sleep(1.0)
-            self._set_wago_signal(self.wire_backward_client, False)
-            time.sleep(0.2)
+        # Release backward signal
+        self._set_wago_signal(self.wire_backward_client, False)
+        time.sleep(0.2)
+
+        # Clear robot_ready so it doesn't leave stale state
+        self._set_wago_signal(self.robot_ready_client, False)
 
         response.success = True
         response.message = f"Wire retracted {retract_mm:.1f}mm"

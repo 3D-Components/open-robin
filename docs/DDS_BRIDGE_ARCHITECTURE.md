@@ -37,7 +37,7 @@ graph LR
 
 ### Aggregation node
 
-- File: `vulcanexus_ws/src/robin_core_data/scripts/telemetry_aggregator_node.py`
+- File: `vulcanexus_ws/src/robin_core/robin_core/telemetry_aggregator_node.py`
 - Publishes: `/robin/telemetry`
 - Inputs: geometry, fronius/welder data, pose topics
 

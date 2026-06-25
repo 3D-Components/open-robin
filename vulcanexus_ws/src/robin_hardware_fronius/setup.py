@@ -12,7 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.py') + glob('launch/*.xml')),
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*.xacro')),
         (os.path.join('share', package_name, 'meshes', 'weld_torch', 'visual'), glob('meshes/weld_torch/visual/*')),
         (os.path.join('share', package_name, 'meshes', 'weld_torch', 'collision'), glob('meshes/weld_torch/collision/*')),
@@ -27,7 +27,6 @@ setup(
     entry_points={
         'console_scripts': [
             'welding_coordinator = robin_hardware_fronius.welding_coordinator:main',
-            'tcp_manager = robin_hardware_fronius.tcp_manager:main',
         ],
     },
 )

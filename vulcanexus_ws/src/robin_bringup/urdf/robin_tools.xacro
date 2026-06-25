@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robin_tools">
+    <!-- Shared tooling assembly: Fronius torch + Garmo laser + scene elements.
+         Include this in any bringup URDF after the UR robot is defined. -->
+
+    <!-- Component macros -->
+    <xacro:include filename="$(find robin_hardware_fronius)/urdf/fronius_macro.xacro"/>
+    <xacro:include filename="$(find robin_hardware_garmo)/urdf/garmo_garline_macro.xacro"/>
+    <xacro:include filename="$(find robin_bringup)/urdf/scene_macro.xacro"/>
+
+    <!-- Fronius weld torch params -->
+    <xacro:arg name="sim" default="false"/>
+    <xacro:arg name="ctwd" default="0.015"/>
+    <xacro:arg name="tip_x" default="0.00"/>
+    <xacro:arg name="tip_y" default="-0.095"/>
+    <xacro:arg name="tip_z" default="0.63"/>
+    <xacro:arg name="tip_roll" default="${-pi/6}"/>
+    <xacro:arg name="tip_pitch" default="0"/>
+    <xacro:arg name="tip_yaw" default="0"/>
+
+    <!-- Garmo laser sensor mounting -->
+    <xacro:arg name="garmo_origin_xyz" default="0.0 -0.032 -0.15"/>
+    <xacro:arg name="garmo_origin_rpy" default="${pi} 0 -${pi/2}"/>
+
+    <!-- Scene: welding table and robot platform -->
+    <xacro:arg name="welding_table_origin_xyz" default="-1.096 0.076 -0.193"/>
+    <xacro:arg name="welding_table_origin_rpy" default="0 0 ${pi/2}"/>
+    <xacro:arg name="robot_platform_origin_xyz" default="0.25 0.4 -0.5"/>
+    <xacro:arg name="robot_platform_origin_rpy" default="0 0 0"/>
+
+    <!-- Fronius weld torch on tool0 flange -->
+    <xacro:fronius_weld_torch parent="tool0"
+        ctwd="$(arg ctwd)"
+        tip_x="$(arg tip_x)" tip_y="$(arg tip_y)" tip_z="$(arg tip_z)"
+        tip_roll="$(arg tip_roll)" tip_pitch="$(arg tip_pitch)" tip_yaw="$(arg tip_yaw)"
+        sim="$(arg sim)">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:fronius_weld_torch>
+
+    <!-- Garmo Garline laser sensor on contact tip -->
+        <xacro:garmo_laser_sensor parent="contact_tip" sim="$(arg sim)">
+        <origin xyz="$(arg garmo_origin_xyz)" rpy="$(arg garmo_origin_rpy)"/>
+    </xacro:garmo_laser_sensor>
+
+    <!-- Scene elements -->
+    <xacro:scene
+        table_xyz="$(arg welding_table_origin_xyz)"
+        table_rpy="$(arg welding_table_origin_rpy)"
+        platform_xyz="$(arg robot_platform_origin_xyz)"
+        platform_rpy="$(arg robot_platform_origin_rpy)"/>
+
+</robot>

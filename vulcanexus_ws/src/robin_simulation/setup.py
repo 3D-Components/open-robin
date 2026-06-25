@@ -1,5 +1,6 @@
 import os
 from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = 'robin_simulation'
@@ -12,9 +13,9 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
-        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
-        (os.path.join('share', package_name, 'urdf'), glob('urdf/*.xacro')),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.py') + glob('launch/*.xml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'worlds'), glob('worlds/*.sdf')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -22,11 +23,15 @@ setup(
     maintainer_email='daniel.haas@3d-components.co, virgilio.gomez@3d-components.co, jayant@mil-as.no',
     description='ROBIN welding process simulation package',
     license='AGPL-3.0-only',
-    tests_require=['pytest'],
+    extras_require={
+        'test': [
+            'pytest',
+        ],
+    },
     entry_points={
         'console_scripts': [
-            'welding_sim_node = robin_simulation.welding_sim_node:main',
-            'welding_vis_node = robin_simulation.welding_vis_node:main',
+            'fake_opcua_bridge = robin_simulation.fake_opcua_bridge_node:main',
+            'sim_garmo_sensor = robin_simulation.sim_garmo_sensor_node:main',
         ],
     },
 )

@@ -72,6 +72,28 @@ Method 3: Docker Installation
    # Run the stack with FIWARE services
    docker compose up -d
 
+The default Compose stack is hardware-neutral. It is intended for the reviewer
+quickstart, API/dashboard/FIWARE checks, and no-hardware demo paths. It does not
+require NVIDIA GPU access, X11 forwarding, ``/dev/dri``, ``/dev/input``, the
+physical robot, or the industrial cell network.
+
+For macOS/Docker Desktop networking compatibility, use the macOS override:
+
+.. code-block:: bash
+
+   docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d
+
+For the full physical ROBIN demonstrator profile on the validated Linux/NVIDIA
+workstation, add the Linux GPU override:
+
+.. code-block:: bash
+
+   docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml up -d
+
+The Linux GPU override enables NVIDIA runtime settings, X11/GUI forwarding, and
+Linux host device mounts used by the physical robot/cell setup. It is not needed
+for reviewer/demo runs.
+
 FIWARE Services Setup
 ---------------------
 

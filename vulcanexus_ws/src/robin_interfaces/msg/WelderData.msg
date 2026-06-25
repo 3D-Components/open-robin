@@ -1,10 +1,15 @@
-# Simulated data from the Fronius welder
+# Fronius welder measurement with progression tracking
+# Progression allows alignment with other data sources along the weld bead
+
 std_msgs/Header header
 
-# Welding parameters
-float64 voltage_v         # Arc Voltage (V)
-float64 current_a         # Welding Current (A)
-float64 wire_feed_speed_mpm # Wire Feed Speed (m/min)
+# Bead identification and progression
+string bead_id              # Active weld bead ID (empty if not welding)
+float32 progression         # 0.0 = bead start, 1.0 = bead end
 
-# Add timestamp for the observation
-# builtin_interfaces/Time timestamp
+# Measured values from Fronius welder
+float32 current             # Display current (A)
+float32 voltage             # Display voltage (V)
+float32 wire_feed_speed     # Display wire feed speed (m/min)
+float32 power               # Display power (W)
+float32 energy              # Display energy (J)

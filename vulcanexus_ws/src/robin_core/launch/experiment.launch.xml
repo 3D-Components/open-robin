@@ -1,0 +1,17 @@
+<launch>
+  <arg name="use_sim" default="false"/>
+  <arg name="beads_config" default=""/>
+  <node pkg="robin_core" exec="experiment_node" name="robin_experiment" output="screen">
+    <param name="default_bead_pitch" value="0.020"/>
+    <param name="default_margin_x" value="0.015"/>
+    <param name="default_margin_y" value="0.015"/>
+    <param name="default_experiment_spacing_x" value="0.030"/>
+    <param name="default_experiment_spacing_y" value="0.030"/>
+    <param name="default_experiment_bead_length" value="0.100"/>
+    <param name="inter_bead_clearance_height" value="0.250"/>
+    <param name="base_frame" value="base_link"/>
+    <param name="execute_bead_timeout" value="120.0"/>
+    <param name="beads_config" value="$(var beads_config)"/>
+    <param name="use_sim_time" value="$(var use_sim)"/>
+  </node>
+</launch>

@@ -2,6 +2,7 @@
 <robot xmlns:xacro="http://wiki.ros.org/xacro" name="$(arg name)">
   <!-- robot name parameter -->
   <xacro:arg name="name" default="ur"/>
+
   <!-- import main macro -->
   <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
 
@@ -40,7 +41,6 @@
     safety_limits="$(arg safety_limits)"
     safety_pos_margin="$(arg safety_pos_margin)"
     safety_k_position="$(arg safety_k_position)"
-    force_abs_paths="true"
     >
     <origin xyz="0 0 0" rpy="0 0 0" />          <!-- position robot in the world -->
   </xacro:ur_robot>
@@ -61,5 +61,6 @@
     name="$(arg name)"
     tf_prefix="$(arg tf_prefix)"
     transmission_hw_interface="$(arg transmission_hw_interface)"
+    initial_positions="${dict(shoulder_pan_joint=2.7636586735327953,shoulder_lift_joint=-1.6422938239997316,elbow_joint=1.7227086417208768,wrist_1_joint=-2.143056021236931,wrist_2_joint=-1.3849973318064979,wrist_3_joint=-0.3312051136751893)}"
   />
 </robot>

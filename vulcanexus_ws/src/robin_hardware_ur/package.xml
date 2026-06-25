@@ -3,7 +3,7 @@
 <package format="3">
   <name>robin_hardware_ur</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>UR10e robot configuration, controllers, and launch for ROBIN</description>
   <maintainer email="daniel.haas@3d-components.co">Daniel Haas</maintainer>
   <maintainer email="virgilio.gomez@3d-components.co">Virgilio Gomez</maintainer>
   <maintainer email="jayant@mil-as.no">Jayant Singh</maintainer>
@@ -14,7 +14,7 @@
   <depend>ur_description</depend>
   <depend>joint_state_publisher</depend>
   <depend>robot_state_publisher</depend>
-  <depend>rviz2</depend>
+  <exec_depend>rviz2</exec_depend>
   <depend>launch</depend>
   <depend>launch_ros</depend>
 

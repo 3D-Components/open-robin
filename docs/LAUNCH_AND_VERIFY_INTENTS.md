@@ -66,7 +66,7 @@ This starts in one command:
 - `welding_http_bridge` (HTTP server on port 8766)
 - `welding_supervisor` (intent router, delayed 2 s)
 
-> **Hardware mode** (real robot): run `robin_main.launch.py` from `robin_core_bringup` with `robot_ip:=<ip>` first, then launch `welding_robin_demo.launch.py` in a second terminal inside the container.
+> **Hardware mode** (real robot): run `robin_main.launch.py` from `robin_bringup` with `robot_ip:=<ip>` first, then launch `welding_robin_demo.launch.py` in a second terminal inside the container.
 
 ---
 

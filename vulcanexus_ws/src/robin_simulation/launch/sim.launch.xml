@@ -1,0 +1,84 @@
+<launch>
+  <!-- Arguments -->
+  <arg name="ur_type" default="ur10e"/>
+  <arg name="launch_rviz" default="true"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="initial_joint_controller" default="joint_trajectory_controller"/>
+  <arg name="activate_joint_controller" default="true"/>
+
+  <!-- Tell Gazebo where to find package:// meshes -->
+  <set_env name="GZ_SIM_RESOURCE_PATH"
+         value="$(find-pkg-share robin_hardware_fronius)/..:$(find-pkg-share robin_hardware_garmo)/..:$(find-pkg-share robin_bringup)/..:/opt/ros/jazzy/share"/>
+  <set_env name="GZ_SIM_SYSTEM_PLUGIN_PATH"
+         value="$(find-pkg-share robin_sim_gz)/../../lib"/>
+
+  <!-- Paths -->
+  <let name="sim_controllers"
+       value="$(find-pkg-share robin_simulation)/config/sim_controllers.yaml"/>
+  <let name="world_file"
+       value="$(find-pkg-share robin_simulation)/worlds/welding_cell.sdf"/>
+  <let name="description_file"
+       value="$(find-pkg-share robin_bringup)/urdf/sim_ur_fronius_garmo.urdf.xacro"/>
+  <let name="rviz_config"
+       value="$(find-pkg-share robin_bringup)/rviz/view_scene.rviz"/>
+
+  <!-- Robot description via xacro -->
+  <let name="robot_description"
+       value="$(command 'xacro $(var description_file) name:=ur ur_type:=$(var ur_type) simulation_controllers:=$(var sim_controllers) sim:=true')"/>
+
+  <!-- Robot State Publisher -->
+  <node pkg="robot_state_publisher" exec="robot_state_publisher" output="both">
+    <param name="use_sim_time" value="true"/>
+    <param name="robot_description" value="$(var robot_description)" type="str"/>
+  </node>
+
+  <!-- Gazebo Sim -->
+  <include file="$(find-pkg-share ros_gz_sim)/launch/gz_sim.launch.py" if="$(var gazebo_gui)">
+    <arg name="gz_args" value=" -r -v 4 $(var world_file)"/>
+  </include>
+  <include file="$(find-pkg-share ros_gz_sim)/launch/gz_sim.launch.py" unless="$(var gazebo_gui)">
+    <arg name="gz_args" value=" -s -r -v 4 $(var world_file)"/>
+  </include>
+
+  <!-- Spawn robot in Gazebo -->
+  <node pkg="ros_gz_sim" exec="create" output="screen"
+        args="-string $(var robot_description) -name ur -allow_renaming true"/>
+
+  <!-- Bridge /clock from Gazebo to ROS -->
+  <node pkg="ros_gz_bridge" exec="parameter_bridge" output="screen"
+      args="/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"/>
+
+  <!-- Bridge: Garmo laser profiler (Gazebo GPU lidar → ROS PointCloud2) -->
+  <node pkg="ros_gz_bridge" exec="parameter_bridge" name="garmo_bridge" output="screen"
+        args="/garmo_laser/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked"/>
+
+<!-- Bridge: robin sim plugin topics (ROS↔GZ) -->
+<node pkg="ros_gz_bridge" exec="parameter_bridge" name="robin_bridge" output="screen"
+      args="/robin/weld_active@std_msgs/msg/Bool]gz.msgs.Boolean
+            /robin/weld_current@std_msgs/msg/Float64]gz.msgs.Double
+            /robin/weld_wfs@std_msgs/msg/Float64]gz.msgs.Double
+            /robin/weld_voltage@std_msgs/msg/Float64]gz.msgs.Double
+            /robin/weld_travel_speed@std_msgs/msg/Float64]gz.msgs.Double
+            /robin/weld_bead_id@std_msgs/msg/String]gz.msgs.StringMsg
+            /robin/clear_beads@std_msgs/msg/Bool]gz.msgs.Boolean"/>
+  <!-- Controller spawners -->
+  <node pkg="controller_manager" exec="spawner"
+        args="joint_state_broadcaster -c /controller_manager"/>
+
+  <node pkg="controller_manager" exec="spawner"
+        args="$(var initial_joint_controller) -c /controller_manager"
+        if="$(var activate_joint_controller)"/>
+
+  <node pkg="controller_manager" exec="spawner"
+        args="forward_velocity_controller -c /controller_manager --inactive"/>
+
+  <node pkg="controller_manager" exec="spawner"
+        args="$(var initial_joint_controller) -c /controller_manager --stopped"
+        unless="$(var activate_joint_controller)"/>
+
+  <!-- RViz -->
+  <node pkg="rviz2" exec="rviz2" name="rviz2" output="log"
+        args="-d $(var rviz_config)"
+        if="$(var launch_rviz)"/>
+
+</launch>

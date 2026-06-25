@@ -19,13 +19,11 @@ setup(
         ),
 
         # Include config files (if present)
-        (os.path.join('share', package_name, 'config'), glob('config/**/*', recursive=True)),
+        (os.path.join('share', package_name, 'config'), glob('config/**/*.yaml', recursive=True) + glob('config/**/*.json', recursive=True)),
 
-        # Include launch files (*.launch.py)
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
-
-        # Include RViz configs (if present)
-        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
+        # Include launch files
+        (os.path.join('share', package_name, 'launch'),
+            glob('launch/*.launch.xml') + glob('launch/*.launch.py')),
 
     ] + [
         (os.path.join('share', package_name, os.path.dirname(f)), [f])
@@ -39,7 +37,7 @@ setup(
     zip_safe=True,
     maintainer='Daniel Haas, Virgilio Gomez, Jayant Singh',
     maintainer_email='daniel.haas@3d-components.co, virgilio.gomez@3d-components.co, jayant@mil-as.no',
-    description='TODO: Package description',
+    description='UR10e robot configuration, controllers, and launch for ROBIN',
     license='AGPL-3.0-only',
     tests_require=['pytest'],
     entry_points={

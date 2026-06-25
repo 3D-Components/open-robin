@@ -52,29 +52,32 @@ services:
       dockerfile: vulcanexus_ws/Dockerfile
     container_name: vulcanexus-bridge
     hostname: vulcanexus-bridge
-    # network_mode: host is mutually exclusive with networks. 
-    # Since we need to communicate with other containers, let's use the bridge network
-    # OR if host mode is strictly required for DDS, we must remove the networks block.
-    # Given the error, I'll remove the networks block to satisfy host mode requirement.
+    # Host networking is used for the Linux ROS 2/DDS integration path.
+    # Hardware, GUI, and GPU device access is intentionally kept out of this
+    # base file; use docker-compose.linux-gpu.override.yaml for the validated
+    # physical demonstrator profile.
     network_mode: host
     privileged: true
     ipc: host
-    user: "${UID}:${GID}"
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
-      # This passes your host's DISPLAY variable for GUIs
       - ROS_WS=/workspace/ros2_packages
-      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=52
+      - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+      # welding_http_bridge: both orion-ld and vulcanexus use network_mode: host,
+      # so localhost:8766 is the same host interface for both containers.
+      - NOTIFY_URL=http://localhost:8766/orion-notify
     volumes:
-      # GUI/X11 Forwarding
-      - /tmp/.X11-unix:/tmp/.X11-unix
       # Mount workspace packages into the expected container path
       - ./vulcanexus_ws/src:/workspace/ros2_packages/src
+      # Mount helper shell scripts
+      - ./vulcanexus_ws/ws_setup.sh:/workspace/ros2_packages/ws_setup.sh
+      - ./vulcanexus_ws/cleanup_ros2.sh:/workspace/ros2_packages/cleanup_ros2.sh
       # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
-      - ./data/rosbags/exp001_rosbag_real:/workspace/ros2_packages/exp001_rosbag_real:ro
-      - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro
       - ./data/rosbags/correct_process_params:/workspace/ros2_packages/correct_process_params:ro
-      # Persist colcon build artifacts across container recreation / host reboots
-      - ./vulcanexus_ws/install:/workspace/ros2_packages/install
+
+    security_opt:
+      - seccomp=unconfined
     # Keep the container alive so we can exec into it
     command: sleep infinity # check if this is needed
 

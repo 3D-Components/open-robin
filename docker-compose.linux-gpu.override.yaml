@@ -1,0 +1,30 @@
+services:
+  # Opt-in profile for the validated Linux/NVIDIA physical demonstrator setup.
+  #
+  # Use this file only on a Linux workstation with NVIDIA Container Toolkit,
+  # X11/GUI forwarding, and access to the required robot/cell devices and
+  # industrial network. The default docker-compose.yaml remains hardware-neutral
+  # for reviewer quickstart and no-hardware demo paths.
+  vulcanexus:
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=graphics,utility,compute
+      - QT_X11_NO_MITSHM=1
+      - XAUTHORITY=/tmp/.docker.xauth
+    volumes:
+      # GUI/X11 forwarding and Linux host device access.
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card1:/dev/dri/card1
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.docker.xauth:/tmp/.docker.xauth:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /dev/input:/dev/input
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

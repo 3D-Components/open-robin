@@ -1,16 +1,14 @@
-# Aggregated telemetry published on /robin/telemetry by telemetry_aggregator_node.
-# Field names (current, voltage, speed, width, height) are intentional:
-# Orion-LD DDS bridge serialises them into the urn:robin:processTelemetry compound JSON
-# attribute with these exact keys, which are then parsed by timescale_plot_sanity.py,
-# mintaka_plot_sanity.py and the Alert Engine.
-std_msgs/Header header
+# Aggregated process telemetry for DDS->FIWARE bridge.
+# Field names MUST match what alert_engine.py parses from the compound
+# NGSI-LD attribute (height, width, speed, current, voltage).
 
-# From /robin/data/fronius (WelderData)
-float32 current           # Welding current (A)
-float32 voltage           # Arc voltage (V)
-float32 speed             # Wire feed speed (m/min)
+# Bead identification and progression
+string bead_id              # Active weld bead ID (empty if not welding)
+float32 progression         # 0.0 = bead start, 1.0 = bead end
 
-# From /robin/weld_dimensions (BeadGeometry)
-float32 width             # Bead width (mm)
-float32 height            # Bead height (mm)
-float32 cross_sectional_area  # Cross-sectional area (mm^2)
+float32 height                 # bead height (mm) -- from BeadGeometry
+float32 width                  # bead width (mm) -- from BeadGeometry
+float32 speed                  # wire feed speed (m/min) -- from WelderData
+float32 current                # welding current (A) -- from WelderData
+float32 voltage                # arc voltage (V) -- from WelderData
+float32 cross_sectional_area   # optional, 0.0 if not computed

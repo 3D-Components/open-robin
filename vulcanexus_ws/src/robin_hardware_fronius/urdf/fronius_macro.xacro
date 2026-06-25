@@ -2,11 +2,10 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fronius">
 
   <!-- Define Fronius macro -->
-    <xacro:macro name="fronius_weld_torch" params="parent *origin">
+    <xacro:macro name="fronius_weld_torch" params="parent sim:=false ctwd:=0.015 tip_x:=0.00 tip_y:=-0.095 tip_z:=0.63 tip_roll:=${-pi/6} tip_pitch:=0 tip_yaw:=0 *origin">
 
         <link name="weld_torch">
         <visual>
-            <origin xyz="0 0 0" rpy="0 0 0"/>
             <geometry>
                 <mesh filename="package://robin_hardware_fronius/meshes/weld_torch/visual/weld_torch.obj"/>
             </geometry>
@@ -23,7 +22,8 @@
         </inertial>
         </link>
 
-        <link name="weld_torch_tip">
+        <!-- Contact tip: where the wire exits the torch nozzle (red sphere) -->
+        <link name="contact_tip">
         <visual>
             <geometry>
                 <sphere radius="0.005"/>
@@ -39,11 +39,65 @@
         </inertial>
         </link>
 
-        <joint name="weld_torch_tip_joint" type="fixed">
+        <joint name="contact_tip_joint" type="fixed">
         <parent link="weld_torch"/>
-        <child link="weld_torch_tip"/>
-        <origin xyz="0.00 -0.085 0.645" rpy="-${pi/6} 0 0"/>
+        <child link="contact_tip"/>
+        <!-- Contact tip position relative to torch mesh origin (configurable via xacro args) -->
+        <origin xyz="${tip_x} ${tip_y} ${tip_z}" rpy="${tip_roll} ${tip_pitch} ${tip_yaw}"/>
         </joint>
+
+        <!-- Wire tip (actual TCP) - offset from contact tip by CTWD along wire direction (local Z) -->
+        <link name="wire_tip">
+        <visual>
+            <!-- Wire cylinder: 1mm diameter, 50mm long, extending behind wire_tip -->
+            <origin xyz="0 0 -0.025" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.0005" length="0.05"/>
+            </geometry>
+            <material name="wire_silver">
+                <color rgba="0.75 0.75 0.75 1"/>
+            </material>
+        </visual>
+        <!-- Keep existing small sphere at tip -->
+        <visual>
+            <geometry>
+                <sphere radius="0.002"/>
+            </geometry>
+            <material name="yellow">
+                <color rgba="1 1 0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <sphere radius="0.003"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <mass value="0.01"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+        </inertial>
+        </link>
+
+        <joint name="wire_tip_joint" type="fixed">
+            <parent link="contact_tip"/>
+            <child link="wire_tip"/>
+            <origin xyz="0 0 ${ctwd}" rpy="0 0 0"/>
+        </joint>
+
+        <!-- Prevent Gazebo fixed-joint lumping so wire_tip survives as a link -->
+        <gazebo reference="wire_tip_joint">
+            <preserveFixedJoint>true</preserveFixedJoint>
+        </gazebo>
+
+        <!-- Load Gazebo bead deposition plugin in sim mode -->
+        <xacro:if value="${sim}">
+        <gazebo>
+            <plugin filename="robin_sim_plugin" name="robin_sim_gz::RobinSimPlugin">
+                <weld_active_topic>/robin/weld_active</weld_active_topic>
+            </plugin>
+        </gazebo>
+        </xacro:if>
 
         <joint name="weld_torch_joint" type="fixed">
         <parent link="${parent}"/>

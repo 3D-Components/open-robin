@@ -11,31 +11,32 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-
+find_package(sensor_msgs REQUIRED) # For PointCloud2, if you were to keep it
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/PlanExperiment.srv"
   "srv/ApproveExperimentPlan.srv"
   "srv/SetFloat32.srv"
   "srv/SetInt32.srv"
-  "srv/SetUInt8.srv"
-  "srv/SetTcpMode.srv"
+  "srv/SetCtwd.srv"
   "srv/StartWeld.srv"
   "srv/FindSurface.srv"
-  "srv/CalibrateStickout.srv"
+  "srv/SetTcpMode.srv"
+  "srv/CalibrateWireTip.srv"
   "srv/CalibratePlatePlane.srv"
-  "srv/SensorCommand.srv"
-  "msg/ProcessTelemetry.msg"
+  "srv/ReserveSlots.srv"
+  "srv/ClearReservedSlots.srv"
   "msg/WelderData.msg"
   "msg/BeadGeometry.msg"
   "msg/WeldProgression.msg"
-  "msg/FroniusSample.msg"
   "msg/ActiveBead.msg"
   "msg/ExperimentBeadSpec.msg"
   "msg/ExperimentBead.msg"
   "msg/WeldPlate.msg"
   "msg/PlateLayout.msg"
-  "msg/WeldBead.msg"
+  "msg/ProcessTelemetry.msg"
   "action/WeldExperiment.action"
   "action/ExecuteBead.action"
   DEPENDENCIES builtin_interfaces std_msgs geometry_msgs sensor_msgs
