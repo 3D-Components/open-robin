@@ -106,6 +106,7 @@ Documentation Structure
 
    reference/configuration
    reference/fiware_ngsi_ld_dds_mapping
+   reference/ros2_vulcanexus_interfaces
    reference/ros4hri_ros4ri_alignment
    reference/troubleshooting
    limitations

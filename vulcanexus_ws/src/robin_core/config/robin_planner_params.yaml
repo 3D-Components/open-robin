@@ -1,5 +1,5 @@
 # Robin Planner Configuration
-# Parameters for the MoveItPy bead execution node (robin_core_planner)
+# Parameters for the MoveItPy bead execution node (robin_planner_node in robin_core)
 #
 # These parameters can be overridden via launch file arguments or
 # command-line --ros-args -p parameter:=value

@@ -1,4 +1,4 @@
-# MoveItCpp configuration for robin_core_planner
+# MoveItCpp configuration for robin_planner_node (robin_core)
 # Reference: https://moveit.picknik.ai/main/doc/examples/moveit_cpp/moveitcpp_tutorial.html
 
 planning_scene_monitor_options:
@@ -49,4 +49,3 @@ pilz_circ:
     max_velocity_scaling_factor: 1.0
     max_acceleration_scaling_factor: 1.0
     planning_time: 1.0
-

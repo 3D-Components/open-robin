@@ -85,6 +85,9 @@ documented in [`vulcanexus_ws/ROS2_NODES.md`](vulcanexus_ws/ROS2_NODES.md).
 FIWARE/NGSI-LD entity mappings, DDS Enabler configuration, curl validation
 commands, and history/export behavior are documented in
 [`docs/reference/fiware_ngsi_ld_dds_mapping.rst`](docs/reference/fiware_ngsi_ld_dds_mapping.rst).
+The central ROS 2/Vulcanexus package, node, topic, service, action, launch, QoS,
+and validation reference is
+[`docs/reference/ros2_vulcanexus_interfaces.rst`](docs/reference/ros2_vulcanexus_interfaces.rst).
 
 ## How the Components Fit Together
 
