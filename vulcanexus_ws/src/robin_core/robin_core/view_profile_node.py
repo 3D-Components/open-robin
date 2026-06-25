@@ -14,7 +14,7 @@ matplotlib plot showing:
 
 Usage (inside vulcanexus container):
   source /workspace/ros2_packages/ws_setup.sh
-  python3 /workspace/ros2_packages/src/robin_core/scripts/view_profile.py
+  ros2 run robin_core view_profile_node
 
 Press 'q' or close the window to exit.
 """

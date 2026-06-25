@@ -10,7 +10,7 @@ robin_bringup (robin_main.launch.py)
 ├── STAGE 2 (delayed ~8s, waits for UR driver)
 │   ├── robin_core planner     → MoveItPy + ExecuteBead action server
 │   ├── robin_core experiment  → WeldExperiment action server + planning services
-│   ├── robin_core tcp_manager → Wire-tip TF + stickout management
+│   ├── robin_core tcp_manager → Wire-tip TF + CTWD management
 │   ├── robin_core plate_markers → RViz plate visualization
 │   ├── moveit_servo           → Cartesian jogging
 │   ├── rviz2                  → Visualization
@@ -44,7 +44,7 @@ Custom ROS2 message, service, and action definitions.
 | **srv** | `StartWeld` | Start arc with synergetic params (primary + overrides) |
 | **srv** | `SetFloat32` / `SetInt32` | Generic typed setters for PLC registers |
 | **srv** | `SetTcpMode` | Switch TCP: `"welding"` / `"scanning"` |
-| **srv** | `SetStickout` | Set stickout value (optionally mark calibrated) |
+| **srv** | `SetCtwd` | Set CTWD value and calibration status |
 | **srv** | `FindSurface` | Touch-sense probe at XY to find surface Z |
 | **srv** | `CalibrateWireTip` | Wire feed until touch → measure wire tip distance |
 | **srv** | `CalibratePlatePlane` | 4-point probe → fit plane z = ax + by + c |
@@ -137,12 +137,9 @@ Orchestrates welding start/stop sequences by coordinating WAGO PLC signals and F
 
 ### `robin_hardware_garmo`
 
-**Node 1:** `garmo_command_node` — Sensor control (start/stop/FPS)
-- Services: `/profilometer_activate` (Trigger), `/profilometer_deactivate` (Trigger)
-- Communicates via TCP socket to sensor at `192.168.1.212:5020`
-
-**Node 2:** `sensor_data` — PointCloud2 publisher + TF broadcaster
-- Connects to sensor data stream at `192.168.1.212:66`
+**Node:** `garmo_sensor_node` — lifecycle sensor control, data publisher, and TF broadcaster
+- Communicates with the sensor control socket at `192.168.1.212:5020`
+- Connects to the sensor data stream at `192.168.1.212:66`
 - Publishes: `/robin/pointcloud` (PointCloud2)
 - Broadcasts static TF: `laser_frame` → `garmo_laser_frame`
 - Auto-reconnects on connection loss
@@ -154,7 +151,7 @@ Orchestrates welding start/stop sequences by coordinating WAGO PLC signals and F
 | `smoothing_window` | 51 | Filter window size (odd, ≥3; 0 to disable) |
 | `smoothing_sigma_r` | 0.001 | Range sigma in data units (m). Smaller = sharper edge preservation |
 
-Parameters are tunable at runtime: `ros2 param set /sensor_data smoothing_window 31`
+Parameters are tunable at runtime: `ros2 param set /garmo_sensor_node smoothing_window 31`
 
 ---
 
@@ -166,7 +163,7 @@ Single-bead motion execution via MoveIt Pilz planner.
 
 **Action server:** `/execute_bead` (ExecuteBead)
 
-Bead execution pipeline: approach clearance → pre-weld stickout calibration → move to weld start → start arc → LIN weld through waypoints → stop arc → scan pass → retract
+Bead execution pipeline: approach clearance → pre-weld CTWD calibration → move to weld start → start arc → LIN weld through waypoints → stop arc → scan pass → retract
 
 **Calibration services (hosted by CalibrationManager):**
 | Service | Type | Description |
@@ -178,7 +175,7 @@ Bead execution pipeline: approach clearance → pre-weld stickout calibration �
 
 **Key parameters** (from `robin_planner_params.yaml`):
 - `approach_height`: 0.15 m
-- `default_stickout`: 0.015 m (15 mm)
+- `default_ctwd`: 0.015 m (15 mm)
 - `max_cartesian_velocity`: 0.25 m/s
 - `end_effector_link`: `wire_tip`
 - `base_frame`: `base_link`
@@ -210,16 +207,16 @@ Manages experiment lifecycle: planning, operator approval, and orchestration of 
 
 **Node:** `tcp_manager`
 
-Manages active TCP frame and wire stickout.
+Manages active TCP frame and CTWD.
 
 **Services:**
 - `/tcp/set_mode` (SetTcpMode) — Switch between `welding` (wire_tip) / `scanning` (laser_frame)
-- `/tcp/set_stickout` (SetStickout) — Update stickout value
+- `/tcp/set_ctwd` (SetCtwd) — Update CTWD value and calibration status
 
 **Published topics (TRANSIENT_LOCAL / latched):**
 - `/tcp/active_frame` (String)
-- `/tcp/stickout` (Float32)
-- `/tcp/stickout_calibrated` (Bool)
+- `/tcp/ctwd` (Float32)
+- `/tcp/ctwd_calibrated` (Bool)
 - `/tf_static` — `contact_tip → wire_tip` transform
 
 ---
@@ -260,7 +257,7 @@ Processes laser profilometer pointclouds into weld bead cross-section geometry.
 
 ### `robin_core` — Profile Viewer
 
-**Script:** `scripts/view_profile.py` (not a node — standalone matplotlib tool)
+**Executable:** `view_profile_node` (standalone matplotlib tool)
 
 Live cross-section viewer for debugging. Replicates the processing pipeline and displays:
 - Raw Z points (grey dots)
@@ -276,7 +273,7 @@ Live cross-section viewer for debugging. Replicates the processing pipeline and 
 
 ```bash
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
-  python3 /workspace/ros2_packages/src/robin_core/scripts/view_profile.py"
+  ros2 run robin_core view_profile_node"
 ```
 
 ---
@@ -309,7 +306,7 @@ Tabbed GUI with:
 - **Status tab** — system state overview
 - **Experiment tab** — plan/approve/execute experiments
 - **Manual tab** — direct PLC control (working mode, wire, weld start/stop)
-- **Calibration tab** — stickout & plate-plane calibration
+- **Setup tab** — CTWD and plate-plane calibration
 - **Plates tab** — plate management
 - **Sensor tab** — laser profilometer control
 
@@ -611,13 +608,8 @@ ros2 action send_goal /execute_bead robin_interfaces/action/ExecuteBead '{
   ],
   total_length: 0.10,
   target_speed: 0.005,
-  primary_parameter: 0,
-  primary_value: 120.0,
-  target_current: 120.0,
-  target_voltage: 18.0,
   wire_feed_speed: 5.0,
-  requested_stickout: 0.015,
-  scan_speed: 0.0,
+  arc_length_correction_mm: 0.0,
   dry_run: false
 }' --feedback"
 ```
@@ -625,9 +617,8 @@ ros2 action send_goal /execute_bead robin_interfaces/action/ExecuteBead '{
 **Key fields to set:**
 - `path`: Array of `geometry_msgs/Point` — weld start and end positions in `base_link` frame (meters). Minimum 2 points. Get coordinates from RViz or `FindSurface`.
 - `target_speed`: TCP travel speed during welding (m/s). Typical: 0.003–0.010.
-- `primary_parameter`: 0=CURRENT, 1=VOLTAGE, 2=WIRE_FEED_SPEED
-- `primary_value`: Value for the primary parameter
-- `target_current` / `target_voltage` / `wire_feed_speed`: Override values (0.0 = synergetic)
+- `wire_feed_speed`: Fronius synergetic wire-feed command in m/min.
+- `arc_length_correction_mm`: Arc length correction in mm, clamped by the welding coordinator.
 - `dry_run: true`: Motion only, no arc — **use this first to verify the path!**
 
 ### Option 2: Dry Run First (Recommended)
@@ -645,13 +636,8 @@ ros2 action send_goal /execute_bead robin_interfaces/action/ExecuteBead '{
   ],
   total_length: 0.10,
   target_speed: 0.005,
-  primary_parameter: 0,
-  primary_value: 120.0,
-  target_current: 120.0,
-  target_voltage: 18.0,
   wire_feed_speed: 5.0,
-  requested_stickout: 0.015,
-  scan_speed: 0.0,
+  arc_length_correction_mm: 0.0,
   dry_run: true
 }' --feedback"
 ```
@@ -672,9 +658,8 @@ ros2 action send_goal /execute_bead robin_interfaces/action/ExecuteBead '{
      bead_id: "manual_dryrun", plate_id: "manual",
      path: [{x: -1.20, y: 0.45, z: <surface_z>}, {x: -1.10, y: 0.45, z: <surface_z>}],
      total_length: 0.10, target_speed: 0.005,
-     primary_parameter: 0, primary_value: 120.0,
-     target_current: 120.0, target_voltage: 18.0, wire_feed_speed: 5.0,
-     requested_stickout: 0.015, scan_speed: 0.0, dry_run: true
+     wire_feed_speed: 5.0, arc_length_correction_mm: 0.0,
+     dry_run: true
    }' --feedback
    ```
 
