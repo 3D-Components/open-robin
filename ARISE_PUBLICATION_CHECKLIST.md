@@ -1,6 +1,6 @@
 # ARISE Publication Checklist
 
-Last updated: **June 22, 2026**.
+Last updated: **June 23, 2026**.
 
 Use this as the single release-readiness checklist for the `open-robin`
 shareable HRI module submission.  It consolidates the repository audit findings
@@ -27,9 +27,9 @@ clean clone of the exact commit that will be tagged.
 - [x] Copyright owner is identified as 3D-Components AS.
 - [x] Third-party and template-origin notices are documented in `THIRD_PARTY_LICENSES.md`.
 - [x] Proprietary/excluded, demonstrator-specific, and reusable open parts are documented.
-- [ ] Confirm no private credentials, tokens, local paths, private datasets, or generated artifacts are committed.
-- [ ] Confirm any included sample/demo data and model artifacts are intentionally public and documented.
-- [ ] Confirm `.gitignore` prevents reintroducing generated/local artifacts.
+- [x] Confirm no private credentials, tokens, local paths, private datasets, or generated artifacts are committed.
+- [x] Confirm any included sample/demo data and model artifacts are intentionally public and documented.
+- [x] Confirm `.gitignore` prevents reintroducing generated/local artifacts.
 
 ## 3. Reviewer Entry Point and Repository Map
 

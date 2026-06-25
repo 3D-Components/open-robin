@@ -1,6 +1,6 @@
 # Motion Data
 
-This directory contains robot motion trajectories for playback in the FAROS visualization.
+This directory contains robot motion trajectories for playback in the ROBIN Dashboard visualization.
 
 ## Structure
 
