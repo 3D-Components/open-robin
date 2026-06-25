@@ -207,7 +207,8 @@ Nodes and Executables
      - Provides the ROBIN Operator Panel and Process Plots plugin.
    * - ``welding_http_bridge``
      - ``welding_http_bridge_node``
-     - HTTP ``/intent``, ``/orion-notify``, ``/health`` and ``/intents``
+     - HTTP ``/intent``, ``/orion-notify``, ``/health``; publishes ROS topic
+       ``/intents``
      - Converts dashboard/API/Orion intent events into ROS 2 intent messages.
    * - ``welding_supervisor``
      - ``welding_supervisor_node``
