@@ -61,7 +61,7 @@ Custom ROS2 message, service, and action definitions.
 
 **Node:** UR10e robot driver (via `ur_robot_driver`)
 
-- Launches `ur_control.launch.py` (real) or `ur_sim_control.launch.py` (Gazebo)
+- Launches `robot.launch.py`, which wraps the ROBIN UR control launch files
 - Robot type: **UR10e**
 - Default IP: `192.168.1.101`
 - Default controller: `scaled_joint_trajectory_controller`
@@ -330,11 +330,10 @@ Meta-package with the main launch file and URDF/config/RViz assets.
 
 ## Quick Launch Commands
 
-All commands run from the `vulcanexus_ws` directory inside the Docker container.
+Host-side `docker compose` commands should be run from the repository root, where `docker-compose.yaml` is located. ROS 2 commands run inside the `vulcanexus` container after sourcing `/workspace/ros2_packages/ws_setup.sh`.
 
 ```bash
-# Shorthand for running commands in the container
-cd /home/mil-ai-pc/Repos/ROBIN/vulcanexus_ws
+# Shorthand for running ROS 2 commands in the container
 alias rex='docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && $@"'
 ```
 
@@ -361,11 +360,11 @@ docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup
 
 # OPC UA bridge only
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
-  ros2 launch robin_hardware_opcua opcua_bridge.launch.py"
+  ros2 launch robin_hardware_opcua opcua_bridge.launch.xml"
 
 # Welding coordinator only (requires OPC UA bridge)
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
-  ros2 launch robin_hardware_fronius welding_coordinator.launch.py"
+  ros2 launch robin_hardware_fronius welding_coordinator.launch.xml"
 
 # MoveIt planner + servo only (requires UR driver)
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
@@ -373,7 +372,7 @@ docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup
 
 # Garmo sensor only
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
-  ros2 launch robin_hardware_garmo sensor.launch.py sensor_ip:=192.168.1.212"
+  ros2 launch robin_hardware_garmo sensor.launch.xml sensor_ip:=192.168.1.212"
 
 # Experiment node only
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
@@ -398,19 +397,16 @@ docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup
 
 ```bash
 # Build all ROBIN packages
-cd /home/mil-ai-pc/Repos/ROBIN/vulcanexus_ws && \
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
   colcon build --packages-select robin_interfaces robin_core robin_bringup \
   robin_hardware_ur robin_hardware_opcua robin_hardware_fronius robin_hardware_garmo \
   robin_moveit_config robin_rqt --symlink-install"
 
 # Build single package
-cd /home/mil-ai-pc/Repos/ROBIN/vulcanexus_ws && \
 docker compose exec vulcanexus bash -c "source /workspace/ros2_packages/ws_setup.sh && \
   colcon build --packages-select robin_core --symlink-install"
 
 # Clean build (when symlink errors occur)
-cd /home/mil-ai-pc/Repos/ROBIN/vulcanexus_ws && \
 docker compose exec vulcanexus bash -c "rm -rf /workspace/ros2_packages/build/robin_core \
   /workspace/ros2_packages/install/robin_core && \
   source /workspace/ros2_packages/ws_setup.sh && \
