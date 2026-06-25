@@ -318,15 +318,15 @@ class WeldingCoordinator(Node):
         return errors
 
     # ----- Service callbacks -----
-    def set_params_callback(self, request: StartWeld.Request, 
+    def set_params_callback(self, request: StartWeld.Request,
                             response: StartWeld.Response) -> StartWeld.Response:
         """Set welding parameters without starting."""
         self.get_logger().info(
             f'Setting params: WFS={request.wire_speed:.1f}m/min, '
             f'ArcCorr={request.arc_length_correction_mm:.1f}%')
-        
+
         errors = self._set_welding_params(request)
-        
+
         if errors:
             response.success = False
             response.message = "Failed: " + ", ".join(errors)
@@ -334,7 +334,7 @@ class WeldingCoordinator(Node):
             response.success = True
             response.message = (f"Parameters set: WFS={request.wire_speed:.1f}m/min, "
                               f"ArcCorr={request.arc_length_correction_mm:.1f}%")
-        
+
         return response
 
     def _wait_for_signal(self, signal_name: str, expected: bool, timeout: float) -> bool:
@@ -348,10 +348,10 @@ class WeldingCoordinator(Node):
             elapsed += poll_interval
         return self._wago_signals[signal_name] == expected
 
-    def start_weld_callback(self, request: StartWeld.Request, 
+    def start_weld_callback(self, request: StartWeld.Request,
                             response: StartWeld.Response) -> StartWeld.Response:
         """Start welding: set parameters, then robot_ready -> welding_start -> wait for robot_motion_release.
-        
+
         The Fronius power source automatically handles gas pre-flow, ignition,
         and starting current. It signals robot_motion_release when the arc is
         stable and it is safe to move the robot.
@@ -374,7 +374,7 @@ class WeldingCoordinator(Node):
         # 0. Check power source (warn but don't block - signal may not be available yet)
         if not self._wago_signals['power_source_ready']:
             self.get_logger().warn('Power source not confirmed ready (proceeding anyway)')
-        
+
         # 1. Set welding parameters with synergy support
         param_errors = self._set_welding_params(request)
         if param_errors:
@@ -382,7 +382,7 @@ class WeldingCoordinator(Node):
             response.message = "Start failed (params): " + ", ".join(param_errors)
             self.get_logger().error(response.message)
             return response
-        
+
         # 2. Set robot_ready
         self.get_logger().info('Setting robot_ready...')
         ok, msg = self._set_wago_signal(self.robot_ready_client, True)
@@ -436,17 +436,17 @@ class WeldingCoordinator(Node):
                 '- arc may not have stabilised')
             self.get_logger().error(response.message)
             return response
-        
+
         self.is_welding = True
         response.success = True
         response.message = "Welding started - arc stable, robot can move"
         self.get_logger().info('Welding started successfully - robot can begin weld motion')
         return response
 
-    def stop_weld_callback(self, request: Trigger.Request, 
+    def stop_weld_callback(self, request: Trigger.Request,
                            response: Trigger.Response) -> Trigger.Response:
         """Stop welding: welding_start(false) -> wait for robot_motion_release=false -> robot_ready(false).
-        
+
         The Fronius power source automatically handles end-current ramp-down
         and gas post-flow (GPo). robot_motion_release drops Low once the full
         cycle (including GPo) is complete.
@@ -457,18 +457,18 @@ class WeldingCoordinator(Node):
         3. Deactivate robot_ready
         """
         self.get_logger().info('STOP WELD')
-        
+
         # Signal any in-progress wire operations to abort immediately
         self._abort_wire_ops.set()
-        
+
         errors = []
-        
+
         # 1. Stop arc first
         self.get_logger().info('Deactivating welding_start (arc off)...')
         ok, msg = self._set_wago_signal(self.welding_start_client, False)
         if not ok:
             errors.append(f"welding_start: {msg}")
-        
+
         # 2. Wait for robot_motion_release to drop (post-flow / GPo complete)
         self.get_logger().info('Waiting for robot_motion_release to drop (post-flow)...')
         if self._wait_for_signal('robot_motion_release', False,
@@ -478,13 +478,13 @@ class WeldingCoordinator(Node):
             self.get_logger().warn(
                 f'robot_motion_release did not drop within '
                 f'{self.robot_motion_release_timeout}s (proceeding with stop)')
-        
+
         # 3. Clear robot_ready
         self.get_logger().info('Clearing robot_ready...')
         ok, msg = self._set_wago_signal(self.robot_ready_client, False)
         if not ok:
             errors.append(f"robot_ready: {msg}")
-        
+
         if errors:
             response.success = False
             response.message = "Stop failed: " + ", ".join(errors)
@@ -494,28 +494,28 @@ class WeldingCoordinator(Node):
             response.success = True
             response.message = "Welding stopped - post-flow complete"
             self.get_logger().info('Welding stopped successfully')
-        
+
         return response
 
     def touch_probe_callback(self, request: Trigger.Request,
                              response: Trigger.Response) -> Trigger.Response:
         """Activate/deactivate touch sensing mode on the WAGO PLC.
-        
+
         This enables the Fronius touch sensing circuit. When active, the wire
         is energised with a low detection voltage. Contact with the workpiece
         triggers the touch_signal feedback from the WAGO OUT side.
-        
+
         The planner calls this to enable touch sensing before probing,
         then monitors /wago/out/touch_signal and disables it afterwards.
-        
+
         Returns:
             Trigger.Response with success/message
         """
         self.get_logger().info('Enabling touch sensing mode...')
-        
+
         # Enable touch sensing via WAGO
         ok, msg = self._set_wago_signal(self.touch_sensing_client, True)
-        
+
         if not ok:
             response.success = False
             response.message = f"Failed to enable touch sensing: {msg}"
@@ -524,7 +524,7 @@ class WeldingCoordinator(Node):
             response.success = True
             response.message = "Touch sensing enabled - wire energised for contact detection"
             self.get_logger().info(response.message)
-        
+
         return response
 
     def touch_probe_disable(self):
@@ -540,7 +540,7 @@ class WeldingCoordinator(Node):
     # ----- Wire feed / retract helpers -----
     def _set_wire_move_length(self, length_mm: float) -> tuple[bool, str]:
         """Set the WAGO WireMoveLength parameter (float, in mm).
-        
+
         When set to 0, the wire feeds/retracts continuously while the
         forward/backward flag is active. When > 0, the wire moves a
         fixed distance per forward/backward activation.
@@ -555,7 +555,7 @@ class WeldingCoordinator(Node):
     def wire_feed_until_touch_callback(self, request: Trigger.Request,
                                        response: Trigger.Response) -> Trigger.Response:
         """Feed wire continuously until touch contact is detected.
-        
+
         Self-contained sequence:
         1. Clear any stale abort flag
         2. Enable touch sensing
@@ -564,7 +564,7 @@ class WeldingCoordinator(Node):
         5. Wait for TouchSignal = True (Fronius auto-stops wire on contact)
         6. Deactivate WireForward
         7. Disable touch sensing
-        
+
         Returns:
             Trigger.Response with success/message
         """
@@ -669,11 +669,11 @@ class WeldingCoordinator(Node):
     def wire_retract_callback(self, request: SetFloat32.Request,
                               response: SetFloat32.Response) -> SetFloat32.Response:
         """Retract wire by a specified distance (mm) using timed backward signal.
-        
+
         Holds wire_backward=True for the time needed to retract the
         requested distance at the configured wire_retract_speed, then
         releases the signal.
-        
+
         Args:
             request.data: Retraction distance in mm (0 = continuous for 1s)
         """

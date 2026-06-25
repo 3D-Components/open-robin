@@ -8,21 +8,21 @@ servers:
     auth:
       type: anonymous
     poll_rate: 10.0  # Hz - single timer for all topics
-    
+
     # Topics: OPC UA nodes published as ROS2 topics
     topics:
       - name: "fronius/display_current"
         node_id: "ns=1;s=DISPLAY_CURRENT"
         type: float32
-        
+
       - name: "fronius/display_voltage"
         node_id: "ns=1;s=DISPLAY_VOLTAGE"
         type: float32
-        
+
       - name: "fronius/display_wfs"
         node_id: "ns=1;s=DISPLAY_WFS"
         type: float32
-        
+
       - name: "fronius/display_power"
         node_id: "ns=1;s=DISPLAY_POWER"
         type: float32
@@ -50,11 +50,11 @@ servers:
       - name: "fronius/current_recommvalue"
         node_id: "ns=1;s=CURRENT_RECOMMVALUE"
         type: float32
-        
+
       - name: "fronius/voltage_recommvalue"
         node_id: "ns=1;s=VOLTAGE_RECOMMVALUE"
         type: float32
-        
+
       - name: "fronius/wfs_commandvalue"
         node_id: "ns=1;s=WFS_COMMANDVALUE"
         type: float32
@@ -68,11 +68,11 @@ servers:
       - name: "fronius/set_current"
         node_id: "ns=1;s=CURRENT_RECOMMVALUE"
         type: float32
-        
+
       - name: "fronius/set_voltage"
         node_id: "ns=1;s=VOLTAGE_RECOMMVALUE"
         type: float32
-        
+
       - name: "fronius/set_wire_speed"
         node_id: "ns=1;s=WFS_COMMANDVALUE"
         type: float32

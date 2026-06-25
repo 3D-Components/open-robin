@@ -226,7 +226,7 @@ def _enable_servo(panel):
     traj_ctrl = _get_trajectory_controller_name(panel)
     panel._traj_ctrl_name = traj_ctrl  # stash for restore
     req.deactivate_controllers = [traj_ctrl]
-    
+
     req.strictness = SwitchController.Request.BEST_EFFORT
     future = panel._switch_ctrl_client.call_async(req)
     future.add_done_callback(

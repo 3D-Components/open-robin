@@ -25,7 +25,7 @@
   <!-- Robot description via xacro -->
   <let name="robot_description"
        value="$(command 'xacro $(var description_file) name:=ur ur_type:=$(var ur_type) simulation_controllers:=$(var sim_controllers) sim:=true')"/>
-  
+
   <!-- Robot State Publisher -->
   <node pkg="robot_state_publisher" exec="robot_state_publisher" output="both">
     <param name="use_sim_time" value="true"/>

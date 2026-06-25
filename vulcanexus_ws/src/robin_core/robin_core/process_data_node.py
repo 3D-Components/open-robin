@@ -35,19 +35,19 @@ class WeldProfileProcessor(Node):
         ]
         self.publisher = self.create_publisher(BeadGeometry, "robin/weld_dimensions", 10)
         self.get_logger().info('Configured: _subscriptions + publisher ready')
-    
+
     def _active_bead_callback(self, msg: ActiveBead):
         """Track active bead ID for stamping geometry output."""
         self._active_bead_id = msg.bead_id
-    
+
     def _progression_callback(self, msg: WeldProgression):
         """Track latest progression value for stamping geometry output."""
         self._current_progression = msg.progression
-    
+
     def _welding_state_callback(self, msg: Bool):
         """Track welding state — suppress pointcloud processing while arc is on."""
         self._is_welding = msg.data
-    
+
     def pointcloud_callback(self, msg):
         # Don't process sensor data while welding — sensor should be off
         if self._is_welding:
@@ -56,16 +56,16 @@ class WeldProfileProcessor(Node):
         try:
             # Convert PointCloud2 to numpy array
             points = self.pointcloud2_to_array(msg)
-            
+
             if points.size == 0:
                 self.get_logger().debug('Received empty pointcloud')
                 return
 
             self.get_logger().debug(f'Pointcloud: {points.shape[0]} points')
-            
+
             # Compute weld dimensions
             width, height, toe_angle = self.compute_weld_dimensions(points)
-            
+
             # Publish results
             msg_out = BeadGeometry()
             msg_out.header = msg.header
@@ -75,10 +75,10 @@ class WeldProfileProcessor(Node):
             msg_out.height_mm = float(height)
             msg_out.toe_angle_rad = float(toe_angle)
             self.publisher.publish(msg_out)
-            
+
         except Exception as e:
             self.get_logger().error(f'Error processing pointcloud: {str(e)}')
-    
+
     def pointcloud2_to_array(self, cloud_msg):
         """Convert PointCloud2 message to numpy (N, 3) float array."""
         structured = np.array(
@@ -87,7 +87,7 @@ class WeldProfileProcessor(Node):
         if structured.size == 0:
             return structured
         return rfn.structured_to_unstructured(structured).astype(np.float64)
-    
+
     def compute_weld_dimensions(self, points):
         """Compute weld width, height and toe angle using RANSAC profilometry."""
         if len(points) < 20:
@@ -107,9 +107,9 @@ class WeldProfileProcessor(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    
+
     weld_processor = WeldProfileProcessor()
-    
+
     try:
         rclpy.spin(weld_processor)
     except KeyboardInterrupt:

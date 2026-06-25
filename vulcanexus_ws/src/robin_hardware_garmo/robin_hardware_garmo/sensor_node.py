@@ -109,7 +109,7 @@ class GarmoSensorNode(LifecycleNode):
 
         self._data_pub = self.create_lifecycle_publisher(
             PointCloud2, 'robin/pointcloud', qos_profile_sensor_data)
-        
+
         self._tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self._publish_static_transform()
 
