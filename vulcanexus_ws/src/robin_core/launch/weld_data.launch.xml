@@ -1,0 +1,7 @@
+<launch>
+  <arg name="use_sim" default="false"/>
+  <node pkg="robin_core" exec="weld_data_node" name="weld_data_node" output="screen">
+    <param from="$(find-pkg-share robin_core)/config/weld_data.yaml"/>
+    <param name="use_sim_time" value="$(var use_sim)"/>
+  </node>
+</launch>

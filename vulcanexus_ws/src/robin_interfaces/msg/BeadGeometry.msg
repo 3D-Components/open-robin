@@ -1,11 +1,10 @@
-# The result of processing the profilometer's PointCloud2
-# This is the "dedicated topic" for bead features.
 std_msgs/Header header
 
-# Using float32 instead of float64 for Orion-LD DDS compatibility
+# Bead identification and progression
+string bead_id              # Active bead ID (empty if not welding)
+float32 progression         # 0.0 = bead start, 1.0 = bead end
+
+# Cross-section measurements
 float32 height_mm
 float32 width_mm
-float32 cross_sectional_area_mm2
-
-# Add timestamp for the observation
-# builtin_interfaces/Time timestamp
+float32 toe_angle_rad       # Mean toe angle (left+right)/2 in radians

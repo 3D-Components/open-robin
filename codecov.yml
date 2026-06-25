@@ -20,14 +20,11 @@ flags:
   python:
     paths:
       - robin/**/*.py
-      - robin-ui/**/*.py
     carryforward: true
   typescript:
     paths:
       - robin-dashboard/src/**/*.ts
       - robin-dashboard/src/**/*.tsx
-      - robin-ui/frontend/src/**/*.ts
-      - robin-ui/frontend/src/**/*.tsx
     carryforward: false
 
 comment:

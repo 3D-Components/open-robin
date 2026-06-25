@@ -19,32 +19,21 @@ class ManualController:
             self._clients[key] = client
         return client
 
-    def set_working_mode(self, mode_val: int, done_cb):
-        client = self._get_client(SetInt32, '/wago/in/working_mode')
+    def _call(self, srv_type, service_name: str, value, done_cb) -> bool:
+        client = self._get_client(srv_type, service_name)
         if not client.service_is_ready():
             return False
-        req = SetInt32.Request()
-        req.data = int(mode_val)
+        req = srv_type.Request()
+        req.data = value
         future = client.call_async(req)
         future.add_done_callback(done_cb)
         return True
+
+    def set_working_mode(self, mode_val: int, done_cb):
+        return self._call(SetInt32, '/wago/in/working_mode', int(mode_val), done_cb)
 
     def set_float(self, service_name: str, value: float, done_cb):
-        client = self._get_client(SetFloat32Srv, service_name)
-        if not client.service_is_ready():
-            return False
-        req = SetFloat32Srv.Request()
-        req.data = float(value)
-        future = client.call_async(req)
-        future.add_done_callback(done_cb)
-        return True
+        return self._call(SetFloat32Srv, service_name, float(value), done_cb)
 
     def set_robot_ready(self, ready: bool, done_cb):
-        client = self._get_client(SetBool, '/wago/in/robot_ready')
-        if not client.service_is_ready():
-            return False
-        req = SetBool.Request()
-        req.data = bool(ready)
-        future = client.call_async(req)
-        future.add_done_callback(done_cb)
-        return True
+        return self._call(SetBool, '/wago/in/robot_ready', bool(ready), done_cb)

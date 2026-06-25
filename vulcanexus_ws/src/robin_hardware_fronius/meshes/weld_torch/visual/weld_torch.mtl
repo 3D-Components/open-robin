@@ -1,0 +1,57 @@
+# Materials for Fronius weld torch
+
+newmtl Coating_-_Black_Oxide
+Ns 50.0
+Ka 0.1 0.1 0.1
+Kd 0.05 0.05 0.06
+Ks 0.2 0.2 0.2
+d 1.0
+illum 2
+
+newmtl Steel_-_Rough
+Ns 30.0
+Ka 0.15 0.15 0.15
+Kd 0.45 0.45 0.45
+Ks 0.3 0.3 0.3
+d 1.0
+illum 2
+
+newmtl Stainless_Steel_-_Polished
+Ns 200.0
+Ka 0.2 0.2 0.2
+Kd 0.6 0.6 0.6
+Ks 0.8 0.8 0.8
+d 1.0
+illum 2
+
+newmtl Steel_-_Knurled
+Ns 40.0
+Ka 0.15 0.15 0.15
+Kd 0.4 0.4 0.4
+Ks 0.3 0.3 0.3
+d 1.0
+illum 2
+
+newmtl Tough_2000_(with_Formlabs_SLA_3D_Printers)
+Ns 10.0
+Ka 0.1 0.1 0.1
+Kd 0.08 0.08 0.08
+Ks 0.1 0.1 0.1
+d 1.0
+illum 2
+
+newmtl Steel_-_Satin
+Ns 80.0
+Ka 0.18 0.18 0.18
+Kd 0.55 0.55 0.55
+Ks 0.5 0.5 0.5
+d 1.0
+illum 2
+
+newmtl Copper_-_Raw
+Ns 60.0
+Ka 0.19 0.07 0.02
+Kd 0.72 0.45 0.20
+Ks 0.6 0.4 0.2
+d 1.0
+illum 2

@@ -149,34 +149,19 @@ npm run dev
 React 19, Vite, TypeScript, Tailwind CSS, Recharts, Lucide icons.
 Production build is served by Nginx Alpine.
 
----
+## AI Prediction Path
 
-## MCCP Inference (DevLab API)
+The dashboard does not run a local inference server. AI predictions,
+recommendations, and confidence diagnostics are served by Module 1 through
+the Process Intelligence API:
 
-A lightweight Python HTTP server exposing MCCP-UQ (Monte Carlo Conformal Prediction with Uncertainty Quantification) predictions. Used by the Inference DevLab tab.
+| Capability | Backend endpoint |
+|---|---|
+| List available model checkpoints | `GET /ai/models` |
+| Select active model checkpoint | `POST /ai/models/select` |
+| Predict process geometry with confidence diagnostics | `POST /ai/models/predict` |
+| Request parameter recommendations | `POST /ai-recommendation` |
 
-### Quick Start
-
-```bash
-cd robin-dashboard/services
-MCCP_WORKSPACE_ROOT=/path/to/shared-workspace python mccp_inference_devlab_server.py
-# HTTP API on :8091
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `MCCP_API_HOST` | `0.0.0.0` | MCCP API bind address |
-| `MCCP_API_PORT` | `8091` | MCCP API port |
-| `MCCP_WORKSPACE_ROOT` | *(none)* | Path to MLOps shared-workspace |
-| `MCCP_USE_GPU` | `0` | Set to `1` for GPU inference |
-
-### Source Layout
-
-```
-robin-dashboard/
-├── inference/    # Core MCCP-UQ module (MC Dropout + CQR)
-├── services/     # MCCP DevLab HTTP API server
-└── docs/         # Architecture and integration documentation
-```
+The active open implementation uses the backend PyTorch model and confidence
+estimator. Calibrated conformal prediction intervals are not part of the active
+dashboard release path.

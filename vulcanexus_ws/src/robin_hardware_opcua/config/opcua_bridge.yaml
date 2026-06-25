@@ -8,23 +8,59 @@ servers:
     auth:
       type: anonymous
     poll_rate: 10.0  # Hz - single timer for all topics
-    
+
     # Topics: OPC UA nodes published as ROS2 topics
     topics:
       - name: "fronius/display_current"
         node_id: "ns=1;s=DISPLAY_CURRENT"
         type: float32
-        
+
       - name: "fronius/display_voltage"
         node_id: "ns=1;s=DISPLAY_VOLTAGE"
         type: float32
-        
+
       - name: "fronius/display_wfs"
         node_id: "ns=1;s=DISPLAY_WFS"
         type: float32
-        
+
       - name: "fronius/display_power"
         node_id: "ns=1;s=DISPLAY_POWER"
+        type: float32
+
+      - name: "fronius/display_energy"
+        node_id: "ns=1;s=DISPLAY_ENERGY"
+        type: float32
+
+      - name: "fronius/actual_power"
+        node_id: "ns=1;s=ACTUAL_POWER"
+        type: float32
+
+      - name: "fronius/actual_voltage"
+        node_id: "ns=1;s=ACTUAL_VOLTAGE"
+        type: float32
+
+      - name: "fronius/actual_current"
+        node_id: "ns=1;s=ACTUAL_CURRENT"
+        type: float32
+
+      - name: "fronius/actual_wfs"
+        node_id: "ns=1;s=ACTUAL_WFS"
+        type: float32
+
+      - name: "fronius/current_recommvalue"
+        node_id: "ns=1;s=CURRENT_RECOMMVALUE"
+        type: float32
+
+      - name: "fronius/voltage_recommvalue"
+        node_id: "ns=1;s=VOLTAGE_RECOMMVALUE"
+        type: float32
+
+      - name: "fronius/wfs_commandvalue"
+        node_id: "ns=1;s=WFS_COMMANDVALUE"
+        type: float32
+
+      - name: "fronius/arc_length_correction"
+        node_id: "ns=1;s=ARCLENGTH_CORRECTION"
         type: float32
 
     # Services: ROS2 services that write to OPC UA nodes
@@ -32,13 +68,17 @@ servers:
       - name: "fronius/set_current"
         node_id: "ns=1;s=CURRENT_RECOMMVALUE"
         type: float32
-        
+
       - name: "fronius/set_voltage"
         node_id: "ns=1;s=VOLTAGE_RECOMMVALUE"
         type: float32
-        
+
       - name: "fronius/set_wire_speed"
         node_id: "ns=1;s=WFS_COMMANDVALUE"
+        type: float32
+
+      - name: "fronius/set_arc_length_correction"
+        node_id: "ns=1;s=ARCLENGTH_CORRECTION"
         type: float32
 
   # WAGO PLC - Fronius welding control via GVL_Fronius_IN (write) and GVL_Fronius_OUT (read)
@@ -59,6 +99,7 @@ servers:
       - name: "wago/out/arc_stable"
         node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.ArcStable_TouchSignal"
         type: bool
+        always_publish: true
 
       - name: "wago/out/current_flow"
         node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.CurrentFlow"
@@ -87,6 +128,7 @@ servers:
       - name: "wago/out/touch_signal"
         node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.TouchSignal"
         type: bool
+        always_publish: true
 
       - name: "wago/out/touch_signal_gas_nozzle"
         node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_OUT.TouchSignalGasNozzle"
@@ -163,6 +205,7 @@ servers:
       - name: "wago/in/wire_sense_start/state"
         node_id: "ns=4;s=|var|WAGO_OPCUA.Application.GVL_Fronius_IN.WireSenseStart"
         type: bool
+
 
     # =========================================================================
     # Services: GVL_Fronius_IN → ROS2 services (write to PLC)

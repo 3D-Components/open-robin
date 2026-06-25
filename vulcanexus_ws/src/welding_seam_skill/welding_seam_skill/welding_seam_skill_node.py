@@ -16,6 +16,7 @@ the box; replace with actual robot-frame coordinates for production.
 """
 from __future__ import annotations
 
+import math
 import threading
 import time
 from typing import Any
@@ -27,8 +28,6 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
 
-from robin_interfaces.action import WeldExperiment
-from robin_interfaces.msg import WeldBead
 from welding_msgs.action import ExecuteSeam
 
 # ── Default seam registry ────────────────────────────────────────────────────
@@ -57,7 +56,7 @@ class WeldingSeamSkillNode(LifecycleNode):
     """
 
     ACTION_NAME         = 'welding_seam_skill/execute'
-    PLANNER_ACTION_NAME = 'weld_experiment'
+    PLANNER_ACTION_NAME = 'execute_bead'
 
     # Mock-mode constants
     PHASES              = ['IGNITING', 'WELDING', 'WELDING', 'WELDING', 'FINISHING']
@@ -84,9 +83,10 @@ class WeldingSeamSkillNode(LifecycleNode):
         self.get_logger().info(f'welding_seam_skill: configuring [{mode} mode]')
 
         if not self._use_simulation:
+            from robin_interfaces.action import ExecuteBead  # hardware-only dep
             self._planner_client = ActionClient(
                 self,
-                WeldExperiment,
+                ExecuteBead,
                 self.PLANNER_ACTION_NAME,
                 callback_group=ReentrantCallbackGroup(),
             )
@@ -196,57 +196,54 @@ class WeldingSeamSkillNode(LifecycleNode):
         )
         return result
 
-    # ── Hardware execution (via RobinPlanner /weld_experiment) ────────────────
+    # ── Hardware execution (via RobinPlanner /execute_bead) ──────────────────
 
     def _execute_hardware(self, goal_handle) -> ExecuteSeam.Result:
-        seam_id       = goal_handle.request.seam_id
-        weld_speed    = goal_handle.request.weld_speed       # mm/s
-        wire_feed     = goal_handle.request.wire_feed_rate   # m/min
+        from robin_interfaces.action import ExecuteBead  # hardware-only dep
+        seam_id    = goal_handle.request.seam_id
+        weld_speed = goal_handle.request.weld_speed      # mm/s
+        wire_feed  = goal_handle.request.wire_feed_rate  # m/min
 
         result = ExecuteSeam.Result()
 
         # 1. Wait for planner action server
         if not self._planner_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error(
-                'EXECUTE_SEAM [hw]: /weld_experiment server not available — '
-                'is robin_moveit_control running?'
+                f'EXECUTE_SEAM [hw]: /{self.PLANNER_ACTION_NAME} server not available — '
+                'is robin_planner_node running?'
             )
             goal_handle.abort()
             result.success = False
             result.message = 'Planner action server unavailable'
             return result
 
-        # 2. Build WeldBead from seam registry + goal parameters
-        bead = self._build_weld_bead(seam_id, weld_speed, wire_feed)
-
-        # 3. Build WeldExperiment goal
-        planner_goal = WeldExperiment.Goal()
-        planner_goal.weld_beads = [bead]
-        planner_goal.dry_run    = False
-
-        self.get_logger().info(
-            f'EXECUTE_SEAM [hw]: delegating seam {seam_id!r} to /weld_experiment '
-            f'(start={bead.start_point}, end={bead.end_point}, '
-            f'speed={bead.target_speed:.3f} m/s, '
-            f'current={bead.target_current:.0f} A, voltage={bead.target_voltage:.0f} V)'
+        # 2. Build ExecuteBead goal from seam registry + goal parameters
+        planner_goal = self._build_execute_bead_goal(
+            ExecuteBead, seam_id, weld_speed, wire_feed
         )
 
-        # 4. Send goal and wait synchronously using threading.Event
+        self.get_logger().info(
+            f'EXECUTE_SEAM [hw]: delegating seam {seam_id!r} to /{self.PLANNER_ACTION_NAME} '
+            f'(path_pts={len(planner_goal.path)}, '
+            f'length={planner_goal.total_length:.3f} m, '
+            f'speed={planner_goal.target_speed:.3f} m/s, '
+            f'wire_feed={planner_goal.wire_feed_speed:.1f} m/min)'
+        )
+
+        # 3. Send goal and wait synchronously using threading.Event
         done_event    = threading.Event()
         planner_state: dict[str, Any] = {}
 
-        feedback_ref: dict[str, Any] = {}
-
         def on_feedback(feedback_msg) -> None:
             fb = feedback_msg.feedback
-            feedback_ref['last'] = fb
             skill_fb = ExecuteSeam.Feedback()
-            skill_fb.phase         = fb.status
-            skill_fb.progress_pct  = fb.progress_percentage
+            skill_fb.phase         = fb.step
+            skill_fb.progress_pct  = fb.step_progress * 100.0
             skill_fb.current_speed = weld_speed
             goal_handle.publish_feedback(skill_fb)
             self.get_logger().debug(
-                f'EXECUTE_SEAM [hw]: planner feedback → {fb.status} {fb.progress_percentage:.0f}%'
+                f'EXECUTE_SEAM [hw]: planner feedback → {fb.step} '
+                f'{fb.step_progress * 100.0:.0f}%'
             )
 
         def on_goal_response(future) -> None:
@@ -254,7 +251,7 @@ class WeldingSeamSkillNode(LifecycleNode):
             if not gh.accepted:
                 self.get_logger().warning('EXECUTE_SEAM [hw]: planner REJECTED goal')
                 planner_state['success'] = False
-                planner_state['message'] = 'Planner rejected the WeldExperiment goal'
+                planner_state['message'] = 'Planner rejected the ExecuteBead goal'
                 done_event.set()
                 return
             planner_state['goal_handle'] = gh
@@ -263,8 +260,8 @@ class WeldingSeamSkillNode(LifecycleNode):
 
         def on_result(future) -> None:
             r = future.result().result
-            planner_state['success']    = r.success
-            planner_state['completion'] = r.completion_percentage
+            planner_state['success'] = r.success
+            planner_state['message'] = r.message
             done_event.set()
 
         send_future = self._planner_client.send_goal_async(
@@ -272,7 +269,7 @@ class WeldingSeamSkillNode(LifecycleNode):
         )
         send_future.add_done_callback(on_goal_response)
 
-        # Wait for planner to finish; periodically check for ESTOP cancel
+        # Wait for planner to finish; periodically check for cancel
         while not done_event.wait(timeout=0.5):
             if goal_handle.is_cancel_requested:
                 planner_gh = planner_state.get('goal_handle')
@@ -287,33 +284,35 @@ class WeldingSeamSkillNode(LifecycleNode):
                 result.message = 'Weld cancelled — ESTOP or operator request'
                 return result
 
-        # 5. Map planner result back to ExecuteSeam result
-        success    = planner_state.get('success', False)
-        completion = planner_state.get('completion', 0.0)
+        # 4. Map planner result back to ExecuteSeam result
+        success = planner_state.get('success', False)
+        msg     = planner_state.get('message', '')
 
         if success:
             goal_handle.succeed()
             result.success        = True
-            result.message        = f'Seam {seam_id} welded successfully'
-            result.seam_length_mm = completion  # planner reports completion %
-            self.get_logger().info(
-                f'EXECUTE_SEAM [hw]: complete — {completion:.0f}% of seam welded'
-            )
+            result.message        = msg or f'Seam {seam_id} welded successfully'
+            result.seam_length_mm = planner_goal.total_length * 1000.0  # m → mm
+            self.get_logger().info(f'EXECUTE_SEAM [hw]: complete — {result.message}')
         else:
             goal_handle.abort()
             result.success = False
-            result.message = planner_state.get('message', 'Planner reported failure')
+            result.message = msg or 'Planner reported failure'
             self.get_logger().error(f'EXECUTE_SEAM [hw]: FAILED — {result.message}')
 
         return result
 
     # ── Seam registry helper ──────────────────────────────────────────────────
 
-    def _build_weld_bead(
-        self, seam_id: str, weld_speed_mm_s: float, wire_feed_m_min: float
-    ) -> WeldBead:
-        """Construct a WeldBead from seam registry coordinates and goal parameters."""
-        entry = self._seam_registry.get(seam_id, self._seam_registry.get('seam_01'))
+    def _build_execute_bead_goal(
+        self,
+        ExecuteBead,
+        seam_id: str,
+        weld_speed_mm_s: float,
+        wire_feed_m_min: float,
+    ):
+        """Build an ExecuteBead.Goal from seam registry coordinates and goal parameters."""
+        entry = self._seam_registry.get(seam_id) or self._seam_registry.get('seam_01')
         if entry is None:
             self.get_logger().warning(
                 f'Seam {seam_id!r} not in registry and no seam_01 fallback — using zeros'
@@ -325,19 +324,27 @@ class WeldingSeamSkillNode(LifecycleNode):
             end   = entry['end']
             if seam_id not in self._seam_registry:
                 self.get_logger().warning(
-                    f'Seam {seam_id!r} not in registry — using seam_01 coordinates'
+                    f'Seam {seam_id!r} not in registry — falling back to seam_01 coordinates'
                 )
 
-        bead = WeldBead()
-        bead.bead_id       = seam_id
-        bead.start_point   = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
-        bead.end_point     = Point(x=float(end[0]),   y=float(end[1]),   z=float(end[2]))
-        bead.target_speed  = weld_speed_mm_s / 1000.0   # mm/s → m/s
-        bead.target_current    = DEFAULT_CURRENT_A
-        bead.target_voltage    = DEFAULT_VOLTAGE_V
-        bead.wire_feed_speed   = wire_feed_m_min
-        bead.stickout          = DEFAULT_STICKOUT_M
-        return bead
+        start_pt = Point(x=float(start[0]), y=float(start[1]), z=float(start[2]))
+        end_pt   = Point(x=float(end[0]),   y=float(end[1]),   z=float(end[2]))
+        length_m = math.sqrt(
+            (end[0] - start[0]) ** 2 +
+            (end[1] - start[1]) ** 2 +
+            (end[2] - start[2]) ** 2
+        )
+
+        goal = ExecuteBead.Goal()
+        goal.bead_id                 = seam_id
+        goal.plate_id                = ''
+        goal.path                    = [start_pt, end_pt]
+        goal.total_length            = length_m
+        goal.target_speed            = weld_speed_mm_s / 1000.0   # mm/s → m/s
+        goal.wire_feed_speed         = wire_feed_m_min
+        goal.arc_length_correction_mm = 0.0
+        goal.dry_run                 = False
+        return goal
 
 
 def main(args=None):

@@ -1,6 +1,6 @@
 # Robot Assets
 
-This directory contains robot model files (URDF, meshes) for the FAROS visualization.
+This directory contains robot model files (URDF, meshes) for the ROBIN Dashboard visualization.
 
 ## Structure
 

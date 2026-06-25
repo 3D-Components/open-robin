@@ -9,12 +9,13 @@
 
   <!-- possible 'ur_type' values: ur3, ur3e, ur5, ur5e, ur7e, ur10, ur10e, ur12e, ur16e, ur15, ur20, ur30 -->
   <!-- the default value should raise an error in case this was called without defining the type -->
+  <xacro:arg name="name" default="ur10e"/>
   <xacro:arg name="ur_type" default="ur10e"/>
 
   <!-- parameters -->
   <xacro:arg name="tf_prefix" default="" />
   <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
-  <xacro:arg name="kinematics_params" default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
+  <xacro:arg name="kinematics_params" default="$(find robin_hardware_ur)/config/robot_kinematics.yaml"/>
   <xacro:arg name="physical_params" default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
   <xacro:arg name="visual_params" default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
   <xacro:arg name="transmission_hw_interface" default=""/>

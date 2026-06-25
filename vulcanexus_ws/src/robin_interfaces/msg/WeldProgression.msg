@@ -11,8 +11,9 @@ string bead_id              # Active weld bead ID (empty if not welding)
 # Progression along the bead
 float32 progression         # 0.0 = bead start, 1.0 = bead end
 
-# Welding state
-bool is_welding             # True if arc is on
+# Pass state — exactly one is True during an active pass, both False when idle
+bool is_welding             # True during weld pass (arc on)
+bool is_scanning            # True during scan pass (laser active)
 
 # TCP position at this progression point
 geometry_msgs/Point tcp_position

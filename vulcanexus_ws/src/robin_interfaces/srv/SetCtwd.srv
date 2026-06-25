@@ -1,0 +1,12 @@
+# SetCtwd.srv - Set CTWD value and calibration status
+#
+# Used by /tcp/set_ctwd to update the CTWD value in the TCP manager.
+# When calibrated=true, the value is persisted across restarts.
+
+# Request
+float32 data              # CTWD in meters
+bool calibrated           # true if value comes from calibration
+---
+# Response
+bool success
+string message

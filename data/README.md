@@ -27,11 +27,17 @@ for one canonical benchmark:
   - matching `joblib`-serialized `StandardScaler`
 - `data/comparisons/unified_legacy_arc0_plus_fragmented_torch_selected_gold/`
   - benchmark metrics and predictions for that retained model
+- `data/rosbags/`
+  - compact, intentionally committed ROS bag samples for the documented
+    simulation/replay path
+  - see `data/rosbags/README.md` for scope and privacy notes
 
 ## Ownership Rule
 
-- `mlops/` contains code, configs, schemas, notebooks, and source-side
-  definitions such as DOE files.
+- `mlops/` contains code, configs, schemas, and source-side definitions such as
+  DOE files. Local exploratory notebooks and notebook exports should stay out
+  of the repository unless they are explicitly cleaned and selected for public
+  documentation.
 - `data/` contains only the small committed artifacts we intentionally keep.
 - Generated datasets can still be written under `data/` locally while working,
   but they are not expected to be committed unless they are explicitly chosen as

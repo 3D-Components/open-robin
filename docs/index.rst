@@ -107,6 +107,7 @@ Documentation Structure
    reference/configuration
    reference/fiware_ngsi_ld_dds_mapping
    reference/ros2_vulcanexus_interfaces
+   reference/ros4hri_ros4ri_alignment
    reference/troubleshooting
    limitations
 
@@ -117,6 +118,7 @@ Documentation Structure
    open_boundary
    evidence
    DDS_BRIDGE_ARCHITECTURE
+   LAUNCH_AND_VERIFY_INTENTS
    RESET_DEMO_DATA
 
 Community & Support

@@ -1,4 +1,4 @@
-# Service to set a single float32 value
+# Request
 float32 data
 ---
 bool success

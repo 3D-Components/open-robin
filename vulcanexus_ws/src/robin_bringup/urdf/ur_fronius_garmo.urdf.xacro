@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robin_robot">
+    <!-- Real robot: UR10e + Fronius torch + Garmo laser + scene -->
+    <xacro:include filename="$(find robin_hardware_ur)/urdf/ur.urdf.xacro"/>
+    <xacro:include filename="$(find robin_bringup)/urdf/robin_tools.xacro"/>
+</robot>

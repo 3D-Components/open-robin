@@ -4,7 +4,6 @@
 # The planner will assign bead_id/plate_id and compute physical placement.
 
 string input_id                    # Optional upstream identifier (can be empty)
-float32 weld_current               # Target weld current (A)
+float32 wire_feed_speed            # Wire feed speed command (m/min)
 float32 weld_speed                 # TCP speed during weld pass (m/s)
-float32 stickout                   # Stickout target for this bead (m)
-float32 scan_speed                 # TCP speed during scan pass (m/s), 0 => weld_speed
+float32 arc_length_correction_mm   # Arc length correction for this bead (mm)

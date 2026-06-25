@@ -14,9 +14,9 @@ class CalibrationUiState:
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
     )
     tcp_active_frame: str = ''
-    tcp_stickout: float = 0.0
-    tcp_stickout_calibrated: bool = False
-    stickout_user_editing: bool = False
+    tcp_wire_tip: float = 0.0
+    tcp_wire_tip_calibrated: bool = False
+    wire_tip_user_editing: bool = False
 
 
 @dataclass

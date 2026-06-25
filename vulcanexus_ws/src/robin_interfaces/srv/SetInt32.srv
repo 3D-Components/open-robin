@@ -1,5 +1,5 @@
 # Request
-int32 value
+int32 data
 ---
 bool success
 string message

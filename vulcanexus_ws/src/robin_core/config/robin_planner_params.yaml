@@ -1,0 +1,58 @@
+# Robin Planner Configuration
+# Parameters for the MoveItPy bead execution node (robin_core_planner)
+#
+# These parameters can be overridden via launch file arguments or
+# command-line --ros-args -p parameter:=value
+
+robin_planner_node:
+  ros__parameters:
+    # =========================================================================
+    # Motion parameters
+    # =========================================================================
+    controller_timeout: 30.0            # Timeout waiting for controller (s) — needs headroom for controller_stopper's initial switch cycle
+    approach_height: 0.15               # Height above weld start for approach/retract (m)
+    default_velocity_scaling: 0.3       # Default velocity scaling for non-weld motions (0.0-1.0)
+    default_acceleration_scaling: 0.3   # Default acceleration scaling for non-weld motions (0.0-1.0)
+    max_cartesian_velocity: 0.25        # Max Cartesian velocity from pilz_cartesian_limits.yaml (m/s)
+
+    # =========================================================================
+    # CTWD / TCP
+    # =========================================================================
+    default_ctwd: 0.015             # Default CTWD (m, 15mm)
+
+    # =========================================================================
+    # Service timeouts
+    # =========================================================================
+    welding_service_timeout: 5.0        # Timeout for /welding/start and /welding/stop (s)
+    parameter_service_timeout: 8.0      # Timeout for parameter-setting services (s) — coordinator calls 3 OPC UA services sequentially
+    voltage_recomm_timeout: 2.0         # Timeout waiting for fresh /fronius/voltage_recommvalue (s)
+
+    # =========================================================================
+    # Frame and link names
+    # =========================================================================
+    end_effector_link: "wire_tip"        # TCP link for planning (wire tip, not contact tip)
+    base_frame: "base_link"              # Base reference frame
+    controller_name: "scaled_joint_trajectory_controller"
+
+    # =========================================================================
+    # Scan pass
+    # =========================================================================
+    inter_bead_clearance_height: 0.150    # Clearance height above plate surface between beads (m)
+    scan_wire_slack: 0.005                # Extra retract to absorb wire-hose slack (m, 5mm)
+    scan_wire_min_stickout: 0.010         # Desired wire stickout after retract (m, 10mm) — retract = CTWD + slack - stickout
+    scan_speed: 0.020                     # Scan pass TCP speed (m/s, default 20mm/s)
+    scan_on_fail: "continue"             # "continue" or "abort"
+    scan_control_laser: true              # Toggle laser ON only during scan pass
+
+    # =========================================================================
+    # Posture lock
+    # =========================================================================
+    posture_lock_enabled: true
+    posture_lock_joint_names:
+      - "shoulder_lift_joint"
+      - "elbow_joint"
+      - "wrist_1_joint"
+    posture_lock_tolerances_rad:
+      - 0.75
+      - 0.75
+      - 0.75

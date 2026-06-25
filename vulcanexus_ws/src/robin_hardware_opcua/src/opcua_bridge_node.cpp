@@ -85,6 +85,13 @@ private:
         UA_NodeId node_id;  // Pre-parsed!
         std::string type;
         rclcpp::PublisherBase::SharedPtr publisher;
+        // Publish-on-change cache for bool topics
+        bool prev_bool_value{false};
+        bool has_prev_value{false};
+        // When true, publish every poll cycle (no change-filtering).
+        // Required for safety-critical signals like touch_signal where
+        // a single missed message causes probe failures.
+        bool always_publish{false};
     };
     std::vector<TopicConfig> topics_;
 
@@ -98,6 +105,11 @@ private:
     std::vector<ServiceConfig> services_;
     
     rclcpp::TimerBase::SharedPtr poll_timer_;
+    double poll_rate_{100.0};
+
+public:
+    bool activateServer();
+    void deactivateServer();
 };
 
 /**
@@ -106,45 +118,51 @@ private:
 class OpcUaBridgeNode : public rclcpp::Node {
 public:
     OpcUaBridgeNode() : Node("opcua_bridge") {
-        RCLCPP_INFO(this->get_logger(), "OPC UA Bridge Node starting...");
-
         this->declare_parameter<std::string>("config_file", "");
+
+        cb_group_ = this->create_callback_group(
+            rclcpp::CallbackGroupType::Reentrant);
+
         std::string config_file = this->get_parameter("config_file").as_string();
-        
+
         if (config_file.empty()) {
-            RCLCPP_ERROR(this->get_logger(), "No config_file parameter provided!");
-            return;
+            RCLCPP_FATAL(this->get_logger(), "No config_file parameter provided!");
+            throw std::runtime_error("No config_file parameter");
         }
 
         RCLCPP_INFO(this->get_logger(), "Loading config from: %s", config_file.c_str());
 
         if (!loadConfig(config_file)) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to load config file");
-            return;
+            RCLCPP_FATAL(this->get_logger(), "Failed to load config file");
+            throw std::runtime_error("Config load failed");
         }
 
-        // Reconnection timer (less frequent)
-        reconnect_timer_ = this->create_wall_timer(
-            5s, std::bind(&OpcUaBridgeNode::checkConnections, this));
+        RCLCPP_INFO(this->get_logger(), "Configured with %zu servers", servers_.size());
 
-        RCLCPP_INFO(this->get_logger(), "OPC UA Bridge initialized with %zu servers", 
-            servers_.size());
+        // Activate all servers
+        for (auto& server : servers_) {
+            if (!server->activateServer()) {
+                RCLCPP_WARN(this->get_logger(),
+                    "Server activation failed — will retry via reconnect timer");
+            }
+        }
+        reconnect_timer_ = this->create_wall_timer(
+            5s, std::bind(&OpcUaBridgeNode::checkConnections, this), cb_group_);
+        RCLCPP_INFO(this->get_logger(), "OPC UA Bridge ready — %zu servers", servers_.size());
     }
 
     ~OpcUaBridgeNode() {
+        if (reconnect_timer_) { reconnect_timer_->cancel(); reconnect_timer_.reset(); }
         for (auto& server : servers_) {
             server->disconnect();
         }
     }
 
-    template<typename T>
-    typename rclcpp::Publisher<T>::SharedPtr createPublisher(const std::string& topic, size_t qos) {
-        return this->create_publisher<T>(topic, qos);
-    }
+    // -- Helpers for OpcUaServer -------------------------------------------
 
     rclcpp::TimerBase::SharedPtr createTimer(std::chrono::microseconds period, 
                                               std::function<void()> callback) {
-        return this->create_wall_timer(period, callback);
+        return this->create_wall_timer(period, callback, cb_group_);
     }
 
     template<typename ServiceT>
@@ -152,7 +170,8 @@ public:
         const std::string& name,
         std::function<void(const typename ServiceT::Request::SharedPtr,
                           typename ServiceT::Response::SharedPtr)> callback) {
-        return this->create_service<ServiceT>(name, callback);
+        return this->create_service<ServiceT>(name, callback,
+            rclcpp::ServicesQoS(), cb_group_);
     }
 
     rclcpp::Logger getNodeLogger() { return this->get_logger(); }
@@ -177,11 +196,6 @@ private:
                 servers_.push_back(std::move(server));
             }
 
-            // Initial connection
-            for (auto& server : servers_) {
-                server->connect();
-            }
-
             return true;
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Config error: %s", e.what());
@@ -201,6 +215,7 @@ private:
 
     std::vector<std::unique_ptr<OpcUaServer>> servers_;
     rclcpp::TimerBase::SharedPtr reconnect_timer_;
+    rclcpp::CallbackGroup::SharedPtr cb_group_;
 };
 
 // ============================================================================
@@ -233,7 +248,6 @@ OpcUaServer::OpcUaServer(const std::string& name, const YAML::Node& config, OpcU
 
     // Get poll rate from config (default 100 Hz)
     double poll_rate = config["poll_rate"] ? config["poll_rate"].as<double>() : 100.0;
-    auto poll_period = std::chrono::microseconds(static_cast<int>(1000000.0 / poll_rate));
 
     // Parse topics - pre-parse NodeIDs
     if (config["topics"]) {
@@ -243,14 +257,15 @@ OpcUaServer::OpcUaServer(const std::string& name, const YAML::Node& config, OpcU
             std::string node_id_str = topic_node["node_id"].as<std::string>();
             topic.node_id = parseNodeId(node_id_str);
             topic.type = topic_node["type"].as<std::string>("float32");
+            topic.always_publish = topic_node["always_publish"] ?
+                topic_node["always_publish"].as<bool>(false) : false;
 
-            // Create publisher
             if (topic.type == "float32") {
-                topic.publisher = bridge_->createPublisher<std_msgs::msg::Float32>(topic.name, 10);
+                topic.publisher = bridge_->create_publisher<std_msgs::msg::Float32>(topic.name, 10);
             } else if (topic.type == "bool") {
-                topic.publisher = bridge_->createPublisher<std_msgs::msg::Bool>(topic.name, 10);
+                topic.publisher = bridge_->create_publisher<std_msgs::msg::Bool>(topic.name, 10);
             } else if (topic.type == "int32") {
-                topic.publisher = bridge_->createPublisher<std_msgs::msg::Int32>(topic.name, 10);
+                topic.publisher = bridge_->create_publisher<std_msgs::msg::Int32>(topic.name, 10);
             }
 
             RCLCPP_INFO(bridge_->getNodeLogger(), "[%s] Topic: %s (%s)",
@@ -306,9 +321,9 @@ OpcUaServer::OpcUaServer(const std::string& name, const YAML::Node& config, OpcU
                     [this, svc_idx](
                         const robin_interfaces::srv::SetInt32::Request::SharedPtr request,
                         robin_interfaces::srv::SetInt32::Response::SharedPtr response) {
-                        if (this->writeInt32(services_[svc_idx].node_id, request->value)) {
+                        if (this->writeInt32(services_[svc_idx].node_id, request->data)) {
                             response->success = true;
-                            response->message = "Set to " + std::to_string(request->value);
+                            response->message = "Set to " + std::to_string(request->data);
                         } else {
                             response->success = false;
                             response->message = "Write failed - check connection";
@@ -323,14 +338,8 @@ OpcUaServer::OpcUaServer(const std::string& name, const YAML::Node& config, OpcU
         }
     }
 
-    // Single poll timer for all topics (if any topics defined)
-    if (!topics_.empty()) {
-        poll_timer_ = bridge_->createTimer(poll_period, [this]() {
-            this->poll();
-        });
-        RCLCPP_INFO(bridge_->getNodeLogger(), "[%s] Poll timer: %.1f Hz for %zu topics",
-            name_.c_str(), poll_rate, topics_.size());
-    }
+    // Store poll rate for deferred timer creation in activateServer()
+    poll_rate_ = poll_rate;
 }
 
 OpcUaServer::~OpcUaServer() {
@@ -349,10 +358,38 @@ OpcUaServer::~OpcUaServer() {
     }
 }
 
+bool OpcUaServer::activateServer() {
+    // Connect to OPC UA server
+    if (!connect()) {
+        return false;
+    }
+
+    // Create poll timer (deferred from constructor)
+    if (!topics_.empty() && !poll_timer_) {
+        auto poll_period = std::chrono::microseconds(static_cast<int>(1000000.0 / poll_rate_));
+        poll_timer_ = bridge_->createTimer(poll_period, [this]() { this->poll(); });
+        RCLCPP_INFO(bridge_->getNodeLogger(), "[%s] Poll timer started: %.1f Hz for %zu topics",
+            name_.c_str(), poll_rate_, topics_.size());
+    }
+    return true;
+}
+
+void OpcUaServer::deactivateServer() {
+    if (poll_timer_) {
+        poll_timer_->cancel();
+        poll_timer_.reset();
+    }
+    disconnect();
+}
+
 bool OpcUaServer::connect() {
     std::lock_guard<std::mutex> lock(client_mutex_);
 
     if (connected_) return true;
+
+    // Ensure clean state before (re)connecting — the previous session may
+    // have left the client in a half-closed state.
+    UA_Client_disconnect(client_);
 
     RCLCPP_INFO(bridge_->getNodeLogger(), "[%s] Connecting to %s...", name_.c_str(), url_.c_str());
 
@@ -588,41 +625,46 @@ bool OpcUaServer::writeInt32(const UA_NodeId& node_id, int32_t value) {
     return true;
 }
 
-// Single poll function - batch read all topics in one OPC UA request
+// Single poll function - batch read all topics in one OPC UA request.
+// Lock is held only for the OPC UA network call, then released before
+// publishing to minimise contention with service write callbacks.
 void OpcUaServer::poll() {
     if (!connected_ || topics_.empty()) return;
 
-    std::lock_guard<std::mutex> lock(client_mutex_);
-
-    // Prepare batch read request
     size_t n = topics_.size();
-    std::vector<UA_ReadValueId> read_ids(n);
-    
-    for (size_t i = 0; i < n; ++i) {
-        UA_ReadValueId_init(&read_ids[i]);
-        read_ids[i].nodeId = topics_[i].node_id;
-        read_ids[i].attributeId = UA_ATTRIBUTEID_VALUE;
-    }
+    UA_ReadResponse response;
 
-    // Single batch read request
-    UA_ReadRequest request;
-    UA_ReadRequest_init(&request);
-    request.nodesToRead = read_ids.data();
-    request.nodesToReadSize = n;
+    // ---- Critical section: OPC UA batch read under lock ----
+    {
+        std::lock_guard<std::mutex> lock(client_mutex_);
+        if (!connected_) return;  // re-check after acquiring lock
 
-    UA_ReadResponse response = UA_Client_Service_read(client_, request);
-
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        if (response.responseHeader.serviceResult == UA_STATUSCODE_BADCONNECTIONCLOSED ||
-            response.responseHeader.serviceResult == UA_STATUSCODE_BADSECURECHANNELCLOSED ||
-            response.responseHeader.serviceResult == UA_STATUSCODE_BADSERVERNOTCONNECTED) {
-            connected_ = false;
+        std::vector<UA_ReadValueId> read_ids(n);
+        for (size_t i = 0; i < n; ++i) {
+            UA_ReadValueId_init(&read_ids[i]);
+            read_ids[i].nodeId = topics_[i].node_id;
+            read_ids[i].attributeId = UA_ATTRIBUTEID_VALUE;
         }
-        UA_ReadResponse_clear(&response);
-        return;
-    }
 
-    // Process results and publish
+        UA_ReadRequest request;
+        UA_ReadRequest_init(&request);
+        request.nodesToRead = read_ids.data();
+        request.nodesToReadSize = n;
+
+        response = UA_Client_Service_read(client_, request);
+
+        if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            if (response.responseHeader.serviceResult == UA_STATUSCODE_BADCONNECTIONCLOSED ||
+                response.responseHeader.serviceResult == UA_STATUSCODE_BADSECURECHANNELCLOSED ||
+                response.responseHeader.serviceResult == UA_STATUSCODE_BADSERVERNOTCONNECTED) {
+                connected_ = false;
+            }
+            UA_ReadResponse_clear(&response);
+            return;
+        }
+    }
+    // ---- Lock released — publish without holding the mutex ----
+
     for (size_t i = 0; i < response.resultsSize && i < n; ++i) {
         if (response.results[i].status != UA_STATUSCODE_GOOD) continue;
         
@@ -658,10 +700,16 @@ void OpcUaServer::poll() {
             }
         } else if (topic.type == "bool") {
             if (UA_Variant_hasScalarType(variant, &UA_TYPES[UA_TYPES_BOOLEAN])) {
-                auto msg = std_msgs::msg::Bool();
-                msg.data = *(UA_Boolean*)variant->data;
-                auto pub = std::dynamic_pointer_cast<rclcpp::Publisher<std_msgs::msg::Bool>>(topic.publisher);
-                if (pub) pub->publish(msg);
+                bool cur = *(UA_Boolean*)variant->data;
+                // Publish on value change, or every cycle if always_publish
+                if (topic.always_publish || !topic.has_prev_value || cur != topic.prev_bool_value) {
+                    auto msg = std_msgs::msg::Bool();
+                    msg.data = cur;
+                    auto pub = std::dynamic_pointer_cast<rclcpp::Publisher<std_msgs::msg::Bool>>(topic.publisher);
+                    if (pub) pub->publish(msg);
+                    topic.prev_bool_value = cur;
+                    topic.has_prev_value = true;
+                }
             }
         } else if (topic.type == "int32") {
             int32_t value = 0;
@@ -696,7 +744,17 @@ void OpcUaServer::poll() {
 
 int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<OpcUaBridgeNode>());
+
+    auto node = std::make_shared<OpcUaBridgeNode>();
+
+    // MultiThreadedExecutor allows poll timers and service callbacks to
+    // run concurrently on separate threads. Per-server client_mutex_
+    // serialises OPC UA client access; services for different servers
+    // (Fronius vs WAGO) execute in parallel.
+    rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 4);
+    executor.add_node(node->get_node_base_interface());
+    executor.spin();
+
     rclcpp::shutdown();
     return 0;
 }
