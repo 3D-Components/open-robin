@@ -1,232 +1,230 @@
 Quick Start Guide
 =================
 
-Launch the full ROBIN stack and see live telemetry in under two minutes.
+This page is the shortest no-hardware path from a clean clone to a working
+ROBIN run. It validates the FIWARE data layer, Process Intelligence API, and
+ROBIN Dashboard without requiring UR10e, Fronius, WAGO, Garmo, the MIL cell
+network, private datasets, proprietary credentials, ROS 2 runtime validation, or
+the physical demonstrator setup.
 
-What You Will See
------------------
+For the richer simulated scenario with live dashboard charts, Start-button
+control, deviation windows, alerts, and history checks, continue with
+:doc:`user_guide/demos` after this hello world passes.
 
-By the end of this guide you will have:
+What This Hello World Validates
+-------------------------------
 
-* A complete FIWARE data layer (Orion-LD, TimescaleDB, Mintaka) running in Docker
-* The **Alert Engine** (FastAPI) serving deviation detection and AI predictions
-* The **ROBIN Dashboard** (React) showing live KPIs, time-series charts, robot
-  control, 3D visualisation, and deviation monitoring
-* A **3D Visualization** server (Viser) rendering a UR5 robot with live
-  welding animation driven by simulation progress
-* Simulated process telemetry flowing through the entire stack in real time
+By the end of this page you will have:
+
+* a hardware-neutral FIWARE stack running in Docker
+* the Process Intelligence API responding with ``"healthy"``
+* one demo process created
+* one mock measurement ingested into FIWARE
+* the measurement read back through the API
+* the ROBIN Dashboard able to display the demo process
+* one AI-assisted prediction/recommendation generated from mock inputs
 
 .. mermaid::
 
    graph LR
-       subgraph stack ["docker compose up -d"]
-           ORION["Orion-LD<br/>Context Broker"]
-           TSDB[("TimescaleDB")]
-           MINTAKA["Mintaka<br/>Temporal API"]
-           ALERT["Alert Engine<br/>+ AI Model"]
-           VISER["Viser<br/>3D Visualization"]
-           DASH["ROBIN Dashboard"]
-       end
-       SIM["Simulation<br/>Script"] -->|NGSI-LD| ORION
-       ORION --> TSDB
-       TSDB --> MINTAKA
-       ALERT --> ORION
-       ALERT --> MINTAKA
-       DASH --> ALERT
-       DASH -->|WebSocket| VISER
+       REVIEWER["Reviewer shell"] --> CLI["ROBIN CLI<br/>inside API container"]
+       CLI --> ORION["Orion-LD<br/>NGSI-LD"]
+       ORION --> MINTAKA["Mintaka<br/>history API"]
+       API["Process Intelligence API"] --> ORION
+       API --> MINTAKA
+       DASH["ROBIN Dashboard"] --> API
+       REVIEWER --> API
+       REVIEWER --> DASH
 
 Prerequisites
 -------------
 
 * **Docker** and **Docker Compose** installed and running
-* **Python 3.12+** with `Poetry <https://python-poetry.org/>`_
-* ROBIN dependencies installed (``poetry install``)
+* **curl** for API checks
+* **jq** for readable JSON output
+
+Python and Poetry are not required for this hello world because the ROBIN CLI is
+executed inside the ``robin-alert-processor`` container.
 
 See :doc:`installation` for full setup instructions.
 
-Step 1 - Launch the Stack
--------------------------
+Step 1 - Start the No-Hardware Services
+---------------------------------------
+
+The hello world uses the bundled welding profile because the included model
+artifact and input feature names are defined by that profile. The command sets
+``ROBIN_PROFILE=welding`` explicitly so a local ``.env`` file or shell variable
+does not accidentally switch profiles.
+
+Linux:
 
 .. code-block:: bash
 
-   docker compose up -d
+   ROBIN_PROFILE=welding docker compose up -d \
+       orion-ld mongo-db timescaledb mintaka alert-processor robin-dashboard
 
-This starts the hardware-neutral reviewer stack. It does not require NVIDIA GPU
-access, Linux GUI device mounts, the physical robot, or the industrial cell
-network. For macOS/Docker Desktop, use ``docker-compose.macos.override.yaml`` as
-described in :doc:`installation`. The full physical demonstrator profile uses the
-separate ``docker-compose.linux-gpu.override.yaml`` file and is not required for
-this quickstart.
-
-Verify all services are healthy:
+macOS/Docker Desktop:
 
 .. code-block:: bash
 
-   docker compose ps
+   ROBIN_PROFILE=welding docker compose \
+       -f docker-compose.yaml \
+       -f docker-compose.macos.override.yaml \
+       up -d \
+       orion-ld mongo-db timescaledb mintaka alert-processor robin-dashboard
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 55
-
-   * - Service
-     - Port
-     - Role
-   * - ``orion-ld``
-     - 1026
-     - NGSI-LD context broker (FIWARE)
-   * - ``mongo-db``
-     - 27017
-     - Orion-LD persistence
-   * - ``timescaledb``
-     - 5433
-     - Temporal storage (TROE)
-   * - ``mintaka``
-     - 9090
-     - Temporal query API
-   * - ``alert-processor``
-     - 8001
-     - Process Intelligence API (Module 1)
-   * - ``robin-dashboard``
-     - 5174
-     - Operator Dashboard (Module 2)
-   * - ``robin-viser``
-     - 8081, 8082
-     - 3D Visualization (Viser + WebSocket bridge)
-   * - ``vulcanexus``
-     - -
-     - ROS 2 / DDS bridge container
-
-Quick health check:
+Wait for the API health check:
 
 .. code-block:: bash
 
-   curl http://localhost:8001/health
+   until curl -fsS http://localhost:8001/health | jq -e '.status == "healthy"' >/dev/null; do
+       sleep 2
+   done
+   curl -s http://localhost:8001/health | jq '.status'
 
-Step 2 - Open the Dashboard
+Expected output:
+
+.. code-block:: text
+
+   "healthy"
+
+Step 2 - Create a Demo Process
+------------------------------
+
+Use a unique process id so the command remains rerunnable even if previous demo
+data was not cleaned up:
+
+.. code-block:: bash
+
+   export PROCESS_ID="reviewer-hello-$(date +%s)"
+   docker exec robin-alert-processor \
+       python -m robin create-process "$PROCESS_ID" --mode parameter_driven
+
+Expected output contains the generated process id:
+
+.. code-block:: text
+
+   Created process: reviewer-hello-
+
+Step 3 - Ingest One Mock Measurement
+------------------------------------
+
+Add one mock geometry measurement with the input parameters expected by the
+bundled welding profile model:
+
+.. code-block:: bash
+
+   docker exec robin-alert-processor \
+       python -m robin add-measurement "$PROCESS_ID" "${PROCESS_ID}-m001" \
+       4.9 7.2 \
+       --speed 10.5 \
+       --current 120 \
+       --voltage 18.4 \
+       --input-param wire_feed_speed_mpm_model_input=10.0 \
+       --input-param travel_speed_mps_model_input=0.020 \
+       --input-param arc_length_correction_mm_model_input=0.0
+
+Expected output contains:
+
+.. code-block:: text
+
+   Added measurement
+
+Step 4 - Read the Measurement Back
+----------------------------------
+
+Read the measurement through the Process Intelligence API:
+
+.. code-block:: bash
+
+   curl -s "http://localhost:8001/process/${PROCESS_ID}/measurements?last=5" \
+       | jq '{status, count, source: .debug_info.source, first: .measurements[0]}'
+
+Expected result:
+
+* ``status`` is ``success``
+* ``count`` is at least ``1``
+* ``source`` is ``mintaka``, ``orion``, or ``troe``
+* ``first`` contains the mock geometry values ``4.9`` and ``7.2``
+
+Step 5 - Request an AI-Assisted Prediction
+------------------------------------------
+
+Call the AI recommendation endpoint with the same mock process inputs:
+
+.. code-block:: bash
+
+   curl -s -X POST http://localhost:8001/ai-recommendation \
+       -H "Content-Type: application/json" \
+       -d "{
+         \"process_id\": \"${PROCESS_ID}\",
+         \"mode\": \"parameter_driven\",
+         \"input_params\": {
+           \"wire_feed_speed_mpm_model_input\": 10.0,
+           \"travel_speed_mps_model_input\": 0.020,
+           \"arc_length_correction_mm_model_input\": 0.0
+         }
+       }" | jq '{status, mode: .recommendation.mode, prediction: .recommendation.predicted_geometry}'
+
+Expected result:
+
+* ``status`` is ``success``
+* ``mode`` is ``parameter_driven``
+* ``prediction`` contains predicted geometry values
+
+Step 6 - Check the Dashboard
 ----------------------------
 
-Open http://localhost:5174 in your browser.
+Open http://localhost:5174, select the generated ``reviewer-hello-...`` process
+from the process selector, and confirm the dashboard can display the created
+process and measurement.
 
-.. image:: _static/screenshots/dashboard-live-ops.png
-   :alt: ROBIN Dashboard - Live Ops cockpit
-   :align: center
-   :width: 100%
+This hello world does not exercise the richer Start-button simulation, live 3D
+visualization, or injected deviation windows. Those are covered by
+:doc:`user_guide/demos`.
 
-This is the **Live Ops** cockpit - the main operator view.  It's empty right
-now because no data is flowing yet.  For a full walkthrough of every panel, see
-:doc:`user_guide/dashboard`.
+Success Criteria
+----------------
 
-Step 3 - Start a Demo
-----------------------
+The hello world passes when:
 
-Run the canonical welding demo (parameter-driven mode). The script will
-create the process, configure AI expectations, then **wait for you to
-press Start from the dashboard UI** before streaming data:
+* ``/health`` returns ``"healthy"``
+* the ``reviewer-hello-...`` process is created
+* one mock measurement is ingested
+* the API returns the measurement
+* the dashboard can display the process
+* the AI recommendation endpoint returns a prediction
 
-.. code-block:: bash
+Cleanup
+-------
 
-   python demo/profiles/welding_profile.py \
-       --process-id demo-quickstart \
-       --mode parameter_driven \
-       --duration 60 \
-       --interval 0.3
-
-The terminal will print::
-
-   Waiting for Start from the dashboard UI for process "demo-quickstart"...
-     Open http://localhost:5174, select process "demo-quickstart", and press Start.
-
-Step 4 - Press Start
----------------------
-
-1. In the dashboard, select **demo-quickstart** from the process selector
-   dropdown in the top bar.
-2. Click the **Start** button in the Robot Control panel.
-3. The simulation script detects the start signal and begins streaming
-   telemetry.
-
-You will see:
-
-* The **progress bar** advancing in real time with the actual simulation
-  progress (elapsed time / total duration).
-* **Telemetry charts** and **KPI cards** updating live.
-* The **3D visualization** showing the UR5 robot performing a welding sweep
-  along the seam, driven by the simulation progress.
-* **Deviation alerts** firing during injected deviation windows.
-
-.. tip::
-
-   Use ``--no-prompt`` to skip the Start-button wait and stream data
-   immediately (useful for CI or scripted verification runs).
-
-.. image:: _static/screenshots/dashboard-with-data.png
-   :alt: ROBIN Dashboard - process selector with multiple processes
-   :align: center
-   :width: 100%
-
-Step 5 - Clean Up
-------------------
-
-Remove demo data without stopping the stack:
+To remove only entities created for this hello world without stopping the stack:
 
 .. code-block:: bash
 
-   ./demo/cleanup-demo.sh demo-quickstart
+   for ENTITY_ID in $(curl -s "http://localhost:1026/ngsi-ld/v1/entities?limit=1000" \
+       | jq -r --arg PROCESS_ID "$PROCESS_ID" '.[] | select(.id | contains($PROCESS_ID)) | .id'); do
+       curl -s -o /dev/null -X DELETE "http://localhost:1026/ngsi-ld/v1/entities/${ENTITY_ID}"
+   done
 
-Or tear everything down:
+Or stop the stack and remove local Docker volumes:
 
 .. code-block:: bash
 
    docker compose down -v
 
-After Code Changes (Rebuild + Sanity Check)
--------------------------------------------
+Use the same ``-f docker-compose.yaml -f docker-compose.macos.override.yaml``
+prefix for cleanup on macOS if you started the stack with the macOS override.
 
-If you changed ``robin/`` or ``robin-dashboard/``, refresh
-the running services:
+Next Steps
+----------
 
-.. code-block:: bash
+After the no-hardware hello world passes, run the basic simulated demo:
 
-   docker compose build alert-processor robin-dashboard robin-viser
-   docker compose up -d --force-recreate alert-processor robin-dashboard robin-viser
-
-Then run a short verification demo and confirm UI data source/cadence:
-
-.. code-block:: bash
-
-   BASE="verify-$(date +%s)"
-   python demo/profiles/welding_profile.py \
-       --process-id "$BASE" \
-       --mode both \
-       --duration 60 \
-       --interval 1 \
-       --no-prompt
-
-In the dashboard (``http://localhost:5174``), select ``${BASE}-parameter`` and
-``${BASE}-geometry`` and verify the Telemetry panel shows:
-
-* **Mintaka stored data** source chip
-* **Poll 1s** (Active Run) or **Poll 2s** (Demo Mode)
-
-API confirmation:
-
-.. code-block:: bash
-
-   curl -s "http://localhost:8001/process/${BASE}-parameter/measurements?last=5" | jq '.debug_info.source'
-
-Expected:
-
-.. code-block:: text
-
-   "mintaka"
-
-What's Next
------------
-
-Now that the stack is running, explore ROBIN in depth:
-
+* :doc:`user_guide/demos` - live dashboard workflow, simulated telemetry,
+  Start-button control, deviation checks, alerts, and history verification
 * :doc:`user_guide/dashboard` - full walkthrough of every dashboard panel
 * :doc:`user_guide/api` - REST API exploration and process lifecycle management
 * :doc:`user_guide/ai_models` - AI model management, training, and trust
-* :doc:`user_guide/profiles` - switch domain profiles (welding, spray coating, ...)
-* :doc:`user_guide/demos` - canonical welding/spray dual-mode demos
+* :doc:`user_guide/profiles` - switch domain profiles such as welding and spray
+  coating

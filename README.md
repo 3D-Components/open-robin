@@ -182,6 +182,18 @@ docker compose up -d        # start FIWARE + both modules + ROS 2 container
 ./demo/validate-setup.sh    # verify everything is healthy
 ```
 
+For the shortest reproducible reviewer path, start with the no-hardware hello
+world in [`docs/quickstart.rst`](docs/quickstart.rst). It starts only FIWARE,
+the Process Intelligence API, and the ROBIN Dashboard, then creates a demo
+process, ingests a mock measurement, reads it back through the API, and requests
+an AI-assisted prediction without UR10e, Fronius, WAGO, Garmo, ROS 2 runtime
+validation, private datasets, or proprietary credentials.
+
+For behavior beyond the hello world, run the basic simulated demo in
+[`docs/user_guide/demos.rst`](docs/user_guide/demos.rst). That path exercises
+live dashboard updates, Start-button control, telemetry streams, deviation
+checks, alerts, and history verification.
+
 On macOS (Docker Desktop), use:
 
 ```bash

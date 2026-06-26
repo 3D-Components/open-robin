@@ -59,6 +59,9 @@ Example Applications
 The repository includes demo profiles that compose the modules into working stacks
 for different industrial domains:
 
+* **Reviewer hello world**: :doc:`quickstart` creates a process, ingests one mock
+  measurement, reads it through the API, and requests an AI-assisted prediction
+  without industrial hardware or private credentials.
 * **Welding** (reference): ``python demo/profiles/welding_profile.py --mode both``
 * **Spray Coating**: ``ROBIN_PROFILE=spray_coating docker compose up -d`` then
   ``python demo/profiles/spray_coating_profile.py --mode both``

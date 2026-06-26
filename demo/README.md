@@ -1,5 +1,10 @@
 # Demo Guide - Canonical Robust Demos
 
+Start with the no-hardware hello world in `docs/quickstart.rst` if you only need
+the shortest clean-clone smoke test. This directory contains the basic simulated
+demo path for behavior beyond the hello world: live telemetry, dashboard updates,
+deviation checks, alerts, and history verification.
+
 This directory is intentionally focused on **two robust demos**:
 
 - `python demo/profiles/welding_profile.py`
