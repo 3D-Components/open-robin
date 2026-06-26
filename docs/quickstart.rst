@@ -104,7 +104,7 @@ Expected output contains the generated process id:
 
 .. code-block:: text
 
-   Created process: reviewer-hello-
+   Created process: reviewer-hello-... (mode: parameter_driven)
 
 Step 3 - Ingest One Mock Measurement
 ------------------------------------
@@ -128,7 +128,7 @@ Expected output contains:
 
 .. code-block:: text
 
-   Added measurement
+   Added measurement reviewer-hello-...-m001 for process reviewer-hello-...: 4.9x7.2mm
 
 Step 4 - Read the Measurement Back
 ----------------------------------
@@ -202,9 +202,13 @@ To remove only entities created for this hello world without stopping the stack:
 
 .. code-block:: bash
 
-   for ENTITY_ID in $(curl -s "http://localhost:1026/ngsi-ld/v1/entities?limit=1000" \
-       | jq -r --arg PROCESS_ID "$PROCESS_ID" '.[] | select(.id | contains($PROCESS_ID)) | .id'); do
-       curl -s -o /dev/null -X DELETE "http://localhost:1026/ngsi-ld/v1/entities/${ENTITY_ID}"
+   ID_PATTERN=".*${PROCESS_ID}.*"
+   curl -sG "http://localhost:1026/ngsi-ld/v1/entities" \
+       --data-urlencode "idPattern=${ID_PATTERN}" \
+       --data-urlencode "limit=1000" \
+       | jq -r '.[].id' \
+       | while read -r ENTITY_ID; do
+           curl -s -o /dev/null -X DELETE "http://localhost:1026/ngsi-ld/v1/entities/${ENTITY_ID}"
    done
 
 Or stop the stack and remove local Docker volumes:

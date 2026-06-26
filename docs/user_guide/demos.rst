@@ -1,7 +1,7 @@
 Demo Scripts & Simulations
 ==========================
 
-Use :doc:`../quickstart` first when you only need the minimal no-hardware hello
+Use :doc:`/quickstart` first when you only need the minimal no-hardware hello
 world. This page is the basic simulated demo path: it shows meaningful behavior
 beyond installation by exercising live telemetry, dashboard interaction,
 deviation checks, alerts, and history verification.
