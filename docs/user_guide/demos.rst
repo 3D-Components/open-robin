@@ -1,6 +1,11 @@
 Demo Scripts & Simulations
 ==========================
 
+Use :doc:`/quickstart` first when you only need the minimal no-hardware hello
+world. This page is the basic simulated demo path: it shows meaningful behavior
+beyond installation by exercising live telemetry, dashboard interaction,
+deviation checks, alerts, and history verification.
+
 ROBIN now uses **two canonical demo scripts**:
 
 * ``demo/profiles/welding_profile.py``

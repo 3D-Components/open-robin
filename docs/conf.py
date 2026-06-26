@@ -33,6 +33,7 @@ extensions = [
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
     'myst_parser',
+    'sphinx_copybutton',
     'sphinxcontrib.mermaid',
 ]
 
