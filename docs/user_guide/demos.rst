@@ -47,10 +47,10 @@ By default this starts the **lite** simulation (no Gazebo, MoveIt, controllers, 
 so it comes up in seconds): ``robot_state_publisher`` renders the full welding cell -
 the UR10e arm with its **Fronius weld torch**, **Garmo laser profilometer**, and the
 **welding table** - while pure-Python mock skills animate the arm and stream synthetic
-telemetry.  Two other modes are available if you need them:
+telemetry.  One alternative mode is available:
 
-* ``--gazebo`` - the faithful Gazebo + MoveIt simulation (CPU/GPU-heavy; see the note below).
-* ``--legacy-python`` - the pure-Python HTTP telemetry path (``demo/profiles/welding_profile.py``).
+* ``--legacy-python`` - the pure-Python HTTP telemetry path (``demo/profiles/welding_profile.py``),
+  which streams telemetry straight into FIWARE over HTTP without the ROS 2 robot animation.
 
 The script brings up the FIWARE stack and the intent pipeline
 (``welding_http_bridge`` + ``welding_supervisor`` + skill action servers).  The dashboard
@@ -105,11 +105,7 @@ Select the ``ros_bridge`` process in the dashboard and watch the cell in the emb
 .. note::
 
    DDS discovery requires the ROS 2 nodes and Orion-LD to share a DDS domain - both
-   Compose services and ``config-dds.json`` use ``ROS_DOMAIN_ID=0``.  The ``--gazebo``
-   mode runs Gazebo + MoveIt headless inside Docker; it is CPU-heavy, takes ~15 s to
-   start, and needs GPU access for the Garmo lidar geometry telemetry (recreate the
-   container with ``docker compose -f docker-compose.yaml -f
-   docker-compose.linux-gpu.override.yaml up -d vulcanexus``).
+   Compose services and ``config-dds.json`` use ``ROS_DOMAIN_ID=0``.
 
 Dual-Mode Validation Logic
 --------------------------

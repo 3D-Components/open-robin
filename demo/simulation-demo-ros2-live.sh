@@ -13,7 +13,6 @@
 #   (default)        "lite" sim: pure-Python mock skills + robot_state_publisher +
 #                    foxglove. No Gazebo, MoveIt, controllers, or GPU. Starts in
 #                    seconds and is the recommended demo.
-#   --gazebo         faithful sim: Gazebo + MoveIt (heavy, needs GPU; see notes).
 #   --legacy-python  pure-Python telemetry path (demo/profiles/welding_profile.py).
 
 set -euo pipefail
@@ -25,7 +24,6 @@ case "${1:-}" in
     echo "Delegating to the legacy pure-Python welding demo..."
     exec python demo/profiles/welding_profile.py "$@"
     ;;
-  --gazebo) MODE="gazebo"; shift ;;
   --lite)   MODE="lite";   shift ;;
 esac
 
@@ -36,19 +34,13 @@ API_URL="${API_URL:-http://127.0.0.1:8001}"
 CONTAINER="vulcanexus-bridge"
 DOMAIN_ID="${ROS_DOMAIN_ID:-0}"   # must match orion-ld + config-dds.json (0)
 
-if [[ "${MODE}" == "gazebo" ]]; then
-  BUILD_PKGS="robin_bringup robin_sim_gz welding_demo welding_supervisor"
-  LAUNCH_CMD="ros2 launch robin_bringup robin_main.launch.py use_sim:=true gazebo_gui:=false launch_rviz:=false launch_foxglove:=true"
-  MODE_DESC="faithful Gazebo + MoveIt"
-else
-  # robin_bringup brings the full cell description (UR10e + Fronius torch + Garmo
-  # profilometer + welding table + platform). --packages-up-to pulls its deps
-  # (robin_core, robin_hardware_*) as one-time ament_python/cmake installs; the lite
-  # runtime never launches those nodes (no MoveIt/Gazebo) — it only needs the urdf+meshes.
-  BUILD_PKGS="welding_demo welding_supervisor robin_bringup robin_hardware_ur"
-  LAUNCH_CMD="ros2 launch welding_demo welding_robin_sim.launch.py"
-  MODE_DESC="lite mock (no Gazebo/MoveIt)"
-fi
+# robin_bringup brings the full cell description (UR10e + Fronius torch + Garmo
+# profilometer + welding table + platform). --packages-up-to pulls its deps
+# (robin_core, robin_hardware_*) as one-time ament_python/cmake installs; the lite
+# runtime never launches those nodes (no MoveIt/Gazebo) — it only needs the urdf+meshes.
+BUILD_PKGS="welding_demo welding_supervisor robin_bringup robin_hardware_ur"
+LAUNCH_CMD="ros2 launch welding_demo welding_robin_sim.launch.py"
+MODE_DESC="lite mock (no Gazebo/MoveIt)"
 
 echo "================================================================"
 echo "  ROS2-live welding demo  (${MODE_DESC}, no hardware)"
@@ -127,11 +119,10 @@ if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/setup.b
   echo "Workspace build complete."
 fi
 
-# 3b) Lite mode: ensure the scene description (torch + profilometer + table) is built
-#     even on a workspace that was built before robin_bringup was added to the lite
-#     set. --packages-up-to robin_bringup is incremental (~10 s cold, ~1 s if current).
-if [[ "${MODE}" != "gazebo" ]] && \
-   ! docker exec "${CONTAINER}" test -f \
+# 3b) Ensure the scene description (torch + profilometer + table) is built even on a
+#     workspace that was built before robin_bringup was added to the build set.
+#     --packages-up-to robin_bringup is incremental (~10 s cold, ~1 s if current).
+if ! docker exec "${CONTAINER}" test -f \
      /workspace/ros2_packages/install/robin_bringup/share/robin_bringup/urdf/ur_fronius_garmo.urdf.xacro 2>/dev/null; then
   echo "Building the cell description (torch + profilometer + table)..."
   docker exec "${CONTAINER}" bash -lc "
@@ -175,12 +166,6 @@ echo "    docker exec ${CONTAINER} bash -lc 'source /workspace/ros2_packages/ins
 echo "    curl -s '${API_URL}/process/${PROCESS_ID}/measurements?last=5' | jq"
 echo "    curl -s '${ORION_URL}/ngsi-ld/v1/entities/${ENTITY_ID}' | jq"
 echo
-if [[ "${MODE}" == "gazebo" ]]; then
-  echo "NOTE (gazebo mode): the Garmo lidar needs GPU rendering for geometry telemetry."
-  echo "  If you see 'libEGL ... Permission denied', recreate the container with the GPU override:"
-  echo "    docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml up -d vulcanexus"
-  echo "  First start takes ~15 s while Gazebo and MoveIt come up."
-fi
 echo "Launching the ${MODE_DESC} stack (headless). Ctrl+C to stop."
 echo
 
