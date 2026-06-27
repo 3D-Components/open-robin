@@ -173,6 +173,18 @@ class WeldingManualSkillNode(LifecycleNode):
         result   = ManualAdjust.Result()
 
         for i, phase in enumerate(self.PHASES):
+            if not goal_handle.is_active:
+                # Preempted by a newer goal (handle_accepted_callback aborted this
+                # one). The goal is already terminal — do NOT call succeed()/abort()
+                # again, just return.
+                self.get_logger().info(
+                    f'MANUAL_ADJUST [sim]: {param_name!r} preempted by a newer goal'
+                )
+                result.success       = False
+                result.message       = 'Manual adjust preempted'
+                result.applied_value = new_value
+                return result
+
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 result.success       = False
@@ -188,6 +200,13 @@ class WeldingManualSkillNode(LifecycleNode):
                 f'→ {feedback.progress_pct:.0f}%'
             )
             time.sleep(self.PHASE_DURATION)
+
+        if not goal_handle.is_active:
+            # Preempted between the last phase and completion — bail without succeed().
+            result.success       = False
+            result.message       = 'Manual adjust preempted'
+            result.applied_value = new_value
+            return result
 
         goal_handle.succeed()
         result.success       = True

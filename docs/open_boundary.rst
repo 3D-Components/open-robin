@@ -29,7 +29,7 @@ The following parts are in scope for the open ARISE module:
   documented mapping from ROS 2/DDS telemetry into Orion-LD and temporal
   history.
 * **Demo, mock, and profile-driven execution path**: public profile files,
-  demo scripts, and sample payloads that let reviewers exercise the stack
+  demo scripts, and sample payloads that let you exercise the stack
   without the original industrial cell.
 * **Open demo AI model artifacts, when included**: small runtime-facing model
   artifacts, scalers, and benchmark summaries committed under ``data/`` and
@@ -63,7 +63,7 @@ The following parts are intentionally outside the open publication boundary:
   procedures beyond the scope of this open software module.
 
 The repository may include small evidence files, screenshots, and benchmark
-summaries so reviewers can understand what was validated.  Those
+summaries so you can understand what was validated.  Those
 evidence files do not imply that private datasets, proprietary models, or
 site-specific deployment material are part of the open module.
 
@@ -91,23 +91,19 @@ topic mappings, labels, and process-specific model.
 How to Reuse Beyond Welding
 ---------------------------
 
-For a new domain, start from the reusable parts and treat the welding profile as
-an example:
+For a new domain, start from the reusable parts and treat the welding profile as an example:
+define a domain profile under ``config/profiles/``, map process telemetry onto the reusable
+measurement fields, adapt the ROS 2 / DDS topic mappings while keeping the NGSI-LD process
+model stable, provide a domain-specific model through the documented interface (or run without
+AI), and document any private datasets, credentials, or proprietary integrations as excluded.
 
-1. define a domain profile under ``config/profiles/`` with vocabulary, units,
-   monitored fields, tolerances, skills, and optional model path;
-2. map process telemetry into the reusable measurement fields used by the API
-   and dashboard;
-3. adapt or replace ROS 2 publishers, adapters, and DDS topic mappings while
-   keeping the NGSI-LD process model stable where possible;
-4. provide a domain-specific model only through the documented model interface,
-   or run without AI recommendations if a validated model is not available;
-5. document any private datasets, credentials, hardware assumptions, or
-   proprietary integrations as excluded from the open module.
+The profile configuration path - including the configurable-vs-welding-specific boundary and the
+worked welding -> spray-coating reuse example - is described in :doc:`user_guide/profiles`.
 
-The included spray-coating profile is the first non-welding profile example.
-It is intended to show that the module is configured through profiles and
-interfaces rather than hard-coded to welding.
+The included spray-coating profile is the first non-welding profile example.  It shows that the
+module is configured through profiles and interfaces rather than hard-coded to welding; its
+expected FIWARE/API entities are committed as illustrative evidence under
+``media/api-responses/spray-coating/``.
 
 Current Limitations
 -------------------

@@ -494,10 +494,13 @@ def _build_staged_launch(context):
         condition=IfCondition(launch_rviz),
     )
 
+    # rqt_gui needs an X display; gate it on launch_rviz so the headless
+    # no-hardware demo (launch_rviz:=false) does not error on a missing display.
     operator_panel = Node(
         package="rqt_gui", executable="rqt_gui",
         name="robin_operator_panel", output="screen",
         arguments=["--perspective-file", rqt_perspective],
+        condition=IfCondition(launch_rviz),
     )
 
     independent = [

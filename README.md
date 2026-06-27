@@ -175,14 +175,15 @@ graph TD
 
 `docker-compose.yaml` shows how to compose the modules and integration pattern with
 FIWARE into a complete stack. The default stack is hardware-neutral and is the
-recommended reviewer path for API, dashboard, FIWARE, and no-hardware demo checks:
+recommended starting point for API, dashboard, FIWARE, and no-hardware demo checks
+when you are evaluating or building on the modules:
 
 ```bash
 docker compose up -d        # start FIWARE + both modules + ROS 2 container
 ./demo/validate-setup.sh    # verify everything is healthy
 ```
 
-For the shortest reproducible reviewer path, start with the no-hardware hello
+For the shortest reproducible path, start with the no-hardware hello
 world in [`docs/quickstart.rst`](docs/quickstart.rst). It starts only FIWARE,
 the Process Intelligence API, and the ROBIN Dashboard, then creates a demo
 process, ingests a mock measurement, reads it back through the API, and requests
@@ -210,7 +211,7 @@ docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml 
 
 This override enables NVIDIA runtime settings, X11/GUI forwarding, and Linux host
 device mounts used by the physical robot/cell setup. It is not required for the
-portable reviewer/demo path and is not expected to work on macOS or non-NVIDIA
+portable demo path and is not expected to work on macOS or non-NVIDIA
 hosts.
 
 This is an **example integration**, not part of the modules themselves. You can deploy
@@ -264,6 +265,15 @@ with ROS4HRI/ROS4RI (with a full action-mapping table and implementation evidenc
 [`docs/reference/ros4hri_ros4ri_alignment.rst`](docs/reference/ros4hri_ros4ri_alignment.rst).
 
 ## Quick Start
+
+> **No hardware? Building on the modules?** Start with the
+> [no-hardware hello world](docs/quickstart.rst): a deterministic, copy-paste walkthrough that
+> creates a process, ingests a measurement, and requests an AI prediction. Then run the simulated
+> welding demo in [`docs/user_guide/demos.rst`](docs/user_guide/demos.rst) for live telemetry,
+> dashboard control, deviations, and alerts. The same modules adapt to other robotized processes
+> by swapping the profile configuration (see [`docs/user_guide/profiles.rst`](docs/user_guide/profiles.rst)).
+> The recorded ROS bags are **not bundled** in a clean clone, so the profile/mock path is the
+> canonical getting-started path.
 
 ```bash
 git clone https://github.com/3D-Components/open-robin.git

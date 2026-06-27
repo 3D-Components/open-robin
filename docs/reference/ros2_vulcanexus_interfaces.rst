@@ -4,8 +4,8 @@ ROS 2 and Vulcanexus Interface Reference
 This page is the central ROS 2/Vulcanexus interface reference for
 ``open-robin``. It uses the package layout currently present in
 ``vulcanexus_ws/src`` after the Vulcanexus architecture consolidation. The
-package names below are the current source of truth for reviewer-facing
-documentation and validation commands.
+package names below are the current source of truth for the
+documentation and validation commands you will use when integrating the modules.
 
 Runtime Baseline
 ----------------
@@ -38,11 +38,10 @@ Runtime Baseline
      - Mounted into Orion-LD as ``/root/.orionld``.
 
 DDS discovery requires Orion-LD and the ROS 2 publishers to use the same DDS
-domain. The checked-in DDS mapping file uses domain ``0``. The current Compose
-file sets Orion-LD to ``ROS_DOMAIN_ID=0`` and the Vulcanexus container to
-``ROS_DOMAIN_ID=52`` for the broader ROS stack, so DDS validation must align
-those values before expecting Orion-LD to discover ``/robin/telemetry``. The
-FIWARE mapping details are documented in
+domain. The checked-in DDS mapping file uses domain ``0``, and both Compose
+services (``orion-ld`` and ``vulcanexus``) set ``ROS_DOMAIN_ID=0`` so Orion-LD
+discovers ``/robin/telemetry`` out of the box. If you change one, change all
+three. The FIWARE mapping details are documented in
 ``docs/reference/fiware_ngsi_ld_dds_mapping.rst``.
 
 Package Inventory
@@ -341,6 +340,11 @@ Services
    * - ``welding/wire_retract``
      - ``robin_interfaces/srv/SetFloat32``
      - Retracts wire by a requested distance.
+   * - ``weld/pause``
+     - ``std_srvs/srv/SetBool``
+     - ``robin_planner`` freezes (``data: true``) or resumes (``data: false``) the
+       in-progress bead between LIN segments; called by ``welding_supervisor`` for
+       ``PAUSE_PROCESS`` / ``RESUME_PROCESS``.
    * - ``fronius/set_current``, ``fronius/set_voltage``,
        ``fronius/set_wire_speed``, ``fronius/set_arc_length_correction``
      - ``robin_interfaces/srv/SetFloat32``
@@ -402,6 +406,10 @@ Core Topics
    * - ``/doe/launch``
      - ``std_msgs/msg/String``
      - Published by ``welding_supervisor`` for the launch-new-DOE intent.
+   * - ``/weld_errors``
+     - ``std_msgs/msg/String``
+     - Published by ``welding_supervisor`` on abort (JSON payload); mirrored to the
+       dashboard Alerts panel via ``POST /process/{id}/error``.
    * - ``/robin/telemetry``
      - ``robin_interfaces/msg/ProcessTelemetry``
      - Published by ``telemetry_aggregator`` and consumed by Orion-LD DDS.

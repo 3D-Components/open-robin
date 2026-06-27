@@ -32,6 +32,7 @@ Architecture mirrors IntentBridgeNode from welding_gui — rclpy
 Publisher.publish() is thread-safe so the aiohttp event loop can call it
 directly from its async handler without additional locking.
 """
+import collections
 import json
 import os
 import threading
@@ -66,10 +67,38 @@ class WeldingHttpBridgeNode(Node):
             depth=10,
         )
         self._intent_pub = self.create_publisher(Intent, self.TOPIC, qos)
+
+        # Intent de-duplication: Orion-LD delivers a pendingIntent notification
+        # for every write, and a single dashboard action can produce more than one
+        # write (the create-then-update POST+PATCH path in patch_process_intent) and
+        # at-least-once retries. Each dashboard action stamps a unique observedAt,
+        # so (entity, observedAt) uniquely identifies one operator intent. Dropping
+        # repeats stops a duplicate/late START from restarting a weld after a STOP.
+        self._seen_lock = threading.Lock()
+        self._seen_intents: collections.OrderedDict = collections.OrderedDict()
+        self._SEEN_MAX = 128
+
         self.get_logger().info(
             f'WeldingHttpBridgeNode ready — publishing on {self.TOPIC}, '
             f'HTTP server on port {PORT}'
         )
+
+    def seen_before(self, entity_id: str, observed_at: str) -> bool:
+        """True if this (entity, observedAt) intent was already processed.
+
+        Filters Orion duplicate/retry notifications. Returns False (process it)
+        when observedAt is missing, so the direct/test path is never blocked.
+        """
+        if not observed_at:
+            return False
+        key = f'{entity_id}|{observed_at}'
+        with self._seen_lock:
+            if key in self._seen_intents:
+                return True
+            self._seen_intents[key] = True
+            while len(self._seen_intents) > self._SEEN_MAX:
+                self._seen_intents.popitem(last=False)
+        return False
 
     def publish_intent(self, intent_type: str, data: dict) -> None:
         """Thread-safe intent publisher (called from aiohttp async handlers)."""
@@ -250,11 +279,21 @@ def make_app(ros_node: WeldingHttpBridgeNode) -> web.Application:
             )
 
         for entity in body.get('data', []):
-            value = entity.get('pendingIntent', {}).get('value', {})
+            pending = entity.get('pendingIntent', {})
+            value = pending.get('value', {})
+            observed_at = pending.get('observedAt', '')
+            entity_id = entity.get('id', '')
             intent_type = value.get('intent', '').strip()
             data = value.get('data', {})
-            if intent_type:
-                ros_node.publish_intent(intent_type, data if isinstance(data, dict) else {})
+            if not intent_type:
+                continue
+            if ros_node.seen_before(entity_id, observed_at):
+                ros_node.get_logger().info(
+                    f'Skipping duplicate intent {intent_type} '
+                    f'(observedAt={observed_at}) — already delivered'
+                )
+                continue
+            ros_node.publish_intent(intent_type, data if isinstance(data, dict) else {})
 
         return web.Response(
             status=200,

@@ -59,16 +59,20 @@ Example Applications
 The repository includes demo profiles that compose the modules into working stacks
 for different industrial domains:
 
-* **Reviewer hello world**: :doc:`quickstart` creates a process, ingests one mock
+* **No-hardware hello world**: :doc:`quickstart` creates a process, ingests one mock
   measurement, reads it through the API, and requests an AI-assisted prediction
   without industrial hardware or private credentials.
 * **Welding** (reference): ``python demo/profiles/welding_profile.py --mode both``
 * **Spray Coating**: ``ROBIN_PROFILE=spray_coating docker compose up -d`` then
   ``python demo/profiles/spray_coating_profile.py --mode both``
 
-Each demo waits for you to press **Start** from the dashboard before streaming
-data. No module code is modified when switching domains. See
-``demo/profiles/README.md`` for the full comparison.
+No module code is modified when switching domains. See ``demo/profiles/README.md`` for the full
+comparison.
+
+**New here? Start with** :doc:`quickstart` - the minimal, no-hardware, copy-paste hello
+world - then run the simulated welding demo in :doc:`user_guide/demos`.  The same modules
+adapt to other robotized processes by swapping the profile configuration rather than the
+module code (see :doc:`user_guide/profiles`).
 
 For publication planning and ARISE alignment, see:
 

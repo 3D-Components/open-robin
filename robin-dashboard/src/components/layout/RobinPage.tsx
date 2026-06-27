@@ -18,6 +18,7 @@ import {
     useTargetGeometry,
     stopProcess,
     resumeProcess,
+    reportProcessError,
     setTarget,
     setProcessMode,
     setInputParams,
@@ -1148,8 +1149,16 @@ export function RobinPage() {
         pushAlert('Critical', `${robot.name} aborted.`, robot.name);
         if (processId) {
             stopProcess(processId, 'operator_abort').catch(() => {});
+            // Persist an operator-visible error so it shows in the Alerts panel,
+            // mirroring the ROS supervisor's /weld_errors message.
+            reportProcessError(
+                processId,
+                'Process aborted by operator; robot returned to home.',
+                'operator_abort',
+            ).catch(() => {});
         }
-        // Publish ESTOP intent — cancels all active skill goals on the ROS2 side
+        // Publish ESTOP intent — cancels all active skill goals on the ROS2 side,
+        // returns the arm to home, and emits /weld_errors.
         publishRosIntentOnce('ESTOP', { reason: 'operator_button' }, processId ?? 'ros_bridge');
         pushAlert('Info', 'ESTOP intent published to /intents', 'Intent Bridge');
     };

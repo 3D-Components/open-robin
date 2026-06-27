@@ -62,7 +62,9 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     environment:
       - ROS_WS=/workspace/ros2_packages
-      - ROS_DOMAIN_ID=52
+      # DDS discovery requires this to match orion-ld (ROS_DOMAIN_ID=0) and the
+      # domain in config-dds.json (0); otherwise Orion-LD cannot see /robin/telemetry.
+      - ROS_DOMAIN_ID=0
       - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
       # welding_http_bridge: both orion-ld and vulcanexus use network_mode: host,
       # so localhost:8766 is the same host interface for both containers.

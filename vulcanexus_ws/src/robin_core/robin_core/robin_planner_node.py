@@ -101,6 +101,9 @@ class RobinPlanner(Node):
         self._is_welding = False
         self._is_homing = False
         self._terminate_event = threading.Event()
+        # Operator pause: freezes the bead between LIN segments (arm holds
+        # position, arc off so telemetry stops) until resumed or terminated.
+        self._pause_event = threading.Event()
         self._last_bead_calibrated_ctwd_m: float | None = None
         self._last_bead_applied_ctwd_m: float | None = None
         self._last_execute_error: str | None = None
@@ -282,7 +285,26 @@ class RobinPlanner(Node):
             cancel_callback=self._move_home_cancel_callback,
             callback_group=self._cb_group)
 
+        # Operator pause/resume for the active bead. data=True pauses (freeze in
+        # place, arc off); data=False resumes (continue the remaining segments).
+        self._pause_service = self.create_service(
+            SetBool, "weld/pause", self._pause_service_cb,
+            callback_group=self._cb_group)
+
         self.get_logger().info("RobinPlanner ready: MoveIt + action servers initialized")
+
+    def _pause_service_cb(self, request, response):
+        """Toggle the operator pause flag for the in-progress bead."""
+        if request.data:
+            self._pause_event.set()
+            self.get_logger().info("weld/pause: PAUSE requested — bead will freeze at next waypoint")
+            response.message = "paused"
+        else:
+            self._pause_event.clear()
+            self.get_logger().info("weld/pause: RESUME requested — bead will continue")
+            response.message = "resumed"
+        response.success = True
+        return response
 
     def _declare(self, name, default):
         if not self.has_parameter(name):
@@ -328,6 +350,9 @@ class RobinPlanner(Node):
     def _cancel_callback(self, goal_handle):
         self.get_logger().info("Received cancel for ExecuteBead")
         self._terminate_event.set()
+        # Release any active pause so a paused bead unblocks and observes the
+        # terminate event instead of hanging in the pause gate.
+        self._pause_event.clear()
         # Always call stop to abort any in-progress wire operations on the
         # coordinator, even if the arc hasn't started yet.
         self.welding.stop()
@@ -481,6 +506,8 @@ class RobinPlanner(Node):
     async def _execute_bead_callback(self, goal_handle):
         self._is_executing = True
         self._terminate_event.clear()
+        # A new bead must never inherit a stale pause from a previous run.
+        self._pause_event.clear()
         self._last_execute_error = None
         self.calibration.clear_abort()
         req = goal_handle.request
@@ -627,6 +654,36 @@ class RobinPlanner(Node):
         def _check_terminate() -> bool:
             return self._terminate_event.is_set()
 
+        def _pause_gate() -> bool:
+            """Freeze the bead here if the operator paused.
+
+            Holds the arm at the current waypoint (the controller keeps the last
+            commanded pose) and stops the arc so telemetry freezes, then blocks
+            until the operator resumes or the bead is terminated.  On resume the
+            arc is restarted and the remaining LIN segments continue.
+
+            Returns True to keep welding, False if terminated while paused.
+            """
+            if not self._pause_event.is_set():
+                return True
+            log.info(
+                f"Bead {bead.bead_id}: PAUSED by operator — arc off, holding position")
+            self.welding.stop()
+            self.welding.publish_welding_state(False)
+            self._is_welding = False
+            while self._pause_event.is_set():
+                if _check_terminate():
+                    return False
+                time.sleep(0.1)
+            log.info(
+                f"Bead {bead.bead_id}: RESUMED — restarting arc, continuing remaining segments")
+            if not self.welding.start(bead, clamped_arc_mm):
+                self._last_execute_error = "Failed to restart welding after resume"
+                return False
+            self._is_welding = True
+            self.welding.publish_welding_state(True)
+            return True
+
         # 1. Approach via inter-bead clearance waypoint
         max_z = max(p.z for p in path)
         clearance_z = max_z + self.inter_bead_clearance_height
@@ -727,6 +784,11 @@ class RobinPlanner(Node):
         weld_ok = True
         for seg_idx in range(1, len(path)):
             if _check_terminate():
+                weld_ok = False
+                break
+            # Freeze here (arm holds, arc off) while the operator has paused;
+            # resume continues from this segment.
+            if not _pause_gate():
                 weld_ok = False
                 break
             wp = path[seg_idx]

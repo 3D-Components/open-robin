@@ -100,40 +100,34 @@ See ``config/profiles/welding.yaml`` for a complete example.
 Per-Profile AI Models
 ~~~~~~~~~~~~~~~~~~~~~
 
-Each profile specifies its model checkpoint in the ``ai.model_path`` field:
+Each profile specifies its model checkpoint in the ``ai.model_path`` field.  The reference
+**welding** profile points at a committed, trained checkpoint, so its AI path works out of the
+box.  The **spray-coating** profile points at ``data/models/spray_coating/process_geometry_mlp.pt``,
+which is **not committed** - so the spray demo runs the configuration-reuse and
+deviation-against-target path rather than an AI-prediction path.
 
-* ``data/models/welding/process_geometry_mlp.pt``
-* ``data/models/spray_coating/process_geometry_mlp.pt``
+.. note::
 
-Train new models with:
+   If a profile's ``ai.model_path`` is missing on disk, the engine falls back to whatever
+   ``*.pt`` it can find, which may be another profile's model with different feature names.
+   Train and commit a per-profile model to enable the AI path honestly:
 
-.. code-block:: bash
+   .. code-block:: bash
 
-   python scripts/train_profile_model.py
+      poetry run python scripts/train_profile_model.py
+      # writes data/models/<profile>/process_geometry_mlp.pt for each profile
+
+   The same reuse procedure applies when running without a model: the deviation reference
+   falls back to the target geometry instead of an AI prediction (as in the spray-coating
+   profile below).
 
 Creating a New Profile
 ----------------------
 
-1. Copy an existing profile YAML:
+In short: copy ``config/profiles/welding.yaml``, edit the ``vocabulary``, ``fields``,
+``ros2.topics``, ``skills``, ``ai``, and ``dds`` sections for your domain, optionally train a
+per-profile model, and launch with ``ROBIN_PROFILE=<name> docker compose up -d``.
 
-   .. code-block:: bash
-
-      cp config/profiles/welding.yaml config/profiles/machining.yaml
-
-2. Edit vocabulary, fields, ROS 2 topics, skills, and AI config to match the
-   new domain.
-
-3. Train a model for the new profile:
-
-   .. code-block:: bash
-
-      ROBIN_PROFILE=machining python scripts/train_profile_model.py
-
-4. Launch with the new profile:
-
-   .. code-block:: bash
-
-      ROBIN_PROFILE=machining docker compose up -d
-
-See ``demo/profiles/README.md`` for a detailed comparison and step-by-step
-instructions.
+This page is the canonical reuse procedure - the configurable-vs-welding-specific boundary, the
+welding -> spray-coating worked example, telemetry/topic/skill mapping, and the no-model path are
+all covered above. See also ``demo/profiles/README.md`` for a side-by-side profile comparison.

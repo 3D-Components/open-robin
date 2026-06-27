@@ -11,8 +11,12 @@ ROBIN now uses **two canonical demo scripts**:
 * ``demo/profiles/welding_profile.py``
 * ``demo/profiles/spray_coating_profile.py``
 
-Each script validates both operational modes with real AI-backed deviation checks
-and produces alert entities when simulation data deviates beyond tolerance.
+Both scripts validate both operational modes and produce alert entities when simulation data
+deviates beyond tolerance.  The **welding** script is AI-backed end to end (it ships with a
+trained model).  The **spray-coating** script demonstrates configuration / vocabulary reuse and
+deviation-against-target detection; the repository does not commit a spray-coating model, so its
+deviation reference is the target geometry rather than an AI prediction.  For the minimal
+no-hardware hello world to run first, see :doc:`/quickstart`.
 
 Canonical Demos
 ---------------
@@ -26,7 +30,86 @@ Canonical Demos
    * - ``python demo/profiles/welding_profile.py --mode both --duration 120 --interval 2``
      - Welding profile, parameter-driven + geometry-driven in one run, telemetry updates, dashboard refresh, and real alert generation from ``POST /check-deviation``.
    * - ``python demo/profiles/spray_coating_profile.py --mode both --duration 120 --interval 2``
-     - Spray coating profile, same dual-mode validation with domain-specific vocabulary and units.
+     - Spray coating profile, same dual-mode flow with domain-specific vocabulary and units. Validates configuration reuse and deviation-against-target detection (no committed spray model; deviation reference is the target geometry).
+
+Live ROS 2 Demo (intent-driven robot)
+-------------------------------------
+
+The canonical profile demos above stream telemetry straight into the FIWARE layer
+over HTTP.  For an **intent-driven** demonstration - where a simulated UR10e welds a
+bead and synthetic telemetry travels the full **ROS 2 -> DDS -> FIWARE** path - run:
+
+.. code-block:: bash
+
+   ./demo/simulation-demo-ros2-live.sh
+
+By default this starts the **lite** simulation (no Gazebo, MoveIt, controllers, or GPU,
+so it comes up in seconds): ``robot_state_publisher`` renders the full welding cell -
+the UR10e arm with its **Fronius weld torch**, **Garmo laser profilometer**, and the
+**welding table** - while pure-Python mock skills animate the arm and stream synthetic
+telemetry.  Two other modes are available if you need them:
+
+* ``--gazebo`` - the faithful Gazebo + MoveIt simulation (CPU/GPU-heavy; see the note below).
+* ``--legacy-python`` - the pure-Python HTTP telemetry path (``demo/profiles/welding_profile.py``).
+
+The script brings up the FIWARE stack and the intent pipeline
+(``welding_http_bridge`` + ``welding_supervisor`` + skill action servers).  The dashboard
+buttons then drive the robot through the ROS4HRI intent path
+(see :doc:`/reference/ros4hri_ros4ri_alignment`):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 82
+
+   * - Button (intent)
+     - Behavior
+   * - **Start** (``START_PROCESS``)
+     - The seam skill welds the bead: it animates the arm along the seam and streams
+       synthetic ``ProcessTelemetry`` to ``/robin/telemetry`` -> DDS ->
+       ``urn:ngsi-ld:Process:ros_bridge`` and back to the dashboard.  The **wire feed
+       speed** and **travel speed** you set in the dashboard drive the seam goal
+       (``wire_feed_rate`` and ``weld_speed``) and the reported telemetry, so the
+       numbers you enter are the numbers the robot runs.
+   * - **Pause** (``PAUSE_PROCESS``)
+     - The arm **freezes in place** at the current waypoint and telemetry stops. It does
+       not return home.
+   * - **Resume** (``RESUME_PROCESS``)
+     - The weld **continues** from where it froze.
+   * - **Stop** (``STOP_PROCESS``)
+     - The active goals are cancelled and the arm returns to its **home** position.
+   * - **Abort** (``ESTOP``)
+     - The arm returns **home** and an **error** appears in the Alerts panel (also
+       published on the ``/weld_errors`` topic).
+   * - **Launch new DOE** (``LAUNCH_NEW_DOE``)
+     - A new design-of-experiments run supersedes the current one: the supervisor
+       announces it on ``/doe/launch``, **stops the weld, and returns the arm home**.
+
+Select the ``ros_bridge`` process in the dashboard and watch the cell in the embedded
+**Lichtblick** 3D view (``http://localhost:8080``, fed by ``foxglove_bridge`` on
+``ws://localhost:8765``).  Telemetry can be inspected directly:
+
+.. code-block:: bash
+
+   curl -s 'http://localhost:8001/process/ros_bridge/measurements?last=5' | jq
+   docker exec vulcanexus-bridge bash -lc \
+     'source /workspace/ros2_packages/install/setup.bash && ros2 topic echo /robin/telemetry'
+
+.. note::
+
+   **Intent delivery is de-duplicated.**  The dashboard publishes intents through
+   Orion-LD, whose at-least-once notifications can repeat a single button press.  The
+   ``welding_http_bridge`` drops duplicates (keyed on the intent's ``observedAt``
+   timestamp) so a repeated or late ``START`` cannot restart a weld you have already
+   stopped.
+
+.. note::
+
+   DDS discovery requires the ROS 2 nodes and Orion-LD to share a DDS domain - both
+   Compose services and ``config-dds.json`` use ``ROS_DOMAIN_ID=0``.  The ``--gazebo``
+   mode runs Gazebo + MoveIt headless inside Docker; it is CPU-heavy, takes ~15 s to
+   start, and needs GPU access for the Garmo lidar geometry telemetry (recreate the
+   container with ``docker compose -f docker-compose.yaml -f
+   docker-compose.linux-gpu.override.yaml up -d vulcanexus``).
 
 Dual-Mode Validation Logic
 --------------------------
@@ -84,18 +167,16 @@ What to watch in the dashboard:
 * **Progress bar** advances with actual simulation progress (elapsed / total).
 * **Measurement KPIs** update in real time.
 * **Telemetry chart** continues streaming.
-* **3D Visualization** shows the UR5 robot performing a welding sweep driven
-  by simulation progress.
+* **3D Visualization** shows the UR10e cell (arm + torch + profilometer on the
+  welding table) performing a welding sweep driven by simulation progress.
 * **Deviation Monitor** toggles between OK/Deviation/ALERT with mode-aware source.
 * **Alerts panel** receives warning/critical entries during injected deviation windows.
 
-Rebuild + Verification Checklist
---------------------------------
+Rebuild After Code Changes
+--------------------------
 
-Use this exact sequence when you need to ensure recent code changes are live and
-the dashboard is plotting real Mintaka-stored data.
-
-1. Rebuild and recreate backend, dashboard, and visualization containers:
+When you change ``robin/``, ``robin-dashboard/``, or ``robin-ui/services/``, rebuild and
+recreate the affected containers before re-running a demo:
 
 .. code-block:: bash
 
@@ -103,42 +184,8 @@ the dashboard is plotting real Mintaka-stored data.
    docker compose up -d --force-recreate alert-processor robin-dashboard robin-viser
    docker compose ps alert-processor robin-dashboard robin-viser
 
-2. Start a non-interactive dual-mode welding demo:
-
-.. code-block:: bash
-
-   BASE="verify-$(date +%s)"
-   python demo/profiles/welding_profile.py \
-       --process-id "$BASE" \
-       --mode both \
-       --duration 60 \
-       --interval 1 \
-       --no-prompt
-
-3. In the dashboard (`http://localhost:5174`), select ``${BASE}-parameter`` then
-   ``${BASE}-geometry`` from the top bar process selector and confirm in **Live Ops -> Telemetry**:
-
-* source chip shows **Mintaka stored data**
-* poll chip shows **Poll 1s** (Active Run) or **Poll 2s** (Demo Mode)
-* chart points keep advancing at that cadence
-
-4. API verification (source must be Mintaka):
-
-.. code-block:: bash
-
-   curl -s "http://localhost:8001/process/${BASE}-parameter/measurements?last=5" | jq '.debug_info.source, .measurements'
-
-Expected first output line:
-
-.. code-block:: text
-
-   "mintaka"
-
-5. Optional raw Mintaka cross-check:
-
-.. code-block:: bash
-
-   curl -s "http://localhost:9090/temporal/entities/urn:ngsi-ld:Process:${BASE}-parameter?attrs=measuredHeight,measuredWidth,inputParams&timeproperty=observedAt&timerel=between&timeAt=1970-01-01T00:00:00Z&endTimeAt=2035-01-01T00:00:00Z&options=temporalValues&lastN=5" | jq
+For the minimal scripted no-hardware run (health, profile, persisted measurements,
+persisted alerts, live deviation, and the Mintaka source check), see :doc:`/quickstart`.
 
 Mode-specific runs
 ------------------
