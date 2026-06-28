@@ -35,6 +35,7 @@ import subprocess
 import threading
 
 import rclpy
+from action_msgs.msg import GoalStatus
 from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -91,6 +92,14 @@ class WeldingSupervisorNode(Node):
     SEAM_ACTION           = 'welding_seam_skill/execute'
     RECOMMENDATION_ACTION = 'welding_recommendation_skill/execute'
     MANUAL_ACTION         = 'welding_manual_skill/execute'
+
+    # Human-readable label for an action's terminal goal status. Used for logging:
+    # the goal status is authoritative, unlike the result payload (see _on_result).
+    _STATUS_NAMES = {
+        GoalStatus.STATUS_SUCCEEDED: 'SUCCESS',
+        GoalStatus.STATUS_CANCELED:  'CANCELED',
+        GoalStatus.STATUS_ABORTED:   'ABORTED',
+    }
 
     def __init__(self):
         super().__init__('welding_supervisor')
@@ -528,10 +537,18 @@ class WeldingSupervisorNode(Node):
             except ValueError:
                 pass  # not a seam goal or already removed
 
-        result = future.result().result
-        status = 'SUCCESS' if result.success else 'FAILED'
+        # Judge the outcome from the authoritative goal STATUS, not the result
+        # payload: the lite sim action servers reach the terminal status correctly
+        # (SUCCEEDED/CANCELED/ABORTED) but deliver a default-valued result payload
+        # (success=False, message=''), so reading result.success mislabels a
+        # successful home/stop as FAILED.
+        response = future.result()
+        status = self._STATUS_NAMES.get(
+            response.status, f'status={response.status}'
+        )
+        message = getattr(response.result, 'message', '') or ''
         self.get_logger().info(
-            f'{label}: result → {status} | "{result.message}"'
+            f'{label}: result → {status} | "{message}"'
         )
 
     def _on_feedback(self, feedback_msg, label: str) -> None:
