@@ -24,16 +24,16 @@ echo "[OK] Rosbag found at ${BAG}"
 
 # 2. Build ROS2 workspace if container is running
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
-  if docker exec "${CONTAINER}" test -d /workspace/ros2_packages/install/robin_core_data 2>/dev/null; then
+  if docker exec "${CONTAINER}" test -d /workspace/ros2_packages/install/robin_telemetry 2>/dev/null; then
     echo "[OK] ROS2 workspace already built."
   else
-    echo "Building ROS2 workspace (robin_interfaces + robin_core_data)..."
+    echo "Building ROS2 workspace (robin_interfaces + robin_telemetry)..."
     docker exec "${CONTAINER}" bash -lc "
       source /opt/ros/jazzy/setup.bash &&
       source /opt/vulcanexus/jazzy/setup.bash &&
       cd /workspace/ros2_packages &&
       colcon build --symlink-install \
-        --packages-select robin_interfaces robin_core_data \
+        --packages-select robin_interfaces robin_telemetry \
         --cmake-args -DCMAKE_BUILD_TYPE=Release
     "
     echo "[OK] Workspace built."

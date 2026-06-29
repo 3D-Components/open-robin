@@ -35,19 +35,27 @@ components:
     reusable: true
 
   - id: "telemetry-pipeline"
-    name: "ROS 2 Telemetry Aggregation and DDS Mapping"
-    path: "vulcanexus_ws/src/robin_core_data/scripts/telemetry_aggregator_node.py"
+    name: "ROS 2 Telemetry and DDS Mapping"
+    path: "vulcanexus_ws/src/welding_seam_skill/welding_seam_skill/welding_seam_skill_node.py"
     type: "ros2-node"
     interfaces:
       - "ROS 2 topics"
       - "DDS"
     reusable: true
+    notes: "Publishes ProcessTelemetry on /robin/telemetry (synthetic in the demo)."
 
   - id: "telemetry-schema"
     name: "ProcessTelemetry Message"
     path: "vulcanexus_ws/src/robin_interfaces/msg/ProcessTelemetry.msg"
     type: "ros2-interface"
     reusable: true
+
+  - id: "cell-description"
+    name: "ROBIN Cell URDF/Description"
+    path: "vulcanexus_ws/src/robin_description/"
+    type: "ros2-description"
+    reusable: true
+    notes: "Hardware-agnostic URDF/xacro + meshes (UR10e + torch + profilometer + table)."
 
   - id: "dds-to-ngsi-config"
     name: "Orion DDS Mapping Configuration"
@@ -62,8 +70,11 @@ components:
     reusable: true
     notes: "Domain vocabulary is configurable via VITE_TERM_* env vars."
 
+# Vendor-specific hardware drivers (Fronius/Garmo/OPC-UA/UR), the Gazebo simulation, and
+# the MoveIt planning cell were REMOVED from this open release so the module is a clean,
+# hardware-agnostic, simulation-only base. Adopters add their own hardware backends behind
+# the skills' generic action/service interfaces. See the package map in README.md.
 non_core_adapters:
-  - "vulcanexus_ws/src/robin_hardware_fronius/"
   - "welding-specific ROS bags and launch profiles"
 
 deployment:

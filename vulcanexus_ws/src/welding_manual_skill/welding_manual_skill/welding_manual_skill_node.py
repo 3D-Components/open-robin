@@ -283,7 +283,7 @@ class WeldingManualSkillNode(LifecycleNode):
         if not client.wait_for_service(timeout_sec=5.0):
             self.get_logger().error(
                 f'MANUAL_ADJUST [hw]: service {topic} not available — '
-                f'is robin_hardware_fronius running?'
+                f'is your welding power-source driver running and advertising it?'
             )
             goal_handle.abort()
             result.success       = False

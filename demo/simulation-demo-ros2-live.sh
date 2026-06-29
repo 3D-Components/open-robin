@@ -34,11 +34,16 @@ API_URL="${API_URL:-http://127.0.0.1:8001}"
 CONTAINER="vulcanexus-bridge"
 DOMAIN_ID="${ROS_DOMAIN_ID:-0}"   # must match orion-ld + config-dds.json (0)
 
-# robin_bringup brings the full cell description (UR10e + Fronius torch + Garmo
-# profilometer + welding table + platform). --packages-up-to pulls its deps
-# (robin_core, robin_hardware_*) as one-time ament_python/cmake installs; the lite
-# runtime never launches those nodes (no MoveIt/Gazebo) — it only needs the urdf+meshes.
-BUILD_PKGS="welding_demo welding_supervisor robin_bringup robin_hardware_ur"
+# Minimal lite build set: the whole workspace (Tier 1 demo + robin_interfaces +
+# robin_description). --packages-select builds exactly these; there are no hardware,
+# MoveIt, or Gazebo packages left in the workspace to exclude.
+#   * welding_*        — the intent demo (skills, supervisor, http bridge, msgs, launch)
+#   * robin_interfaces — shared msg/srv schema (built dep of seam/manual skills)
+#   * robin_description — ament_python urdf+meshes only; ur_fronius_garmo.urdf.xacro
+#     renders the full cell (UR10e + torch + profilometer + table) for the 3D view.
+BUILD_PKGS="welding_msgs welding_http_bridge welding_supervisor \
+welding_home_skill welding_seam_skill welding_manual_skill \
+welding_recommendation_skill welding_demo robin_interfaces robin_description"
 LAUNCH_CMD="ros2 launch welding_demo welding_robin_sim.launch.py"
 MODE_DESC="lite mock (no Gazebo/MoveIt)"
 
@@ -113,24 +118,24 @@ if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/setup.b
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
     colcon build --symlink-install \
-      --packages-up-to ${BUILD_PKGS} \
+      --packages-select ${BUILD_PKGS} \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
   echo "Workspace build complete."
 fi
 
-# 3b) Ensure the scene description (torch + profilometer + table) is built even on a
-#     workspace that was built before robin_bringup was added to the build set.
-#     --packages-up-to robin_bringup is incremental (~10 s cold, ~1 s if current).
+# 3b) Ensure the scene description (UR10e + torch + profilometer + table) is built even
+#     on a workspace built before robin_description existed. Incremental (~10 s cold,
+#     ~1 s if current).
 if ! docker exec "${CONTAINER}" test -f \
-     /workspace/ros2_packages/install/robin_bringup/share/robin_bringup/urdf/ur_fronius_garmo.urdf.xacro 2>/dev/null; then
-  echo "Building the cell description (torch + profilometer + table)..."
+     /workspace/ros2_packages/install/robin_description/share/robin_description/urdf/ur_fronius_garmo.urdf.xacro 2>/dev/null; then
+  echo "Building the cell description (UR10e + torch + profilometer + table)..."
   docker exec "${CONTAINER}" bash -lc "
     source /opt/ros/jazzy/setup.bash &&
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
     colcon build --symlink-install \
-      --packages-up-to robin_bringup \
+      --packages-select robin_description \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
   echo "Cell description built."

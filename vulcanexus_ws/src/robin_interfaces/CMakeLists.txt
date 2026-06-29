@@ -29,6 +29,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ReserveSlots.srv"
   "srv/ClearReservedSlots.srv"
   "msg/WelderData.msg"
+  "msg/FroniusSample.msg"
   "msg/BeadGeometry.msg"
   "msg/WeldProgression.msg"
   "msg/ActiveBead.msg"

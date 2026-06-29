@@ -30,8 +30,6 @@ action client callbacks (goal response, result, feedback) to fire concurrently
 with the intent subscriber without deadlocking.
 """
 import json
-import os
-import subprocess
 import threading
 
 import rclpy
@@ -159,8 +157,6 @@ class WeldingSupervisorNode(Node):
         self._active_goal_handles: list = []
         # Subset: only seam/start goals, so PAUSE can cancel only those
         self._active_seam_goal_handles: list = []
-        # Track the OperatorPanel subprocess to avoid duplicate windows
-        self._doe_proc: subprocess.Popen | None = None
 
         self.get_logger().info(
             'WeldingSupervisorNode ready — listening on /intents'
@@ -345,11 +341,12 @@ class WeldingSupervisorNode(Node):
             self._send_goal(self._manual_client, goal, Intent.MANUAL_ADJUST)
 
     def _dispatch_launch_doe(self, data: dict) -> None:
-        """Publish a notification, stop any active weld, send the robot home, and
-        (on hardware) spawn the robin_rqt OperatorPanel GUI.
+        """Publish a notification, stop any active weld, and send the robot home.
 
         Launching a new DOE supersedes the current run, so the robot must stop
-        welding and return to a safe home position before the new experiment.
+        welding and return to a safe home position before the new experiment. The
+        /doe/launch notification is the observable effect of the intent; a downstream
+        integrator can subscribe to it to open their own experiment/operator UI.
         """
         msg = String()
         msg.data = json.dumps(data)
@@ -361,51 +358,6 @@ class WeldingSupervisorNode(Node):
         # A new DOE supersedes the running process: stop welding and home the robot.
         self.get_logger().info('LAUNCH_NEW_DOE: stopping weld and moving home')
         self._cancel_all_and_home(Intent.LAUNCH_NEW_DOE)
-
-        # In simulation / headless mode the robin_rqt OperatorPanel GUI is neither
-        # built (lite workspace) nor renderable (no DISPLAY), so skip spawning it —
-        # the /doe/launch notification above is the observable effect of the intent.
-        if self._use_simulation:
-            self.get_logger().info(
-                'LAUNCH_NEW_DOE: skipping rqt OperatorPanel (sim/headless mode)'
-            )
-            return
-
-        # Guard: don't open a second window if the GUI is already running
-        if self._doe_proc is not None and self._doe_proc.poll() is None:
-            self.get_logger().warning(
-                'LAUNCH_NEW_DOE: OperatorPanel already running — skipping launch'
-            )
-            return
-
-        # Build environment: inherit everything, ensure DISPLAY is set
-        env = os.environ.copy()
-        if 'DISPLAY' not in env or not env['DISPLAY']:
-            env['DISPLAY'] = ':0'
-
-        self._doe_proc = subprocess.Popen(
-            ['ros2', 'launch', 'robin_rqt', 'operator_panel.launch.py'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            env=env,
-        )
-        self.get_logger().info(
-            f'LAUNCH_NEW_DOE: OperatorPanel spawned (pid {self._doe_proc.pid})'
-        )
-
-        # Log subprocess output in a background thread so it appears in the supervisor log
-        def _log_output(proc, logger):
-            for line in proc.stdout:
-                logger.info(f'[operator_panel] {line.decode(errors="replace").rstrip()}')
-            rc = proc.wait()
-            if rc != 0:
-                logger.warning(f'LAUNCH_NEW_DOE: OperatorPanel exited with code {rc}')
-
-        threading.Thread(
-            target=_log_output,
-            args=(self._doe_proc, self.get_logger()),
-            daemon=True,
-        ).start()
 
     # ── Dashboard parameter translation ────────────────────────────────────
 

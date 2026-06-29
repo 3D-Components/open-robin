@@ -146,7 +146,7 @@ Supported Action Mapping
      - ``POST /intent`` / ``POST /process/{id}/error``
      - ``/intents`` -> supervisor
      - cancel all + move home + publish ``/weld_errors`` - mission
-     - ``LiveOps.tsx``; ``welding_supervisor``; ``welding_home_skill``; ``robin_core`` ``/move_home``
+     - ``LiveOps.tsx``; ``welding_supervisor``; ``welding_home_skill`` (``/move_home`` in hardware mode)
      - Implemented (MoveIt ``/move_home`` + Alerts panel error)
    * - Manual adjustment (``MANUAL_ADJUST``)
      - Manual adjust
@@ -236,17 +236,17 @@ ROS 2 messages, actions, and skill nodes
 
 * Skill action servers: ``vulcanexus_ws/src/welding_seam_skill``,
   ``welding_home_skill``, ``welding_manual_skill``, ``welding_recommendation_skill``.
-* ``vulcanexus_ws/src/robin_core/robin_core/robin_planner_node.py`` - hosts the
-  ``/move_home`` action server (MoveIt move to the SRDF ``home`` group state) that
-  ``welding_home_skill`` delegates to, and the ``/execute_bead`` action server that
-  ``welding_seam_skill`` delegates to; ``robin_core/robin_core/motion.py`` provides
-  ``MotionPlanner.move_to_named_target``.
+* Hardware-mode backends (adopter-provided): the ``/move_home`` action server that
+  ``welding_home_skill`` delegates to and the ``/execute_bead`` action server that
+  ``welding_seam_skill`` delegates to when launched with ``use_simulation:=false``.
+  The open module ships simulation behavior for both skills.
 
 Launch and orchestration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``vulcanexus_ws/src/robin_bringup/launch/robin_main.launch.py`` - brings up the
-  skill nodes and supporting infrastructure.
+* ``vulcanexus_ws/src/welding_demo/launch/welding_robin_demo.launch.py`` - brings up
+  the skill nodes, HTTP bridge, and supervisor (no-hardware demo via
+  ``welding_robin_sim.launch.py``).
 * ``docker-compose.yaml`` - composes Orion-LD, the DDS bridge, the Vulcanexus ROS 2
   workspace, the Alert Engine, and the dashboard.
 * ``docs/LAUNCH_AND_VERIFY_INTENTS.md`` - step-by-step guide to launch and verify the

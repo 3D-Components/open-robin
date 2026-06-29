@@ -7,8 +7,8 @@ Modes (ROS 2 parameter 'use_simulation', default True):
                          It relays /joint_states_manual -> /joint_states (so the seam
                          skill can drive motion), holds the last pose between goals,
                          and on MOVE_TO_HOME interpolates to HOME_RADIANS. No MoveIt.
-  use_simulation=False — Gazebo/hardware: delegates to the /move_home action server
-                         in robin_core (MoveItPy move to the SRDF 'home' state).
+  use_simulation=False — hardware: delegates to an external /move_home action server
+                         (e.g. a MoveIt-based planner you provide for your own robot).
 
 Preemption safety:
   goal_handle.is_active is checked on every loop iteration so that when two
@@ -49,7 +49,7 @@ class WeldingHomeSkillNode(LifecycleNode):
         'wrist_3_joint',
     ]
 
-    # Home position from robin_moveit_config/srdf/ur_macro.srdf.xacro
+    # Home position: UR10e 'home' joint configuration (radians)
     HOME_RADIANS = [2.763658, -1.64229, 1.7227086, -2.143056, -1.384997, -0.331205]
 
     # Labels used in action feedback

@@ -43,7 +43,7 @@ echo "Waiting for Orion-LD to restart..."
 sleep 10
 
 # 1b) Build ROS2 workspace if not already built
-if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_core_data/share/robin_core_data/local_setup.bash 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_telemetry/share/robin_telemetry/local_setup.bash 2>/dev/null; then
   echo "ROS2 workspace not built — building packages (includes mesh assets for Lichtblick)..."
   docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
   docker exec --user root "${CONTAINER}" \
@@ -53,7 +53,7 @@ if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_c
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
     colcon build \
-      --packages-up-to robin_core_bringup robin_core_data \
+      --packages-select robin_interfaces robin_telemetry robin_description \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
   echo "Workspace build complete."
@@ -99,16 +99,19 @@ echo "Rosbag accessible at ${BAG_CONTAINER_PATH}."
 # 4) Start DDS telemetry aggregator
 echo
 echo "Smoke-testing telemetry aggregator (3s foreground run)..."
+# exp001_rosbag_real predates the WelderData refactor: fronius is FroniusSample and
+# weld_dimensions is std_msgs/Float32MultiArray, so select those subscription types.
 AGGREGATOR_ARGS="--ros-args \
     -p geometry_topic:=/robin/weld_dimensions \
     -p fronius_topic:=/robin/data/fronius \
-    -p pose_topic:=/tcp_pose_broadcaster/pose \
     -p output_topic:=/robin/telemetry \
-    -p min_publish_period:=1.0"
+    -p min_publish_period:=1.0 \
+    -p fronius_type:=FroniusSample \
+    -p geometry_type:=Float32MultiArray"
 docker exec "${CONTAINER}" bash -lc "
   export ROS_DOMAIN_ID=10
   cd /workspace/ros2_packages && source ws_setup.sh
-  timeout 3 ros2 run robin_core_data telemetry_aggregator_node.py ${AGGREGATOR_ARGS}
+  timeout 3 ros2 run robin_telemetry telemetry_aggregator ${AGGREGATOR_ARGS}
 " 2>&1 | tail -5 || true
 
 echo "Starting telemetry aggregator in background..."
@@ -116,7 +119,7 @@ docker exec "${CONTAINER}" bash -c "
   source /opt/ros/jazzy/setup.bash &&
   source /workspace/ros2_packages/install/setup.bash &&
   export ROS_DOMAIN_ID=10 &&
-  nohup ros2 run robin_core_data telemetry_aggregator_node.py \
+  nohup ros2 run robin_telemetry telemetry_aggregator \
     ${AGGREGATOR_ARGS} > /tmp/aggregator.log 2>&1 &
   echo \$!
 "
@@ -144,7 +147,7 @@ docker exec -d "${CONTAINER}" bash -c "\
   export ROS_DOMAIN_ID=10 && \
   source /opt/ros/jazzy/setup.bash && \
   source /workspace/ros2_packages/install/setup.bash && \
-  URDF_FILE=\$(ros2 pkg prefix --share robin_core_bringup)/urdf/ur_fronius_garmo.urdf.xacro && \
+  URDF_FILE=\$(ros2 pkg prefix --share robin_description)/urdf/ur_fronius_garmo.urdf.xacro && \
   ROBOT_DESC=\$(xacro \${URDF_FILE}) && \
   ros2 run robot_state_publisher robot_state_publisher \
     --ros-args -p robot_description:=\"\${ROBOT_DESC}\""
@@ -208,7 +211,7 @@ docker exec -it "${CONTAINER}" bash -lc "\
 echo
 echo "Playback stopped."
 echo "Stopping telemetry aggregator, foxglove-bridge, robot_state_publisher and joint_state_publisher..."
-docker exec "${CONTAINER}" pkill -f telemetry_aggregator_node.py 2>/dev/null || true
+docker exec "${CONTAINER}" pkill -f telemetry_aggregator 2>/dev/null || true
 docker exec "${CONTAINER}" pkill -f foxglove_bridge 2>/dev/null || true
 docker exec "${CONTAINER}" pkill -f robot_state_publisher 2>/dev/null || true
 docker exec "${CONTAINER}" pkill -f joint_state_publisher 2>/dev/null || true

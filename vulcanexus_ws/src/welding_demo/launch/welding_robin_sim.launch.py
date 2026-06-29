@@ -31,18 +31,19 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    ur_share      = FindPackageShare('ur_robot_driver')
-    bringup_share = FindPackageShare('robin_bringup')
-    demo_share    = FindPackageShare('welding_demo')
+    ur_share          = FindPackageShare('ur_robot_driver')
+    description_share  = FindPackageShare('robin_description')
+    demo_share         = FindPackageShare('welding_demo')
 
     # Full ROBIN cell description: UR10e + Fronius torch + Garmo profilometer +
-    # welding table + platform. It is ament_python data only (urdf + meshes) and
-    # its robin_core dependency is exec_depend, so the lite build pulls it in with
-    # `--packages-select robin_bringup robin_hardware_fronius robin_hardware_garmo`
-    # (no MoveIt / robin_core / Gazebo). The tooling macros default to sim:=false,
-    # so no Gazebo plugins or GPU lidar are instantiated — just visual/collision links.
+    # welding table + platform. ur_fronius_garmo.urdf.xacro (robin_description) includes
+    # ur.urdf.xacro and robin_tools.xacro, which pull the fronius / garmo / scene macros —
+    # all self-contained in robin_description (urdf + meshes, plus the external UR
+    # ur_description / ur_robot_driver xacros). The lite build selects just
+    # `robin_description` (plus the welding_* + robin_interfaces packages); there is no
+    # hardware/Gazebo code left to leave out.
     description_file = PathJoinSubstitution(
-        [bringup_share, 'urdf', 'ur_fronius_garmo.urdf.xacro']
+        [description_share, 'urdf', 'ur_fronius_garmo.urdf.xacro']
     )
 
     # Robot State Publisher via the upstream ur_rsp.launch.py (same as robin_main).

@@ -26,7 +26,7 @@ except ImportError:
     print('  docker exec -it vulcanexus-bridge bash')
     print('  cd /workspace/ros2_packages && source ws_setup.sh')
     print(
-        '  python3 /workspace/ros2_packages/src/robin_core_data/scripts/bag_plot_sanity.py'
+        '  python3 scripts/bag_plot_sanity.py'
     )
     sys.exit(1)
 

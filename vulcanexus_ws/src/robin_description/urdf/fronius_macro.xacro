@@ -2,17 +2,17 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fronius">
 
   <!-- Define Fronius macro -->
-    <xacro:macro name="fronius_weld_torch" params="parent sim:=false ctwd:=0.015 tip_x:=0.00 tip_y:=-0.095 tip_z:=0.63 tip_roll:=${-pi/6} tip_pitch:=0 tip_yaw:=0 *origin">
+    <xacro:macro name="fronius_weld_torch" params="parent ctwd:=0.015 tip_x:=0.00 tip_y:=-0.095 tip_z:=0.63 tip_roll:=${-pi/6} tip_pitch:=0 tip_yaw:=0 *origin">
 
         <link name="weld_torch">
         <visual>
             <geometry>
-                <mesh filename="package://robin_hardware_fronius/meshes/weld_torch/visual/weld_torch.obj"/>
+                <mesh filename="package://robin_description/meshes/weld_torch/visual/weld_torch.obj"/>
             </geometry>
         </visual>
         <collision>
             <geometry>
-                <mesh filename="package://robin_hardware_fronius/meshes/weld_torch/collision/weld_torch.stl"/>
+                <mesh filename="package://robin_description/meshes/weld_torch/collision/weld_torch.stl"/>
             </geometry>
         </collision>
         <inertial>
@@ -84,20 +84,6 @@
             <child link="wire_tip"/>
             <origin xyz="0 0 ${ctwd}" rpy="0 0 0"/>
         </joint>
-
-        <!-- Prevent Gazebo fixed-joint lumping so wire_tip survives as a link -->
-        <gazebo reference="wire_tip_joint">
-            <preserveFixedJoint>true</preserveFixedJoint>
-        </gazebo>
-
-        <!-- Load Gazebo bead deposition plugin in sim mode -->
-        <xacro:if value="${sim}">
-        <gazebo>
-            <plugin filename="robin_sim_plugin" name="robin_sim_gz::RobinSimPlugin">
-                <weld_active_topic>/robin/weld_active</weld_active_topic>
-            </plugin>
-        </gazebo>
-        </xacro:if>
 
         <joint name="weld_torch_joint" type="fixed">
         <parent link="${parent}"/>

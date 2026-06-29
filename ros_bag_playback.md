@@ -16,7 +16,8 @@ docker compose up -d mongo-db timescaledb orion-ld mintaka alert-processor robin
 docker exec -it vulcanexus-bridge bash
 source /opt/vulcanexus/jazzy/setup.bash
 cd /workspace/ros2_packages
-colcon build --symlink-install
+colcon build --symlink-install \
+  --packages-select robin_interfaces robin_telemetry robin_description
 source ws_setup.sh
 export ROS_DOMAIN_ID=0
 ```
@@ -37,13 +38,16 @@ In container:
 ```bash
 source ws_setup.sh
 export ROS_DOMAIN_ID=0
-ros2 run robin_core_data telemetry_aggregator_node.py --ros-args \
+ros2 run robin_telemetry telemetry_aggregator --ros-args \
   -p geometry_topic:=/robin/weld_dimensions \
   -p fronius_topic:=/robin/data/fronius \
   -p output_topic:=/robin/telemetry
 ```
 
-This publishes combined data on `/robin/telemetry`.
+This publishes combined data on `/robin/telemetry`. The defaults expect the current
+`WelderData` + `BeadGeometry` bag formats (e.g. `correct_process_params`). For the
+legacy `exp001_rosbag_real` bag, add `-p fronius_type:=FroniusSample
+-p geometry_type:=Float32MultiArray`.
 
 ## 4. Replay the Bag
 

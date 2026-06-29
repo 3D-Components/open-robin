@@ -66,7 +66,7 @@ This starts in one command:
 - `welding_http_bridge` (HTTP server on port 8766)
 - `welding_supervisor` (intent router, delayed 2 s)
 
-> **Hardware mode** (real robot): run `robin_main.launch.py` from `robin_bringup` with `robot_ip:=<ip>` first, then launch `welding_robin_demo.launch.py` in a second terminal inside the container.
+> **Hardware mode** (real robot): the open module ships simulation-only. To drive real hardware, launch `welding_robin_demo.launch.py` with `use_simulation:=false` and provide nodes that advertise the skills' hardware-mode interfaces (`/move_home`, `/execute_bead`, `/fronius/set_*`) for your robot and power source.
 
 ---
 

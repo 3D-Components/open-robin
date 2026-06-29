@@ -31,11 +31,15 @@ BAG_FRONIUS_EXPECTED=906
 BAG_GEOMETRY_EXPECTED=6046
 BAG_DURATION_SECS=291
 
+# Types for the default exp001_rosbag_real bag (legacy formats). For the newer
+# bag_2026-03-16 (WelderData + BeadGeometry) drop the *_type overrides (defaults).
 AGGREGATOR_ARGS="--ros-args \
     -p geometry_topic:=/robin/weld_dimensions \
     -p fronius_topic:=/robin/data/fronius \
     -p output_topic:=/robin/telemetry \
-    -p min_publish_period:=1.0"
+    -p min_publish_period:=1.0 \
+    -p fronius_type:=FroniusSample \
+    -p geometry_type:=Float32MultiArray"
 
 echo "============================================================"
 echo "  ROS Bag -> DDS -> Orion-LD -> Dashboard  [E2E TEST]"
@@ -75,7 +79,7 @@ sleep 10
 echo "  Containers ready."
 
 # ---- 1b. Build ROS2 workspace if install/ is missing --------------------
-if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_core_data/share/robin_core_data/local_setup.bash 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_telemetry/share/robin_telemetry/local_setup.bash 2>/dev/null; then
   echo
   echo "[1b/9] ROS2 workspace not built — running colcon build (~3 min, one-time)..."
   docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
@@ -86,7 +90,7 @@ if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_c
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
     colcon build \
-      --packages-up-to robin_core_bringup robin_core_data \
+      --packages-select robin_interfaces robin_telemetry robin_description \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
   echo "  Build complete."
@@ -151,7 +155,7 @@ docker exec "${CONTAINER}" bash -c "
   source /opt/ros/jazzy/setup.bash &&
   source /workspace/ros2_packages/install/setup.bash &&
   export ROS_DOMAIN_ID=0 &&
-  nohup ros2 run robin_core_data telemetry_aggregator_node.py \
+  nohup ros2 run robin_telemetry telemetry_aggregator \
     ${AGGREGATOR_ARGS} > /tmp/aggregator.log 2>&1 &
   echo \$!
 " 2>/dev/null
@@ -208,7 +212,7 @@ echo "[8/9] Waiting 20s for DDS -> Orion -> TimescaleDB flush..."
 sleep 20
 
 # Stop aggregator and counter
-docker exec "${CONTAINER}" pkill -f telemetry_aggregator_node.py 2>/dev/null || true
+docker exec "${CONTAINER}" pkill -f telemetry_aggregator 2>/dev/null || true
 COUNTER_PID=$(docker exec "${CONTAINER}" cat /tmp/telemetry_counter.pid 2>/dev/null || echo "")
 [ -n "${COUNTER_PID}" ] && docker exec "${CONTAINER}" kill "${COUNTER_PID}" 2>/dev/null || true
 sleep 2
