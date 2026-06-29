@@ -79,7 +79,7 @@ clean clone of the exact commit that will be tagged.
 - [x] Alert/deviation engine logic is documented and test-covered.
 - [x] ROS 2 telemetry schema, aggregator, and DDS mapping are published:
   - [x] `vulcanexus_ws/src/robin_interfaces/msg/ProcessTelemetry.msg`
-  - [x] `vulcanexus_ws/src/robin_core_data/scripts/telemetry_aggregator_node.py`
+  - [x] `vulcanexus_ws/src/robin_telemetry/robin_telemetry/telemetry_aggregator_node.py`
   - [x] `config-dds.json`
 - [x] DDS-to-NGSI-LD architecture is documented in `docs/DDS_BRIDGE_ARCHITECTURE.md`.
 - [x] Monitoring UI shell is published under `robin-dashboard/`.

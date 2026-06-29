@@ -352,6 +352,22 @@ export async function resumeProcess(processId: string) {
     return res.json();
 }
 
+/** Record an operator-visible error (e.g. an Abort) as a persisted Alert.
+ *  Mirrors the ROS supervisor's /weld_errors message so the Alerts panel shows it. */
+export async function reportProcessError(
+    processId: string,
+    message: string = 'Process aborted by operator; robot returned to home.',
+    reason: string = 'operator_abort',
+) {
+    const res = await fetch(`${BASE_URL}/process/${encodeURIComponent(processId)}/error`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, reason }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
 export async function setTarget(processId: string, height: number, width: number) {
     const res = await fetch(`${BASE_URL}/process/${encodeURIComponent(processId)}/target`, {
         method: 'POST',

@@ -35,11 +35,11 @@ graph LR
 - File: `vulcanexus_ws/src/robin_interfaces/msg/ProcessTelemetry.msg`
 - Purpose: package geometry + machine + pose values into DDS-friendly primitive fields
 
-### Aggregation node
+### Telemetry node
 
-- File: `vulcanexus_ws/src/robin_core/robin_core/telemetry_aggregator_node.py`
-- Publishes: `/robin/telemetry`
-- Inputs: geometry, fronius/welder data, pose topics
+- File: `vulcanexus_ws/src/welding_seam_skill/welding_seam_skill/welding_seam_skill_node.py`
+- Publishes: `/robin/telemetry` (synthetic `ProcessTelemetry` in the no-hardware demo)
+- For a real process, publish the same message from a node fed by your robot/sensor topics
 
 ---
 

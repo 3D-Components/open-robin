@@ -1,6 +1,0 @@
-# Weld data node configuration (Fronius aggregation)
-
-weld_data_node:
-  ros__parameters:
-    # Publishing rate for Fronius data
-    publish_rate: 10.0  # Hz

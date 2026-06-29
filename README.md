@@ -65,8 +65,10 @@ A React operator dashboard for live process monitoring, deviation alerts, AI mod
 For robotic processes that use ROS 2, the repository documents a proven pattern for
 getting telemetry data into FIWARE without custom bridge code:
 
-1. A **telemetry aggregator node** (`vulcanexus_ws/src/robin_core/`) subscribes to
-   your robot/sensor topics and publishes a normalized `ProcessTelemetry` message.
+1. A **telemetry node** publishes a normalized `ProcessTelemetry` message
+   (schema in `vulcanexus_ws/src/robin_interfaces/`). In the no-hardware demo this is
+   emitted with synthetic values by `welding_seam_skill`; for a real process, publish
+   the same message from a node that subscribes to your robot/sensor topics.
 2. **Orion-LD's built-in DDS bridge** (started with the `-dds` flag) picks up the
    message and writes it into FIWARE as an NGSI-LD entity automatically.
 3. A **DDS mapping config** (`config-dds.json`) tells Orion which DDS topic maps to
@@ -79,9 +81,11 @@ for correct temporal indexing, and documentation of how to wire it all together.
 Modules 1 and 2 work without this pattern - you can feed data through the CLI or
 REST API instead of ROS 2.
 
-Details: the telemetry aggregator node lives in
-[`vulcanexus_ws/src/robin_core/`](vulcanexus_ws/src/robin_core/); the ROS 2 nodes are
-documented in [`vulcanexus_ws/ROS2_NODES.md`](vulcanexus_ws/ROS2_NODES.md).
+Details: the `ProcessTelemetry` schema lives in
+[`vulcanexus_ws/src/robin_interfaces/`](vulcanexus_ws/src/robin_interfaces/) and the
+demo publisher is [`welding_seam_skill`](vulcanexus_ws/src/welding_seam_skill/); the
+ROS 2 nodes are documented in
+[`vulcanexus_ws/ROS2_NODES.md`](vulcanexus_ws/ROS2_NODES.md).
 FIWARE/NGSI-LD entity mappings, DDS Enabler configuration, curl validation
 commands, and history/export behavior are documented in
 [`docs/reference/fiware_ngsi_ld_dds_mapping.rst`](docs/reference/fiware_ngsi_ld_dds_mapping.rst).
@@ -175,14 +179,15 @@ graph TD
 
 `docker-compose.yaml` shows how to compose the modules and integration pattern with
 FIWARE into a complete stack. The default stack is hardware-neutral and is the
-recommended reviewer path for API, dashboard, FIWARE, and no-hardware demo checks:
+recommended starting point for API, dashboard, FIWARE, and no-hardware demo checks
+when you are evaluating or building on the modules:
 
 ```bash
 docker compose up -d        # start FIWARE + both modules + ROS 2 container
 ./demo/validate-setup.sh    # verify everything is healthy
 ```
 
-For the shortest reproducible reviewer path, start with the no-hardware hello
+For the shortest reproducible path, start with the no-hardware hello
 world in [`docs/quickstart.rst`](docs/quickstart.rst). It starts only FIWARE,
 the Process Intelligence API, and the ROBIN Dashboard, then creates a demo
 process, ingests a mock measurement, reads it back through the API, and requests
@@ -210,7 +215,7 @@ docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml 
 
 This override enables NVIDIA runtime settings, X11/GUI forwarding, and Linux host
 device mounts used by the physical robot/cell setup. It is not required for the
-portable reviewer/demo path and is not expected to work on macOS or non-NVIDIA
+portable demo path and is not expected to work on macOS or non-NVIDIA
 hosts.
 
 This is an **example integration**, not part of the modules themselves. You can deploy
@@ -264,6 +269,15 @@ with ROS4HRI/ROS4RI (with a full action-mapping table and implementation evidenc
 [`docs/reference/ros4hri_ros4ri_alignment.rst`](docs/reference/ros4hri_ros4ri_alignment.rst).
 
 ## Quick Start
+
+> **No hardware? Building on the modules?** Start with the
+> [no-hardware hello world](docs/quickstart.rst): a deterministic, copy-paste walkthrough that
+> creates a process, ingests a measurement, and requests an AI prediction. Then run the simulated
+> welding demo in [`docs/user_guide/demos.rst`](docs/user_guide/demos.rst) for live telemetry,
+> dashboard control, deviations, and alerts. The same modules adapt to other robotized processes
+> by swapping the profile configuration (see [`docs/user_guide/profiles.rst`](docs/user_guide/profiles.rst)).
+> The recorded ROS bags are **not bundled** in a clean clone, so the profile/mock path is the
+> canonical getting-started path.
 
 ```bash
 git clone https://github.com/3D-Components/open-robin.git
@@ -336,10 +350,6 @@ curl -s "http://localhost:9090/temporal/entities/urn:ngsi-ld:Process:${BASE}-par
 ```
 robin/                          MODULE 1: Process Intelligence API
 robin-dashboard/               MODULE 2: Monitoring Dashboard
-
-vulcanexus_ws/src/
-  robin_interfaces/             Integration pattern: generic telemetry message types
-  robin_core/                   ROS 2 core: telemetry aggregator, planner, experiment nodes
 config-dds.json                 Integration pattern: DDS → FIWARE mapping template
 
 config/profiles/                Profile configs (one YAML per domain)
@@ -348,12 +358,44 @@ config/profiles/                Profile configs (one YAML per domain)
 
 docker-compose.yaml             Integration example (FIWARE + modules + ROS 2)
 demo/                           Example applications (welding and spray coating)
-
-vulcanexus_ws/src/
-  robin_hardware_fronius/       Example domain adapter: Fronius welding machine
-  robin_hardware_garmo/         Example domain adapter: Garmo laser profilometer
-  robin_simulation/             Example domain adapter: welding process simulator
 ```
+
+### ROS 2 / Vulcanexus packages (`vulcanexus_ws/src/`)
+
+The workspace is the **hardware-agnostic open module**: an intent-driven welding demo
+that runs on synthetic data with no physical hardware. There are no vendor drivers or
+Gazebo simulation to build — to adapt it to your own robot/process, implement the
+hardware-mode backends behind the skills' generic action/service names (see below).
+
+```
+Intent demo + skills (the heart of the module; runs on synthetic data)
+  welding_msgs/                 Intent + skill action/message definitions
+  welding_http_bridge/          HTTP / NGSI-LD (Orion-LD) → ROS 2 /intents bridge
+  welding_supervisor/           Intent → skill dispatcher (mission controller)
+  welding_home_skill/           Skill: move to home (sim mock by default)
+  welding_seam_skill/           Skill: execute weld seam + synthetic telemetry (sim default)
+  welding_manual_skill/         Skill: adjust process parameters (sim default)
+  welding_recommendation_skill/ Skill: fetch AI parameter recommendation (HTTP API)
+  welding_demo/                 Launch orchestrator (welding_robin_sim.launch.py = no-HW demo)
+
+Shared schema + description
+  robin_interfaces/             Shared ROS 2 msg/srv schema (generic telemetry + services)
+  robin_telemetry/              ROS bag aggregator: raw Fronius/geometry topics →
+                                ProcessTelemetry on /robin/telemetry
+  robin_description/            Cell URDF/xacro + meshes (UR10e + torch + profilometer +
+                                table) rendered in the 3D view; hardware-agnostic, no
+                                driver code
+```
+
+> **Adapting to real hardware / another process (e.g. spray coating):** the skills ship
+> with a default simulation mode and a `use_simulation:=false` hardware mode that calls
+> generic ROS interfaces (`/move_home`, `/execute_bead`, `/fronius/set_*` services).
+> Provide nodes that advertise those for your robot and power source — no fork of the
+> module is required. See [`vulcanexus_ws/ROS2_NODES.md`](vulcanexus_ws/ROS2_NODES.md)
+> for the full node/topic/service reference.
+>
+> The no-hardware demo (`demo/simulation-demo-ros2-live.sh`) builds the whole workspace
+> with `colcon build --packages-select …` (no MoveIt, Gazebo, or vendor SDKs).
 
 ## Documentation
 

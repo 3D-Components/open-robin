@@ -81,8 +81,9 @@ ROBIN uses the following terms consistently, in line with the ROS4HRI vocabulary
 * **Task** - a single skill goal execution (one ``ExecuteSeam`` goal, one
   ``MoveToHome`` goal, and so on).
 * **Mission** - a sequence of tasks orchestrated by the supervisor.  For example,
-  ``Pause`` is a mission that cancels the active seam task and then runs a move-to-home
-  task.
+  ``Abort`` is a mission that cancels all active tasks, runs a move-to-home task, and
+  publishes an operator error.  (``Pause`` is a single task: it freezes the in-progress
+  bead in place via the ``weld/pause`` service rather than cancelling it.)
 
 End to end, an intent travels this path:
 
@@ -123,15 +124,15 @@ Supported Action Mapping
      - Pause
      - ``POST /intent``
      - ``/intents`` -> supervisor
-     - cancel seam + ``welding_home_skill/execute`` - mission
-     - ``LiveOps.tsx``; ``Intent.msg``
+     - ``robin_planner`` ``weld/pause`` (freeze in place, arc off) - task
+     - ``LiveOps.tsx``; ``welding_supervisor``; ``robin_planner_node.py``
      - Implemented
    * - Resume (``RESUME_PROCESS``)
      - Resume
      - ``POST /intent`` / ``POST /process/{id}/resume``
      - ``/intents`` -> supervisor
-     - re-initiate seam - mission
-     - ``LiveOps.tsx``; ``alert_engine.py``
+     - ``robin_planner`` ``weld/pause`` resume (continue the bead) - task
+     - ``LiveOps.tsx``; ``welding_supervisor``; ``robin_planner_node.py``
      - Implemented
    * - Stop (``STOP_PROCESS``)
      - Stop
@@ -142,11 +143,11 @@ Supported Action Mapping
      - Implemented
    * - Abort / home / E-stop (``ESTOP`` / ``MOVE_TO_HOME``)
      - Abort
-     - ``POST /intent``
+     - ``POST /intent`` / ``POST /process/{id}/error``
      - ``/intents`` -> supervisor
-     - ``welding_home_skill/execute`` (MoveToHome) - task
-     - ``LiveOps.tsx``; ``MoveToHome.action``; ``welding_home_skill``; ``robin_core`` ``/move_home``
-     - Implemented (MoveIt ``/move_home``)
+     - cancel all + move home + publish ``/weld_errors`` - mission
+     - ``LiveOps.tsx``; ``welding_supervisor``; ``welding_home_skill`` (``/move_home`` in hardware mode)
+     - Implemented (MoveIt ``/move_home`` + Alerts panel error)
    * - Manual adjustment (``MANUAL_ADJUST``)
      - Manual adjust
      - ``POST /intent`` / ``POST /process/{id}/input-params``
@@ -165,7 +166,7 @@ Supported Action Mapping
      - New DOE
      - ``POST /intent``
      - ``/intents`` -> supervisor
-     - external GUI (not skill-mapped)
+     - stop weld + ``welding_home_skill/execute``; external GUI on hardware
      - ``Intent.msg``
      - Partial / external
 
@@ -235,17 +236,17 @@ ROS 2 messages, actions, and skill nodes
 
 * Skill action servers: ``vulcanexus_ws/src/welding_seam_skill``,
   ``welding_home_skill``, ``welding_manual_skill``, ``welding_recommendation_skill``.
-* ``vulcanexus_ws/src/robin_core/robin_core/robin_planner_node.py`` - hosts the
-  ``/move_home`` action server (MoveIt move to the SRDF ``home`` group state) that
-  ``welding_home_skill`` delegates to, and the ``/execute_bead`` action server that
-  ``welding_seam_skill`` delegates to; ``robin_core/robin_core/motion.py`` provides
-  ``MotionPlanner.move_to_named_target``.
+* Hardware-mode backends (adopter-provided): the ``/move_home`` action server that
+  ``welding_home_skill`` delegates to and the ``/execute_bead`` action server that
+  ``welding_seam_skill`` delegates to when launched with ``use_simulation:=false``.
+  The open module ships simulation behavior for both skills.
 
 Launch and orchestration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-* ``vulcanexus_ws/src/robin_bringup/launch/robin_main.launch.py`` - brings up the
-  skill nodes and supporting infrastructure.
+* ``vulcanexus_ws/src/welding_demo/launch/welding_robin_demo.launch.py`` - brings up
+  the skill nodes, HTTP bridge, and supervisor (no-hardware demo via
+  ``welding_robin_sim.launch.py``).
 * ``docker-compose.yaml`` - composes Orion-LD, the DDS bridge, the Vulcanexus ROS 2
   workspace, the Alert Engine, and the dashboard.
 * ``docs/LAUNCH_AND_VERIFY_INTENTS.md`` - step-by-step guide to launch and verify the
@@ -322,8 +323,11 @@ The following are the current gaps relative to a full ROS4HRI implementation:
   ``POST /ai-recommendation`` and therefore needs the process state the endpoint reads:
   a geometry target (``geometry_driven``) or current input parameters
   (``parameter_driven``) must already be set, otherwise the skill returns a failure.
-* **DoE launch is external.** ``LAUNCH_NEW_DOE`` triggers an external configuration GUI
-  and is not mapped to a skill action server.
+* **DoE launch supersedes the current run.** ``LAUNCH_NEW_DOE`` announces the new
+  experiment on ``/doe/launch``, then stops the active weld and returns the robot to home
+  (the supervisor cancels all goals and calls ``welding_home_skill/execute``). On hardware
+  it also opens an external configuration GUI; in the no-hardware simulation that GUI is
+  skipped.
 
 **Human authority.** ROBIN provides monitoring, deviation detection, and AI-assisted
 recommendations.  These recommendations are advisory: the human operator remains the

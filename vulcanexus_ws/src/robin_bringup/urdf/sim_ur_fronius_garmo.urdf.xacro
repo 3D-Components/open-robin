@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robin_robot">
-    <!-- Simulation: UR10e (Gazebo) + Fronius torch + Garmo laser + scene -->
-    <!-- Declare 'name' before including ur_gz because its root element uses $(arg name) -->
-    <xacro:arg name="name" default="ur10e"/>
-    <xacro:include filename="$(find robin_hardware_ur)/urdf/ur_gz.urdf.xacro"/>
-    <xacro:include filename="$(find robin_bringup)/urdf/robin_tools.xacro"/>
-</robot>

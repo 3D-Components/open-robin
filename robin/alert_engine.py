@@ -1938,6 +1938,46 @@ async def get_process_alerts(process_id: str, last: int | None = None):
         }
 
 
+class ProcessErrorRequest(BaseModel):
+    message: str = 'Process aborted by operator; robot returned to home.'
+    reason: str = 'operator_abort'
+
+
+@app.post('/process/{process_id}/error')
+async def report_process_error(process_id: str, request: ProcessErrorRequest):
+    """Record an operator-visible error (e.g. an Abort) as an Alert entity.
+
+    The ROS supervisor returns the arm to home and publishes the same error on
+    the ``/weld_errors`` topic; this endpoint surfaces it in the dashboard
+    Alerts panel via ``GET /process/{id}/alerts``.
+    """
+    try:
+        engine = ENGINE
+        alert = DeviationAlert(
+            process_id=process_id,
+            deviation_type='process_error',
+            expected_value={},
+            measured_value={},
+            deviation_percentage=0.0,
+            recommended_actions=[
+                {'id': 'abort', 'label': request.message},
+                {'id': 'restart', 'label': 'Restart the process from home'},
+            ],
+        )
+        engine.client.create_alert(alert)
+        return {
+            'status': 'recorded',
+            'process_id': process_id,
+            'error': {'reason': request.reason, 'message': request.message},
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e),
+            'message': f'Failed to record error for process {process_id}',
+        }
+
+
 @app.get('/processes')
 async def list_processes():
     """List all processes"""

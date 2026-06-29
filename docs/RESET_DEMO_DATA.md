@@ -80,7 +80,7 @@ Expected output:
 
 ```bash
 # DDS telemetry demo mode
-./demo/simulation-demo-rosbag.sh
+./demo/simulation-demo-rosbag-wfs-alc-ts.sh
 ```
 
 The demo script will automatically create a fresh entity.

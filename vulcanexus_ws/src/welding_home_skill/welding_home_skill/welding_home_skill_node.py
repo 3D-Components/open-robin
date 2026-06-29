@@ -2,8 +2,13 @@
 """
 WeldingHomeSkillNode: lifecycle action server for MOVE_TO_HOME.
 
-Uses Gazebo and MoveIt for motion control.
-Calls the /move_home action server in robin_moveit_control to move to home.
+Modes (ROS 2 parameter 'use_simulation', default True):
+  use_simulation=True  — lite mock: this node is the sole /joint_states publisher.
+                         It relays /joint_states_manual -> /joint_states (so the seam
+                         skill can drive motion), holds the last pose between goals,
+                         and on MOVE_TO_HOME interpolates to HOME_RADIANS. No MoveIt.
+  use_simulation=False — hardware: delegates to an external /move_home action server
+                         (e.g. a MoveIt-based planner you provide for your own robot).
 
 Preemption safety:
   goal_handle.is_active is checked on every loop iteration so that when two
@@ -14,12 +19,14 @@ Preemption safety:
 from __future__ import annotations
 
 import threading
+import time
 
 import rclpy
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from sensor_msgs.msg import JointState
 
 from welding_msgs.action import MoveToHome
 
@@ -42,7 +49,7 @@ class WeldingHomeSkillNode(LifecycleNode):
         'wrist_3_joint',
     ]
 
-    # Home position from robin_moveit_config/srdf/ur_macro.srdf.xacro
+    # Home position: UR10e 'home' joint configuration (radians)
     HOME_RADIANS = [2.763658, -1.64229, 1.7227086, -2.143056, -1.384997, -0.331205]
 
     # Labels used in action feedback
@@ -55,16 +62,46 @@ class WeldingHomeSkillNode(LifecycleNode):
         self._goal_lock = threading.Lock()
         self._current_goal_handle = None
         self._current_moveit_goal_handle = None
+        self._use_simulation: bool = True
+
+        # Lite-mode joint-state ownership
+        self._js_pub = None          # publishes to /joint_states
+        self._gui_sub = None         # subscribes to /joint_states_manual (seam/GUI output)
+        self._hold_timer = None      # idle relay timer
+        self._held_positions: list[float] = list(self.HOME_RADIANS)
+        self._homing_active: bool = False
+        self._positions_lock = threading.Lock()
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
+
+    def on_configure(self, state) -> TransitionCallbackReturn:
+        self.declare_parameter('use_simulation', True)
+        self._use_simulation = (
+            self.get_parameter('use_simulation').get_parameter_value().bool_value
+        )
+        mode = 'SIMULATION (lite)' if self._use_simulation else 'HARDWARE/Gazebo (MoveIt)'
+        self.get_logger().info(f'welding_home_skill: configuring [{mode}]')
+        return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state) -> TransitionCallbackReturn:
         self.get_logger().info(
             f'welding_home_skill: activating — advertising {self.ACTION_NAME}'
         )
 
-        # Create action client to call MoveIt home motion
-        self._move_home_action_client = ActionClient(self, MoveToHome, '/move_home')
+        if self._use_simulation:
+            # Sole /joint_states publisher in lite mode: relay /joint_states_manual
+            # and hold the last pose so the robot stays put between goals.
+            self._js_pub = self.create_publisher(JointState, '/joint_states', 10)
+            self._gui_sub = self.create_subscription(
+                JointState, '/joint_states_manual',
+                self._relay_joint_states_callback, 10,
+            )
+            self._hold_timer = self.create_timer(
+                1.0 / self.HOLD_HZ, self._publish_held_positions
+            )
+        else:
+            # Hardware/Gazebo: delegate to MoveIt's /move_home action.
+            self._move_home_action_client = ActionClient(self, MoveToHome, '/move_home')
 
         # Create skill action server
         self._skill_action_server = ActionServer(
@@ -81,6 +118,9 @@ class WeldingHomeSkillNode(LifecycleNode):
 
     def on_deactivate(self, state) -> TransitionCallbackReturn:
         self.get_logger().info('welding_home_skill: deactivating')
+        if self._hold_timer:
+            self._hold_timer.cancel()
+            self._hold_timer = None
         if self._skill_action_server:
             self._skill_action_server.destroy()
             self._skill_action_server = None
@@ -94,6 +134,32 @@ class WeldingHomeSkillNode(LifecycleNode):
 
     def on_shutdown(self, state) -> TransitionCallbackReturn:
         return TransitionCallbackReturn.SUCCESS
+
+    # ── Lite-mode joint-state relay/hold ──────────────────────────────────────
+
+    def _relay_joint_states_callback(self, msg: JointState) -> None:
+        """Store seam/GUI joint values into _held_positions when not homing."""
+        if self._homing_active:
+            return
+        with self._positions_lock:
+            names = list(msg.name)
+            for i, name in enumerate(self.UR_JOINTS):
+                if name in names:
+                    idx = names.index(name)
+                    if idx < len(msg.position):
+                        self._held_positions[i] = msg.position[idx]
+
+    def _publish_held_positions(self) -> None:
+        """Timer callback: relay the current held positions to /joint_states."""
+        if self._homing_active or self._js_pub is None:
+            return
+        with self._positions_lock:
+            positions = list(self._held_positions)
+        js = JointState()
+        js.header.stamp = self.get_clock().now().to_msg()
+        js.name = list(self.UR_JOINTS)
+        js.position = positions
+        self._js_pub.publish(js)
 
     # ── Action server callbacks ───────────────────────────────────────────────
 
@@ -116,6 +182,81 @@ class WeldingHomeSkillNode(LifecycleNode):
         return CancelResponse.ACCEPT
 
     def _execute_callback(self, goal_handle) -> MoveToHome.Result:
+        if self._use_simulation:
+            return self._execute_mock_home(goal_handle)
+        return self._execute_moveit_home(goal_handle)
+
+    # ── Lite-mode home interpolation ──────────────────────────────────────────
+
+    def _execute_mock_home(self, goal_handle) -> MoveToHome.Result:
+        self.get_logger().info('MOVE_TO_HOME [sim]: interpolating to home ...')
+        result = MoveToHome.Result()
+
+        if not goal_handle.is_active:
+            result.success = False
+            result.message = 'Goal preempted before execution started'
+            return result
+
+        with self._positions_lock:
+            start_positions = list(self._held_positions)
+
+        self._homing_active = True  # suppress relay + hold timer
+        n_steps = int(self.MOCK_DURATION_S * self.PUBLISH_HZ)
+        step_delay_s = 1.0 / self.PUBLISH_HZ
+        n_joints = len(self.UR_JOINTS)
+        feedback = MoveToHome.Feedback()
+
+        try:
+            for step in range(n_steps + 1):
+                if not goal_handle.is_active:
+                    result.success = False
+                    result.message = 'Goal preempted'
+                    return result
+                if goal_handle.is_cancel_requested:
+                    goal_handle.canceled()
+                    result.success = False
+                    result.message = 'Goal cancelled by operator'
+                    return result
+
+                alpha = step / n_steps
+                positions = [
+                    start_positions[j] + alpha * (self.HOME_RADIANS[j] - start_positions[j])
+                    for j in range(n_joints)
+                ]
+                js = JointState()
+                js.header.stamp = self.get_clock().now().to_msg()
+                js.name = list(self.UR_JOINTS)
+                js.position = positions
+                if self._js_pub is not None:
+                    self._js_pub.publish(js)
+
+                joint_idx = min(int(alpha * n_joints), n_joints - 1)
+                if hasattr(feedback, 'progress_pct'):
+                    feedback.progress_pct = alpha * 100.0
+                if hasattr(feedback, 'current_joint'):
+                    feedback.current_joint = self.JOINTS[joint_idx]
+                goal_handle.publish_feedback(feedback)
+                time.sleep(step_delay_s)
+        finally:
+            self._homing_active = False
+
+        if not goal_handle.is_active:
+            result.success = False
+            result.message = 'Goal preempted'
+            return result
+
+        with self._positions_lock:
+            self._held_positions = list(self.HOME_RADIANS)
+
+        goal_handle.succeed()
+        result.success = True
+        result.message = 'Robot moved to home position successfully'
+        self.get_logger().info('MOVE_TO_HOME [sim]: complete')
+        return result
+
+    # ── Hardware/Gazebo home via MoveIt /move_home ────────────────────────────
+
+    def _execute_moveit_home(self, goal_handle) -> MoveToHome.Result:
         self.get_logger().info('MOVE_TO_HOME: executing via MoveIt ...')
 
         result = MoveToHome.Result()

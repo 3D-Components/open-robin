@@ -1,10 +1,10 @@
 # ROBIN Evidence Pack
 
-This folder is the top-level evidence index for the public review of `open-robin`.
+This folder is the top-level evidence index for `open-robin`. It documents what has been validated so you can evaluate the modules and reproduce the results when building your own solution on top of them.
 
-Use this folder for screenshots, diagrams, logs, exports, video links, and validation references that support the public review. Keep files small enough for GitHub review when possible. Larger videos or datasets can be linked from this README instead of committed directly.
+Use this folder for screenshots, diagrams, logs, exports, video links, and validation references. Keep files small enough to browse on GitHub when possible. Larger videos or datasets can be linked from this README instead of committed directly.
 
-## Reviewer Entry Points
+## Entry Points
 
 | Evidence item | Status | Location |
 | --- | --- | --- |
@@ -14,8 +14,11 @@ Use this folder for screenshots, diagrams, logs, exports, video links, and valid
 | Demonstrator screenshots | Added | [D3 welding cell demonstrator](screenshots/demonstrator/d3-welding-cell-demonstrator.png) |
 | Demo screenshots or GIFs | To be added | `media/screenshots/demo/` |
 | Demo logs or terminal output | To be added | `media/logs/` |
-| Example API responses | Added | [API response examples](api-responses/README.md): [health](api-responses/health-response.json), [create process](api-responses/create-process-response.json), [set target](api-responses/set-target-response.json), [measurements](api-responses/process-measurements-response.json), [deviation check](api-responses/check-deviation-response.json), [AI recommendation](api-responses/ai-recommendation-response.json), [operator intent](api-responses/publish-intent-response.json) |
-| CSV export example | Added | [CSV export notes](exports/README.md); [sample History / Reports export](exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) |
+| Example API responses (welding reference) | Added | [API response examples](api-responses/README.md): [health](api-responses/health-response.json), [create process](api-responses/create-process-response.json), [set target](api-responses/set-target-response.json), [measurements](api-responses/process-measurements-response.json), [deviation check](api-responses/check-deviation-response.json), [AI recommendation](api-responses/ai-recommendation-response.json), [operator intent](api-responses/publish-intent-response.json) |
+| Example API responses (spray coating, non-welding) | Added | [Illustrative spray-coating API responses](api-responses/spray-coating/README.md) evidencing reuse beyond welding as a configuration change |
+| CSV export example (welding reference) | Added | [CSV export notes](exports/README.md); [sample History / Reports export](exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) |
+| CSV export example (spray coating, non-welding) | Added | [Illustrative spray-coating History / Reports export](exports/reviewer_demo_coating-history-2026-06-16T12-12-00-000Z.csv) |
+| No-hardware demo | Added | [No-hardware hello world](../docs/quickstart.rst); [simulated welding demo](../docs/user_guide/demos.rst); [adapt to another process via profiles](../docs/user_guide/profiles.rst) |
 | D3 demonstrator video | Available externally | [Google Drive video](https://drive.google.com/file/d/1NPXDISejwRpxbMHidZyFyc0_4-ERQhcg/view?usp=drive_link) |
 | SUS/user-validation folder | Available externally | [Google Drive folder](https://drive.google.com/drive/folders/1JNtOJkZSoUBujClqRHi9FKAKPs3XxdlQ?usp=drive_link) |
 | AI model evidence for open online model, R^2 about 0.90 | Added | [Open online model scatter plot](model-evidence/open-online-model-r2-090-scatter.png); [metrics JSON](model-evidence/open-online-model-r2-090-metrics.json); [predictions CSV](model-evidence/open-online-model-r2-090-predictions.csv); [model evidence notes](model-evidence/README.md) |
@@ -43,21 +46,23 @@ Use this folder for screenshots, diagrams, logs, exports, video links, and valid
 
 | File | Description |
 | --- | --- |
-| [api-responses/README.md](api-responses/README.md) | Reviewer-facing index of representative API responses and the curl commands they correspond to. |
+| [api-responses/README.md](api-responses/README.md) | Index of representative API responses and the curl commands they correspond to. |
 | [api-responses/health-response.json](api-responses/health-response.json) | Example `GET /health` response showing backend, Orion-LD, and Mintaka connectivity fields. |
-| [api-responses/create-process-response.json](api-responses/create-process-response.json) | Example `POST /create-process` success response for the no-hardware reviewer demo process. |
+| [api-responses/create-process-response.json](api-responses/create-process-response.json) | Example `POST /create-process` success response for the no-hardware demo process. |
 | [api-responses/set-target-response.json](api-responses/set-target-response.json) | Example `POST /process/{process_id}/target` response showing a geometry target persisted for geometry-driven mode. |
 | [api-responses/process-measurements-response.json](api-responses/process-measurements-response.json) | Example `GET /process/{process_id}/measurements?last=1` response showing a mock or recorded telemetry sample. |
 | [api-responses/check-deviation-response.json](api-responses/check-deviation-response.json) | Example `POST /check-deviation` response showing expected geometry, measured geometry, deviation breakdown, and operator action options. |
 | [api-responses/ai-recommendation-response.json](api-responses/ai-recommendation-response.json) | Example `POST /ai-recommendation` response showing advisory parameters and confidence. |
 | [api-responses/publish-intent-response.json](api-responses/publish-intent-response.json) | Example `POST /intent` response showing operator intent publication for the FIWARE-to-ROS 2 bridge path. |
+| [api-responses/spray-coating/README.md](api-responses/spray-coating/README.md) | Illustrative **non-welding (spray coating)** API response set (`reviewer_demo_coating`) mirroring the welding fixtures with coating vocabulary, fields, and units — evidence that reuse beyond welding is a configuration change, not a code change. |
 
 ## Bundled Export Evidence
 
 | File | Description |
 | --- | --- |
 | [exports/README.md](exports/README.md) | Notes for the ROBIN Dashboard History / Reports CSV export path. |
-| [exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv](exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) | Representative CSV export containing twelve telemetry rows and one persisted warning/deviation row for `reviewer_demo_process`. |
+| [exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv](exports/reviewer_demo_process-history-2026-06-16T12-02-00-000Z.csv) | Representative CSV export containing twelve telemetry rows and one persisted warning/deviation row for `reviewer_demo_process` (welding). |
+| [exports/reviewer_demo_coating-history-2026-06-16T12-12-00-000Z.csv](exports/reviewer_demo_coating-history-2026-06-16T12-12-00-000Z.csv) | Illustrative spray-coating (non-welding) CSV export for `reviewer_demo_coating`, same column set carrying coating thickness / coverage width and one deviation warning. |
 
 ## Human Authority Statement
 

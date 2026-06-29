@@ -5,10 +5,14 @@ WeldingSeamSkillNode: lifecycle action server for EXECUTE_SEAM / START_PROCESS.
 ros4hri concept: maps to motion_skills/action/ExecuteCartesianTrajectory.
 
 Modes (controlled by ROS2 parameter 'use_simulation', default True):
-  use_simulation=True  — mock behaviour: IGNITING → WELDING×3 → FINISHING over 6 s.
-  use_simulation=False — real hardware: delegates to /weld_experiment action on
-                         RobinPlanner (robin_moveit_control), which sequences
-                         MoveItPy PTP/LIN motions + WeldingCoordinator arc start/stop.
+  use_simulation=True  — lite mock: sweeps the arm along the seam by publishing
+                         joint positions to /joint_states_manual (the home skill
+                         relays them to /joint_states), and publishes synthetic
+                         ProcessTelemetry on /robin/telemetry (ROS 2 -> DDS ->
+                         FIWARE). Hosts the weld/pause service so the supervisor
+                         can freeze/resume the weld. No Gazebo/MoveIt.
+  use_simulation=False — Gazebo/hardware: delegates to /execute_bead on RobinPlanner
+                         (MoveItPy LIN motions + WeldingCoordinator arc start/stop).
 
 Seam coordinates are loaded from the 'seam_registry' parameter (YAML dict keyed by
 seam_id).  A built-in default for 'seam_01' is provided so the system runs out of
@@ -17,6 +21,7 @@ the box; replace with actual robot-frame coordinates for production.
 from __future__ import annotations
 
 import math
+import random
 import threading
 import time
 from typing import Any
@@ -27,7 +32,10 @@ from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalRespons
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from sensor_msgs.msg import JointState
+from std_srvs.srv import SetBool
 
+from robin_interfaces.msg import ProcessTelemetry
 from welding_msgs.action import ExecuteSeam
 
 # ── Default seam registry ────────────────────────────────────────────────────
@@ -51,17 +59,38 @@ class WeldingSeamSkillNode(LifecycleNode):
     """
     Skill: executes a weld seam Cartesian trajectory.
 
-    In simulation mode (default): runs a 6-second mock loop.
-    In hardware mode: delegates to /weld_experiment on RobinPlanner.
+    In simulation mode (default): runs a lite mock that animates the arm and
+    streams synthetic telemetry.  In hardware mode: delegates to /execute_bead.
     """
 
     ACTION_NAME         = 'welding_seam_skill/execute'
     PLANNER_ACTION_NAME = 'execute_bead'
 
-    # Mock-mode constants
-    PHASES              = ['IGNITING', 'WELDING', 'WELDING', 'WELDING', 'FINISHING']
-    PHASE_DURATION      = 6.0 / 5
-    MOCK_SEAM_LENGTH_MM = 150.0
+    # UR joint names — must match robot_state_publisher / URDF / home skill
+    UR_JOINTS = [
+        'shoulder_pan_joint',
+        'shoulder_lift_joint',
+        'elbow_joint',
+        'wrist_1_joint',
+        'wrist_2_joint',
+        'wrist_3_joint',
+    ]
+
+    # Base welding pose (matches the home skill's HOME_RADIANS) plus a sweep of
+    # the shoulder-pan joint to trace the bead so the torch visibly moves.
+    WELD_POSE         = [2.763658, -1.64229, 1.7227086, -2.143056, -1.384997, -0.331205]
+    SWEEP_JOINT_IDX   = 0      # shoulder_pan_joint
+    SWEEP_RANGE_RAD   = 0.50   # total sweep across the seam
+
+    # Lite-mock timing
+    WELD_DURATION_S   = 30.0   # one full bead at progress 0 -> 1
+    RATE_HZ           = 20.0   # joint update rate (smooth motion)
+    TELEMETRY_HZ      = 1.0    # ProcessTelemetry publish rate
+
+    # Target geometry the synthetic telemetry centres on (mm), with a deviation
+    # window in the middle of the bead so the dashboard shows a deviation.
+    TARGET_HEIGHT_MM  = 3.0
+    TARGET_WIDTH_MM   = 7.0
 
     def __init__(self):
         super().__init__('welding_seam_skill')
@@ -72,6 +101,12 @@ class WeldingSeamSkillNode(LifecycleNode):
         self._use_simulation: bool = True
         self._seam_registry: dict = dict(DEFAULT_SEAM_REGISTRY)
 
+        # Lite-mode publishers / service
+        self._jsm_pub = None          # -> /joint_states_manual (home skill relays)
+        self._telemetry_pub = None    # -> /robin/telemetry (DDS -> FIWARE)
+        self._pause_service = None
+        self._pause_event = threading.Event()
+
     # ── Lifecycle transitions ─────────────────────────────────────────────────
 
     def on_configure(self, state) -> TransitionCallbackReturn:
@@ -79,8 +114,8 @@ class WeldingSeamSkillNode(LifecycleNode):
         self._use_simulation = (
             self.get_parameter('use_simulation').get_parameter_value().bool_value
         )
-        mode = 'SIMULATION' if self._use_simulation else 'HARDWARE'
-        self.get_logger().info(f'welding_seam_skill: configuring [{mode} mode]')
+        mode = 'SIMULATION (lite)' if self._use_simulation else 'HARDWARE/Gazebo'
+        self.get_logger().info(f'welding_seam_skill: configuring [{mode}]')
 
         if not self._use_simulation:
             from robin_interfaces.action import ExecuteBead  # hardware-only dep
@@ -96,6 +131,15 @@ class WeldingSeamSkillNode(LifecycleNode):
         self.get_logger().info(
             f'welding_seam_skill: activating — advertising {self.ACTION_NAME}'
         )
+        if self._use_simulation:
+            self._jsm_pub = self.create_publisher(JointState, '/joint_states_manual', 10)
+            self._telemetry_pub = self.create_publisher(ProcessTelemetry, '/robin/telemetry', 10)
+            # Same service name the supervisor calls; in Gazebo mode robin_planner
+            # hosts it instead.  data=True freezes the bead, data=False resumes.
+            self._pause_service = self.create_service(
+                SetBool, 'weld/pause', self._pause_service_cb,
+                callback_group=ReentrantCallbackGroup(),
+            )
         self._action_server = ActionServer(
             self,
             ExecuteSeam,
@@ -123,6 +167,20 @@ class WeldingSeamSkillNode(LifecycleNode):
 
     def on_shutdown(self, state) -> TransitionCallbackReturn:
         return TransitionCallbackReturn.SUCCESS
+
+    # ── Pause/resume service ──────────────────────────────────────────────────
+
+    def _pause_service_cb(self, request, response):
+        if request.data:
+            self._pause_event.set()
+            self.get_logger().info('weld/pause: PAUSE — freezing bead in place')
+            response.message = 'paused'
+        else:
+            self._pause_event.clear()
+            self.get_logger().info('weld/pause: RESUME — continuing bead')
+            response.message = 'resumed'
+        response.success = True
+        return response
 
     # ── Action server callbacks ───────────────────────────────────────────────
 
@@ -156,45 +214,102 @@ class WeldingSeamSkillNode(LifecycleNode):
     def _execute_mock(self, goal_handle) -> ExecuteSeam.Result:
         seam_id    = goal_handle.request.seam_id
         weld_speed = goal_handle.request.weld_speed
+        wire_feed  = goal_handle.request.wire_feed_rate or 4.0
         self.get_logger().info(
-            f'EXECUTE_SEAM [sim]: starting seam {seam_id!r} at {weld_speed} mm/s'
+            f'EXECUTE_SEAM [sim]: welding seam {seam_id!r} '
+            f'(animating arm + streaming telemetry)'
         )
+
+        # A new bead must never inherit a stale pause.
+        self._pause_event.clear()
 
         feedback = ExecuteSeam.Feedback()
         result   = ExecuteSeam.Result()
-        welded_length    = 0.0
-        length_per_phase = self.MOCK_SEAM_LENGTH_MM / len(self.PHASES)
 
-        for i, phase in enumerate(self.PHASES):
+        total_steps      = int(self.WELD_DURATION_S * self.RATE_HZ)
+        step_delay_s     = 1.0 / self.RATE_HZ
+        telem_interval   = max(1, int(self.RATE_HZ / self.TELEMETRY_HZ))
+        step             = 0
+
+        while step <= total_steps:
+            # Preempted by a newer goal
+            if not goal_handle.is_active:
+                result.success = False
+                result.message = 'Seam preempted'
+                return result
+            # Operator cancel (STOP / ABORT)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 result.success        = False
                 result.message        = 'Weld cancelled — ESTOP or operator request'
-                result.seam_length_mm = welded_length
+                result.seam_length_mm = (step / total_steps) * 150.0
                 self.get_logger().warning(
-                    f'EXECUTE_SEAM [sim]: cancelled at {welded_length:.1f} mm (phase: {phase})'
+                    f'EXECUTE_SEAM [sim]: cancelled at {result.seam_length_mm:.0f} mm'
                 )
                 return result
+            # Operator pause: freeze in place (stop advancing + stop telemetry)
+            if self._pause_event.is_set():
+                time.sleep(0.1)
+                continue
 
-            welded_length += length_per_phase
-            feedback.progress_pct  = (i + 1) / len(self.PHASES) * 100.0
-            feedback.phase         = phase
-            feedback.current_speed = weld_speed if phase == 'WELDING' else 0.0
+            progress = step / total_steps
+
+            # Animate the arm: sweep the shoulder-pan joint across the seam.
+            self._publish_joint_sweep(progress)
+
+            # Stream synthetic telemetry to FIWARE at TELEMETRY_HZ.
+            if step % telem_interval == 0:
+                self._publish_telemetry(seam_id, progress, wire_feed)
+
+            feedback.progress_pct  = progress * 100.0
+            feedback.phase         = 'WELDING' if 0.05 < progress < 0.95 else 'IGNITING'
+            feedback.current_speed = weld_speed
             goal_handle.publish_feedback(feedback)
-            self.get_logger().info(
-                f'EXECUTE_SEAM [sim]: {phase} [{i+1}/{len(self.PHASES)}] '
-                f'→ {feedback.progress_pct:.0f}% | {welded_length:.1f} mm welded'
-            )
-            time.sleep(self.PHASE_DURATION)
+
+            step += 1
+            time.sleep(step_delay_s)
 
         goal_handle.succeed()
         result.success        = True
         result.message        = f'Seam {seam_id} welded successfully (simulation)'
-        result.seam_length_mm = self.MOCK_SEAM_LENGTH_MM
-        self.get_logger().info(
-            f'EXECUTE_SEAM [sim]: complete — {self.MOCK_SEAM_LENGTH_MM} mm welded'
-        )
+        result.seam_length_mm = 150.0
+        self.get_logger().info('EXECUTE_SEAM [sim]: complete')
         return result
+
+    def _publish_joint_sweep(self, progress: float) -> None:
+        """Publish a joint pose that sweeps the torch along the seam."""
+        positions = list(self.WELD_POSE)
+        positions[self.SWEEP_JOINT_IDX] = (
+            self.WELD_POSE[self.SWEEP_JOINT_IDX]
+            - self.SWEEP_RANGE_RAD / 2.0
+            + progress * self.SWEEP_RANGE_RAD
+        )
+        js = JointState()
+        js.header.stamp = self.get_clock().now().to_msg()
+        js.name = list(self.UR_JOINTS)
+        js.position = positions
+        if self._jsm_pub is not None:
+            self._jsm_pub.publish(js)
+
+    def _publish_telemetry(self, seam_id: str, progress: float, wire_feed: float) -> None:
+        """Publish synthetic ProcessTelemetry on /robin/telemetry (DDS -> FIWARE)."""
+        # Inject a deviation window in the middle of the bead so the dashboard
+        # shows a height drop / width bump relative to the target geometry.
+        in_window = 0.4 <= progress <= 0.6
+        dev = 1.0 if in_window else 0.0
+        # NOTE: ProcessTelemetry has no header field; the DDS temporal trigger
+        # falls back to the insert timestamp for observedAt.
+        msg = ProcessTelemetry()
+        msg.bead_id = str(seam_id)
+        msg.progression = float(progress)
+        msg.height = float(self.TARGET_HEIGHT_MM - 0.6 * dev + random.uniform(-0.05, 0.05))
+        msg.width  = float(self.TARGET_WIDTH_MM + 0.8 * dev + random.uniform(-0.08, 0.08))
+        msg.speed   = float(wire_feed)
+        msg.current = float(DEFAULT_CURRENT_A + random.uniform(-3.0, 3.0))
+        msg.voltage = float(DEFAULT_VOLTAGE_V + random.uniform(-0.4, 0.4))
+        msg.cross_sectional_area = 0.0
+        if self._telemetry_pub is not None:
+            self._telemetry_pub.publish(msg)
 
     # ── Hardware execution (via RobinPlanner /execute_bead) ──────────────────
 

@@ -8,26 +8,10 @@ This file documents third-party or template-origin license notices that may appe
 
 Several ROS 2 package test files are generated from standard ROS 2 / ament package templates and carry Open Source Robotics Foundation copyright headers under Apache-2.0.
 
-These files are retained as template/linting support files and keep their original notices:
-
-- `vulcanexus_ws/src/robin_core_sensor/test/test_copyright.py`
-- `vulcanexus_ws/src/robin_core_sensor/test/test_flake8.py`
-- `vulcanexus_ws/src/robin_core_sensor/test/test_pep257.py`
-- `vulcanexus_ws/src/robin_hardware_fronius/test/test_copyright.py`
-- `vulcanexus_ws/src/robin_hardware_fronius/test/test_flake8.py`
-- `vulcanexus_ws/src/robin_hardware_fronius/test/test_pep257.py`
-- `vulcanexus_ws/src/robin_hardware_garmo/test/test_copyright.py`
-- `vulcanexus_ws/src/robin_hardware_garmo/test/test_flake8.py`
-- `vulcanexus_ws/src/robin_hardware_garmo/test/test_pep257.py`
-- `vulcanexus_ws/src/robin_hardware_ur/test/test_copyright.py`
-- `vulcanexus_ws/src/robin_hardware_ur/test/test_flake8.py`
-- `vulcanexus_ws/src/robin_hardware_ur/test/test_pep257.py`
-- `vulcanexus_ws/src/robin_simulation/test/test_copyright.py`
-- `vulcanexus_ws/src/robin_simulation/test/test_flake8.py`
-- `vulcanexus_ws/src/robin_simulation/test/test_pep257.py`
-- `vulcanexus_ws/src/robin_core_bringup/test/test_copyright.py`
-- `vulcanexus_ws/src/robin_core_bringup/test/test_flake8.py`
-- `vulcanexus_ws/src/robin_core_bringup/test/test_pep257.py`
+These files are retained as template/linting support files and keep their original
+notices. They are the standard ament test files found under the `test/` directory of the
+workspace ROS 2 packages (`vulcanexus_ws/src/*/test/test_copyright.py`,
+`test_flake8.py`, and `test_pep257.py`).
 
 The Apache-2.0 notices in those files apply to the template files themselves. They do not change the project-level AGPL-3.0-only license declaration for `open-robin` code.
 

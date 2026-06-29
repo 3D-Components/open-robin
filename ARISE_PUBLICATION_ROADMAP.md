@@ -40,7 +40,7 @@ Current release target: **v0.1.0 public release readiness**.
 
 - Paths:
   - `vulcanexus_ws/src/robin_interfaces/msg/ProcessTelemetry.msg`
-  - `vulcanexus_ws/src/robin_core_data/scripts/telemetry_aggregator_node.py`
+  - `vulcanexus_ws/src/robin_telemetry/robin_telemetry/telemetry_aggregator_node.py`
   - `config-dds.json`
 - Includes:
   - ROS topic aggregation to a single telemetry message
@@ -59,9 +59,12 @@ Current release target: **v0.1.0 public release readiness**.
 
 ## Domain/Profile Layer (Not Core)
 
-These components are kept as adapters or demos and are not mandatory for reusing the core:
+These domain-specific components are not part of the open release and are not mandatory
+for reusing the core:
 
-- welding hardware drivers and control sequencing (`robin_hardware_fronius`, WAGO/OPC-UA specifics)
+- welding hardware drivers and control sequencing (vendor / WAGO / OPC-UA specifics) —
+  removed from the open module; adopters supply their own behind the skills' generic
+  action/service interfaces
 - welding-specific ROS bags and hardware launch configurations
 - welding-only operator narratives and experiment scripts
 

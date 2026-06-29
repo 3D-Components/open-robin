@@ -1,35 +1,12 @@
 ################################################################################
-# Stage 1: Build open62541 OPC UA library
-################################################################################
-FROM ubuntu:24.04 AS open62541-builder
-
-RUN apt-get update && apt-get install -y \
-    git \
-    cmake \
-    build-essential \
-    python3 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Clone and build open62541 v1.4.14
-RUN cd /tmp && \
-    git clone --branch v1.4.14 --depth 1 https://github.com/open62541/open62541.git && \
-    cd open62541 && \
-    git submodule update --init --recursive && \
-    mkdir build && cd build && \
-    cmake .. \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=ON \
-        -DUA_ENABLE_ENCRYPTION=OFF \
-        -DUA_ENABLE_SUBSCRIPTIONS=ON \
-        -DUA_ENABLE_METHODCALLS=ON \
-        -DCMAKE_INSTALL_PREFIX=/opt/open62541 && \
-    make -j$(nproc) && \
-    make install
-
-################################################################################
-# Stage 2: Main Vulcanexus image
+# Vulcanexus image for the ROBIN no-hardware welding demo
 ################################################################################
 FROM eprosima/vulcanexus:jazzy-desktop-4.3.1
+
+# The upstream base image still contains an obsolete Vulcanexus apt source for
+# Ubuntu noble. It returns 404 and breaks fresh builds before this Dockerfile can
+# install anything. ROS packages below come from packages.ros.org.
+RUN rm -f /etc/apt/sources.list.d/vulcanexus.list
 
 RUN curl -sSL raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros2-latest-archive-keyring.gpg
 
@@ -51,25 +28,16 @@ RUN apt-get update -q && apt-get install -y \
     python3-pandas \
     python3-numpy \
     python3-matplotlib \
-    libyaml-cpp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ROS 2 packages and other dependencies
+# Install ROS 2 packages and other dependencies.
+# ur_robot_driver provides ur_robot_driver + ur_description xacros, needed by
+# robin_description/urdf/ur.urdf.xacro to render the UR10e in the no-hardware demo.
+# Avoid the ros-jazzy-ur metapackage: it pulls ur_moveit_config and the MoveIt stack.
 RUN apt-get update && apt-get install -y \
-    ros-jazzy-ur \
-    ros-jazzy-ur-simulation-gz \
-    ros-jazzy-moveit \
-    ros-jazzy-moveit-py \
-    ros-jazzy-moveit-visual-tools \
-    ros-jazzy-ros2controlcli \
+    ros-jazzy-ur-robot-driver \
     ros-jazzy-foxglove-bridge \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy open62541 from builder stage
-COPY --from=open62541-builder /opt/open62541 /usr/local
-
-# Update library cache for open62541
-RUN ldconfig
 
 # Install additional Python dependencies
 COPY vulcanexus_ws/requirements.txt /tmp/requirements.txt

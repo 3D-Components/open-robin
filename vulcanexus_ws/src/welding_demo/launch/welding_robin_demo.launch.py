@@ -120,7 +120,7 @@ def generate_launch_description():
                 name='welding_supervisor',
                 output='screen',
                 emulate_tty=True,
-                parameters=[{'use_sim_time': sim_time}],
+                parameters=[{'use_simulation': use_sim, 'use_sim_time': sim_time}],
             ),
         ],
     )

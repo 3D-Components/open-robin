@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-BAG_NAME="exp001_rosbag_real" #"bag_2026-03-16"
+BAG_NAME="bag_2026-03-16"
 BAG_CONTAINER_PATH="/workspace/ros2_packages/${BAG_NAME}"
 CONTAINER="vulcanexus-bridge"
 PROCESS_ID="ros_bridge"
@@ -62,7 +62,7 @@ done
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   echo "  Starting vulcanexus container..."
-  UID=$(id -u) GID=$(id -g) docker compose -f "$(dirname "$0")/../docker-compose.yaml" \
+  env UID="$(id -u)" GID="$(id -g)" docker compose -f "$(dirname "$0")/../docker-compose.yaml" \
     up -d vulcanexus
   sleep 5
 fi
@@ -75,7 +75,7 @@ sleep 10
 echo "  Containers ready."
 
 # ---- 1b. Build ROS2 workspace if install/ is missing --------------------
-if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_core_data/share/robin_core_data/local_setup.bash 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -x /workspace/ros2_packages/install/robin_telemetry/lib/robin_telemetry/telemetry_aggregator 2>/dev/null; then
   echo
   echo "[1b/9] ROS2 workspace not built — running colcon build (~3 min, one-time)..."
   docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
@@ -86,7 +86,7 @@ if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_c
     source /opt/vulcanexus/jazzy/setup.bash &&
     cd /workspace/ros2_packages &&
     colcon build \
-      --packages-up-to robin_core_bringup robin_core_data \
+      --packages-select robin_interfaces robin_telemetry robin_description \
       --cmake-args -DCMAKE_BUILD_TYPE=Release
   "
   echo "  Build complete."
@@ -98,8 +98,8 @@ echo "[2/9] Verifying bag mount at ${BAG_CONTAINER_PATH}..."
 if ! docker exec "${CONTAINER}" test -d "${BAG_CONTAINER_PATH}"; then
   echo "ERROR: Bag not found at ${BAG_CONTAINER_PATH} inside container."
   echo "  Ensure docker-compose.yaml has:"
-  echo "    - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro"
-  echo "  Then run: UID=\$(id -u) GID=\$(id -g) docker compose up -d --force-recreate vulcanexus"
+  echo "    - ./data/rosbags/${BAG_NAME}:/workspace/ros2_packages/${BAG_NAME}:ro"
+  echo "  Then run: env UID=\$(id -u) GID=\$(id -g) docker compose up -d --force-recreate vulcanexus"
   exit 1
 fi
 echo "  Bag accessible."
@@ -151,7 +151,7 @@ docker exec "${CONTAINER}" bash -c "
   source /opt/ros/jazzy/setup.bash &&
   source /workspace/ros2_packages/install/setup.bash &&
   export ROS_DOMAIN_ID=0 &&
-  nohup ros2 run robin_core_data telemetry_aggregator_node.py \
+  nohup ros2 run robin_telemetry telemetry_aggregator \
     ${AGGREGATOR_ARGS} > /tmp/aggregator.log 2>&1 &
   echo \$!
 " 2>/dev/null
@@ -208,7 +208,7 @@ echo "[8/9] Waiting 20s for DDS -> Orion -> TimescaleDB flush..."
 sleep 20
 
 # Stop aggregator and counter
-docker exec "${CONTAINER}" pkill -f telemetry_aggregator_node.py 2>/dev/null || true
+docker exec "${CONTAINER}" pkill -f telemetry_aggregator 2>/dev/null || true
 COUNTER_PID=$(docker exec "${CONTAINER}" cat /tmp/telemetry_counter.pid 2>/dev/null || echo "")
 [ -n "${COUNTER_PID}" ] && docker exec "${CONTAINER}" kill "${COUNTER_PID}" 2>/dev/null || true
 sleep 2

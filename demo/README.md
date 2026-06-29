@@ -98,7 +98,8 @@ These scripts remain available for setup/integration tasks:
 
 - `demo/validate-setup.sh`
 - `demo/cleanup-demo.sh`
-- `demo/simulation-demo-rosbag.sh`
+- `demo/simulation-demo-rosbag-wfs-alc-ts.sh` (current ROS 2 bag replay path)
+- `demo/simulation-demo-rosbag.sh` (compatibility wrapper for the current replay path)
 
 ## Cleanup
 

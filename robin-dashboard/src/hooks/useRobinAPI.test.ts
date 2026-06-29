@@ -9,6 +9,7 @@ import {
     getAIRecommendation,
     predictGeometry,
     publishRosIntent,
+    reportProcessError,
     resumeProcess,
     selectModel,
     setInputParams,
@@ -133,6 +134,41 @@ describe('ROBIN API helpers', () => {
                 }),
             }),
         );
+    });
+
+    it('reports a process error with the abort message and surfaces failures', async () => {
+        const fetchMock = mockFetchOnce({ status: 'recorded' });
+
+        // Explicit message + reason
+        await reportProcessError('process 1', 'Aborted', 'operator_abort');
+        // Defaults applied when only the process id is given
+        await reportProcessError('p2');
+
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            1,
+            expect.stringContaining('/process/process%201/error'),
+            expect.objectContaining({
+                method: 'POST',
+                body: JSON.stringify({ message: 'Aborted', reason: 'operator_abort' }),
+            }),
+        );
+        expect(fetchMock).toHaveBeenNthCalledWith(
+            2,
+            expect.stringContaining('/process/p2/error'),
+            expect.objectContaining({
+                method: 'POST',
+                body: JSON.stringify({
+                    message: 'Process aborted by operator; robot returned to home.',
+                    reason: 'operator_abort',
+                }),
+            }),
+        );
+    });
+
+    it('raises a useful error when reporting a process error fails', async () => {
+        mockFetchOnce({ error: 'down' }, false, 500);
+
+        await expect(reportProcessError('p1')).rejects.toThrow('HTTP 500');
     });
 
     it('polls health and process list endpoints into hook state', async () => {
