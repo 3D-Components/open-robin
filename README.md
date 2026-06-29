@@ -11,7 +11,8 @@
 
 ROBIN provides **two open-source modules** and a **documented integration pattern** for monitoring, quality control, and AI-assisted optimization of robotic manufacturing processes. The components are domain-agnostic: they work for welding, spray coating, machining, or any process where a robot produces measurable outputs that you want to track, alert on, and improve with AI.
 
-This repository ships the modules together with integration examples and demo profiles that show them in action across different industrial domains.
+This repository ships the modules together with integration examples and demo
+profiles that show them in action across different industrial domains.
 
 The open/reusable module boundary is documented in
 [`docs/open_boundary.rst`](docs/open_boundary.rst). In short, `open-robin` is
@@ -39,7 +40,8 @@ Repository boundary notes for committed artifacts are under [`data/README.md`](d
 
 ### Module 1 - Process Intelligence API (`robin/`)
 
-A FastAPI service for process lifecycle management, deviation detection, and AI-assisted recommendations over FIWARE/NGSI-LD data.
+A FastAPI service for process lifecycle management, deviation detection, and
+AI-assisted recommendations over FIWARE/NGSI-LD data.
 
 | | |
 |---|---|
@@ -50,7 +52,9 @@ A FastAPI service for process lifecycle management, deviation detection, and AI-
 
 ### Module 2 - Monitoring Dashboard (`robin-dashboard`)
 
-A React operator dashboard for live process monitoring, deviation alerts, AI model management, and 3D visualization. All domain labels are configurable via environment variables - no code changes needed to switch domains.
+A React operator dashboard for live process monitoring, deviation alerts, AI
+model management, and 3D visualization. All domain labels are configurable via
+environment variables - no code changes needed to switch domains.
 
 | | |
 |---|---|
@@ -74,9 +78,10 @@ getting telemetry data into FIWARE without custom bridge code:
 3. A **DDS mapping config** (`config-dds.json`) tells Orion which DDS topic maps to
    which entity type.
 
-This is not a standalone module - the heavy lifting is done by Orion-LD itself. What
-ROBIN contributes is the aggregator node, the message schema, a TimescaleDB trigger
-for correct temporal indexing, and documentation of how to wire it all together.
+This is not a standalone module - the heavy lifting is done by Orion-LD itself.
+What open-robin contributes is the normalized telemetry schema, the no-hardware
+demo publisher, optional telemetry aggregation paths, a TimescaleDB trigger for
+correct temporal indexing, and documentation of how to wire it all together.
 
 Modules 1 and 2 work without this pattern - you can feed data through the CLI or
 REST API instead of ROS 2.
@@ -271,12 +276,14 @@ with ROS4HRI/ROS4RI (with a full action-mapping table and implementation evidenc
 ## Quick Start
 
 > **No hardware? Building on the modules?** Start with the
-> [no-hardware hello world](docs/quickstart.rst): a deterministic, copy-paste walkthrough that
-> creates a process, ingests a measurement, and requests an AI prediction. Then run the simulated
-> welding demo in [`docs/user_guide/demos.rst`](docs/user_guide/demos.rst) for live telemetry,
-> dashboard control, deviations, and alerts. The same modules adapt to other robotized processes
-> by swapping the profile configuration (see [`docs/user_guide/profiles.rst`](docs/user_guide/profiles.rst)).
-> The recorded ROS bags are **not bundled** in a clean clone, so the profile/mock path is the
+> [no-hardware hello world](docs/quickstart.rst): a deterministic, copy-paste
+> walkthrough that creates a process, ingests a measurement, and requests an AI
+> prediction. Then run the simulated welding demo in
+> [`docs/user_guide/demos.rst`](docs/user_guide/demos.rst) for live telemetry,
+> dashboard control, deviations, and alerts. The same modules adapt to other
+> robotized processes by swapping the profile configuration (see
+> [`docs/user_guide/profiles.rst`](docs/user_guide/profiles.rst)). The recorded
+> ROS bags are **not bundled** in a clean clone, so the profile/mock path is the
 > canonical getting-started path.
 
 ```bash
@@ -406,9 +413,15 @@ poetry install --with docs
 poetry run sphinx-build -b html docs docs/_build/html
 ```
 
-Then open `docs/_build/html/index.html` in your browser. For a clean rebuild: `poetry run sphinx-build -E -a -b html docs docs/_build/html`.
+Then open `docs/_build/html/index.html` in your browser. For a clean rebuild:
+`poetry run sphinx-build -E -a -b html docs docs/_build/html`.
 
 The docs are also configured for [Read the Docs](https://readthedocs.org/) via `.readthedocs.yaml`.
+
+Release planning:
+
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- `v0.1.0` release notes: [`docs/release_notes/v0_1_0.md`](docs/release_notes/v0_1_0.md)
 
 ## ARISE Publication
 
@@ -447,11 +460,14 @@ same checks before they are promoted to `main`.
 
 ## License
 
-AGPL-3.0-only. See [`LICENSE`](LICENSE). Third-party and template-origin notices are documented in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+AGPL-3.0-only. See [`LICENSE`](LICENSE). Third-party and template-origin
+notices are documented in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ## Support
 
-- Maintainers: Daniel Haas <daniel.haas@3d-components.co>, Virgilio Gomez <virgilio.gomez@3d-components.co>, Jayant Singh <jayant@mil-as.no>
+- Maintainers: Daniel Haas <daniel.haas@3d-components.co>,
+  Virgilio Gomez <virgilio.gomez@3d-components.co>,
+  Jayant Singh <jayant@mil-as.no>
 - Support email: info@3d-components.co
 - Issues: https://github.com/3D-Components/open-robin/issues
 - Discussions: https://github.com/3D-Components/open-robin/discussions
