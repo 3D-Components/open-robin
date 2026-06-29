@@ -1,6 +1,0 @@
-<launch>
-  <arg name="use_sim" default="false"/>
-  <node pkg="robin_hardware_fronius" exec="welding_coordinator" name="welding_coordinator" output="screen">
-    <param name="use_sim_time" value="$(var use_sim)"/>
-  </node>
-</launch>

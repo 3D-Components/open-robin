@@ -1,6 +1,0 @@
-<launch>
-  <arg name="config_file" default="$(find-pkg-share robin_hardware_opcua)/config/opcua_bridge.yaml"/>
-  <node pkg="robin_hardware_opcua" exec="opcua_bridge_node" name="opcua_bridge" output="screen">
-    <param name="config_file" value="$(var config_file)"/>
-  </node>
-</launch>

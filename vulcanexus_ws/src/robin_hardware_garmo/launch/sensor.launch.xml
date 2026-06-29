@@ -1,7 +1,0 @@
-<launch>
-    <arg name="sensor_ip" default="192.168.1.212"/>
-    <node pkg="robin_hardware_garmo" exec="sensor_node" name="garmo_sensor_node">
-        <param from="$(find-pkg-share robin_hardware_garmo)/config/garmo_config.yaml"/>
-        <param name="sensor_ip" value="$(var sensor_ip)"/>
-    </node>
-</launch>
