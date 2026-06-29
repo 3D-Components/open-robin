@@ -2,14 +2,14 @@ Known Limitations
 =================
 
 This page documents the current limits of the ``open-robin`` module so they are
-visible to reviewers and adopters.  The repository provides reusable process
+visible to users and adopters.  The repository provides reusable process
 intelligence components and a reference integration pattern; it is not a
 turnkey certified production deployment for every robotized cell.
 
 Validation Scope
 ----------------
 
-* The strongest end-to-end validation evidence comes from one welding reference
+* The performed end-to-end validation evidence comes from one welding reference
   demonstrator, so current industrial validation should be treated as
   single-cell validation rather than broad multi-site validation.
 * Non-welding reuse is demonstrated through the profile mechanism and a
@@ -30,7 +30,7 @@ Hardware and Deployment Constraints
 * ROS 2/DDS discovery behavior can differ between native Linux, Docker Desktop
   on macOS, and customer networks.  Linux remains the preferred environment for
   full ROS 2/Vulcanexus/DDS validation.
-* The default Docker Compose stack is hardware-neutral and intended for reviewer
+* The default Docker Compose stack is hardware-neutral and intended for demo
   quickstart and no-hardware demo paths.  The full physical demonstrator profile
   uses ``docker-compose.linux-gpu.override.yaml`` and was validated on the
   specific Linux/NVIDIA workstation and industrial cell setup available to the
@@ -63,7 +63,7 @@ Security and Production Hardening
 
 * The current local/demo stack does not provide production authentication,
   authorization, audit policy, secret rotation, or tenant isolation.  This keeps
-  the reviewer demo simple and follows a data-minimization/privacy-by-design
+  the demo simple and follows a data-minimization/privacy-by-design
   posture: the open demo should avoid collecting or storing user personal data
   unless a deployment explicitly adds the required governance and controls.
 * Multi-tenant deployment is future work.  The current module can be adapted to
@@ -95,14 +95,10 @@ Testing Gaps
   ``dashboard-unit`` and has a 90% line-coverage gate for the scoped unit
   surface.  Full dashboard feature/page coverage and browser end-to-end tests
   remain future work.
-* ROS 2 ``launch_testing`` coverage is future work and is not complete in this
+* ROS 2 ``launch_testing`` coverage is future work and is not included in this
   release baseline.
 * Hardware-in-the-loop testing automation is future work and is not included in
-  this repository.
-* End-to-end performance benchmarking across ROS 2, DDS, Orion-LD, Mintaka, the
-  API, and the dashboard is still a release-hardening gap.
-* Final clean-clone verification should be run before tagging a release,
-  preferably on Linux for the ROS 2/Vulcanexus path.
+  this release baseline.
 
 Recommended Use
 ---------------
@@ -111,7 +107,7 @@ Use the repository as:
 
 * a reusable Process Intelligence API and dashboard module;
 * a documented ROS 2-to-FIWARE/DDS integration pattern;
-* a profile-driven demo environment for reviewer and adopter evaluation;
+* a profile-driven demo environment for user and adopter evaluation;
 * a reference implementation for adapting another robotized manufacturing
   process.
 

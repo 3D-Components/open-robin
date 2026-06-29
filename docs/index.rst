@@ -26,7 +26,7 @@ ROBIN provides **two reusable open-source modules** and a **documented integrati
 
 * **Module 1 - Process Intelligence API** (``robin/``): FastAPI service for process lifecycle management, deviation detection, and AI-assisted recommendations over FIWARE/NGSI-LD data.
 * **Module 2 - Monitoring Dashboard** (``robin-dashboard/``): Configurable React operator dashboard for live monitoring, alerts, and AI model management.
-* **Integration pattern - ROS 2 to FIWARE**: A telemetry aggregator node, message schema, and DDS mapping config that connect any ROS 2 robot to the FIWARE data layer via Orion-LD's built-in DDS bridge.
+* **Integration pattern - ROS 2 to FIWARE**: A normalized telemetry schema, demo publisher, optional aggregation path, and DDS mapping config that connect ROS 2 process data to the FIWARE data layer via Orion-LD's built-in DDS bridge.
 
 The components are domain-agnostic: they work for welding, spray coating, machining, or
 any robotic manufacturing process.
@@ -35,7 +35,7 @@ any robotic manufacturing process.
 
    graph LR
        subgraph ros2 ["Integration Pattern"]
-           SRC["Robot / Sensors"] --> AGG["Telemetry\nAggregator"]
+           SRC["Robot / Sensors"] --> AGG["Telemetry\nPublisher / Aggregator"]
            AGG --> TEL["/robin/telemetry"]
        end
        subgraph fiware ["FIWARE"]
@@ -78,7 +78,6 @@ For publication planning and ARISE alignment, see:
 
 * ``../ARISE_PUBLICATION_ROADMAP.md``
 * ``../arise/catalog-metadata.yaml``
-* ``../current_stack_feb22.md``
 
 Target Readiness Level
 ----------------------
@@ -117,6 +116,12 @@ Documentation Structure
    reference/ros4hri_ros4ri_alignment
    reference/troubleshooting
    limitations
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Release
+
+   release_notes/v0_1_0
 
 .. toctree::
    :maxdepth: 1
