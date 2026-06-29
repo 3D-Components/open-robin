@@ -29,8 +29,8 @@ echo "Play start offset   : ${PLAY_START_OFFSET}s"
 echo
 
 # 1) Ensure required containers are running
-echo "Starting FIWARE + dashboard services..."
-docker compose up -d mongo-db timescaledb orion-ld mintaka alert-processor robin-dashboard
+echo "Starting FIWARE + dashboard + Lichtblick services..."
+docker compose up -d mongo-db timescaledb orion-ld mintaka alert-processor robin-dashboard lichtblick
 echo "Waiting for Orion to be ready..."
 sleep 10
 
@@ -47,7 +47,8 @@ echo "Waiting for Orion-LD to restart..."
 sleep 10
 
 # 1b) Build ROS2 workspace if not already built
-if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_telemetry/share/robin_telemetry/local_setup.bash 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -x /workspace/ros2_packages/install/robin_telemetry/lib/robin_telemetry/telemetry_aggregator 2>/dev/null \
+   || ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_description/share/robin_description/urdf/ur_fronius_garmo.urdf.xacro 2>/dev/null; then
   echo "ROS2 workspace not built — building packages (includes mesh assets for Lichtblick)..."
   docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
   docker exec --user root "${CONTAINER}" \

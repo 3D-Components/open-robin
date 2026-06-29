@@ -47,7 +47,8 @@ ros2 run robin_telemetry telemetry_aggregator --ros-args \
 This publishes combined data on `/robin/telemetry`. The defaults expect the current
 `WelderData` + `BeadGeometry` bag formats (e.g. `correct_process_params`). For the
 legacy `exp001_rosbag_real` bag, add `-p fronius_type:=FroniusSample
--p geometry_type:=Float32MultiArray`.
+-p geometry_type:=Float32MultiArray` and mount that local bag into the Vulcanexus
+container yourself; it is not one of the committed public samples.
 
 ## 4. Replay the Bag
 

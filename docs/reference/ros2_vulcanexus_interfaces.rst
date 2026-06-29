@@ -73,6 +73,9 @@ Package Inventory
    * - ``robin_interfaces``
      - Generic ROBIN ROS 2 messages, services, and actions (telemetry schema +
        the richer set used by hardware-mode integrations).
+   * - ``robin_telemetry``
+     - ROS bag telemetry aggregator; combines recorded Fronius/geometry topics
+       into ``ProcessTelemetry`` on ``/robin/telemetry``.
    * - ``robin_description``
      - Hardware-agnostic URDF/xacro and meshes for the cell (UR10e + Fronius
        torch + Garmo profilometer + table). No nodes.
@@ -141,6 +144,11 @@ Nodes and Executables
      - ``welding_recommendation_skill``
      - Action ``welding_recommendation_skill/execute``
        (``RequestAIRecommendation``); HTTP to ``ROBIN_API_URL``.
+   * - ``robin_telemetry``
+     - ``telemetry_aggregator``
+     - Aggregates recorded ``/robin/data/fronius`` and
+       ``/robin/weld_dimensions`` into ``/robin/telemetry`` for the ROS bag
+       replay demo.
 
 The skills run in simulation by default. A ``use_simulation:=false`` hardware
 mode delegates to generic interfaces (``/move_home``, ``/execute_bead``,
@@ -211,7 +219,7 @@ Services
 
 ``robin_interfaces`` provides the generic typed setters and calibration/planning
 services used by hardware-mode integrations, including ``SetFloat32`` /
-``SetInt32`` / ``SetBool`` (typed setters, e.g. ``/fronius/set_*``), ``SetCtwd``,
+``SetInt32`` (typed setters, e.g. ``/fronius/set_*``), ``SetCtwd``,
 ``SetTcpMode``, ``FindSurface``, ``CalibrateWireTip``, ``CalibratePlatePlane``,
 ``StartWeld``, ``PlanExperiment``, ``ApproveExperimentPlan``, ``ReserveSlots``,
 and ``ClearReservedSlots``. The supervisor and seam skill use ``weld/pause``
@@ -300,6 +308,7 @@ Expected package names:
 
    robin_description
    robin_interfaces
+   robin_telemetry
    welding_demo
    welding_home_skill
    welding_http_bridge
@@ -323,7 +332,7 @@ Run the no-hardware intent path:
 .. code-block:: console
 
    $ docker exec vulcanexus-bridge bash -lc \
-       'source /workspace/ros2_packages/ws_setup.sh && ros2 launch welding_demo welding_robin_demo.launch.py'
+       'source /workspace/ros2_packages/ws_setup.sh && ros2 launch welding_demo welding_robin_sim.launch.py'
 
 In a second terminal:
 

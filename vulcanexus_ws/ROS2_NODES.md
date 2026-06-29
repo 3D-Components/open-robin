@@ -107,10 +107,20 @@ schema also retains the richer set used by hardware-mode integrations).
 | **msg** | `ProcessTelemetry` | Normalized telemetry for the DDS → FIWARE path |
 | **msg** | `BeadGeometry`, `WeldProgression`, `WelderData`, `ActiveBead` | Weld geometry / progression / welder data |
 | **msg** | `ExperimentBead`, `ExperimentBeadSpec`, `PlateLayout`, `WeldPlate` | Experiment / plate definitions |
-| **srv** | `SetFloat32` / `SetInt32` / `SetBool` | Generic typed setters (e.g. Fronius params) |
+| **srv** | `SetFloat32` / `SetInt32` | Generic typed setters (e.g. Fronius params) |
 | **srv** | `SetTcpMode`, `SetCtwd`, `FindSurface`, `CalibrateWireTip`, `CalibratePlatePlane` | TCP / calibration services |
 | **srv** | `StartWeld`, `PlanExperiment`, `ApproveExperimentPlan`, `ReserveSlots`, `ClearReservedSlots` | Weld / experiment planning |
 | **action** | `ExecuteBead`, `WeldExperiment` | Bead / experiment execution (hardware-mode) |
+
+### `robin_telemetry`
+
+ROS bag replay adapter for the real-data DDS path.
+
+- **Node** `telemetry_aggregator`: subscribes recorded `/robin/data/fronius` and
+  `/robin/weld_dimensions` topics, combines them into
+  `robin_interfaces/ProcessTelemetry`, and publishes `/robin/telemetry` for
+  Orion-LD's DDS bridge. The node supports the current committed bag format by
+  default and can be parameterized for legacy bag schemas.
 
 ### `robin_description`
 

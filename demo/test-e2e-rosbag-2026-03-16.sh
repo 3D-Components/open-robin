@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-BAG_NAME="exp001_rosbag_real" #"bag_2026-03-16"
+BAG_NAME="bag_2026-03-16"
 BAG_CONTAINER_PATH="/workspace/ros2_packages/${BAG_NAME}"
 CONTAINER="vulcanexus-bridge"
 PROCESS_ID="ros_bridge"
@@ -31,15 +31,11 @@ BAG_FRONIUS_EXPECTED=906
 BAG_GEOMETRY_EXPECTED=6046
 BAG_DURATION_SECS=291
 
-# Types for the default exp001_rosbag_real bag (legacy formats). For the newer
-# bag_2026-03-16 (WelderData + BeadGeometry) drop the *_type overrides (defaults).
 AGGREGATOR_ARGS="--ros-args \
     -p geometry_topic:=/robin/weld_dimensions \
     -p fronius_topic:=/robin/data/fronius \
     -p output_topic:=/robin/telemetry \
-    -p min_publish_period:=1.0 \
-    -p fronius_type:=FroniusSample \
-    -p geometry_type:=Float32MultiArray"
+    -p min_publish_period:=1.0"
 
 echo "============================================================"
 echo "  ROS Bag -> DDS -> Orion-LD -> Dashboard  [E2E TEST]"
@@ -66,7 +62,7 @@ done
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   echo "  Starting vulcanexus container..."
-  UID=$(id -u) GID=$(id -g) docker compose -f "$(dirname "$0")/../docker-compose.yaml" \
+  env UID="$(id -u)" GID="$(id -g)" docker compose -f "$(dirname "$0")/../docker-compose.yaml" \
     up -d vulcanexus
   sleep 5
 fi
@@ -79,7 +75,7 @@ sleep 10
 echo "  Containers ready."
 
 # ---- 1b. Build ROS2 workspace if install/ is missing --------------------
-if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/robin_telemetry/share/robin_telemetry/local_setup.bash 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -x /workspace/ros2_packages/install/robin_telemetry/lib/robin_telemetry/telemetry_aggregator 2>/dev/null; then
   echo
   echo "[1b/9] ROS2 workspace not built — running colcon build (~3 min, one-time)..."
   docker exec "${CONTAINER}" rm -rf /workspace/ros2_packages/install/*
@@ -102,8 +98,8 @@ echo "[2/9] Verifying bag mount at ${BAG_CONTAINER_PATH}..."
 if ! docker exec "${CONTAINER}" test -d "${BAG_CONTAINER_PATH}"; then
   echo "ERROR: Bag not found at ${BAG_CONTAINER_PATH} inside container."
   echo "  Ensure docker-compose.yaml has:"
-  echo "    - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro"
-  echo "  Then run: UID=\$(id -u) GID=\$(id -g) docker compose up -d --force-recreate vulcanexus"
+  echo "    - ./data/rosbags/${BAG_NAME}:/workspace/ros2_packages/${BAG_NAME}:ro"
+  echo "  Then run: env UID=\$(id -u) GID=\$(id -g) docker compose up -d --force-recreate vulcanexus"
   exit 1
 fi
 echo "  Bag accessible."

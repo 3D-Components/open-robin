@@ -3,6 +3,11 @@
 ################################################################################
 FROM eprosima/vulcanexus:jazzy-desktop-4.3.1
 
+# The upstream base image still contains an obsolete Vulcanexus apt source for
+# Ubuntu noble. It returns 404 and breaks fresh builds before this Dockerfile can
+# install anything. ROS packages below come from packages.ros.org.
+RUN rm -f /etc/apt/sources.list.d/vulcanexus.list
+
 RUN curl -sSL raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros2-latest-archive-keyring.gpg
 
 RUN apt-get update && apt-get upgrade -y \
@@ -26,10 +31,11 @@ RUN apt-get update -q && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ROS 2 packages and other dependencies.
-# ros-jazzy-ur provides ur_description + ur_robot_driver, needed by
+# ur_robot_driver provides ur_robot_driver + ur_description xacros, needed by
 # robin_description/urdf/ur.urdf.xacro to render the UR10e in the no-hardware demo.
+# Avoid the ros-jazzy-ur metapackage: it pulls ur_moveit_config and the MoveIt stack.
 RUN apt-get update && apt-get install -y \
-    ros-jazzy-ur \
+    ros-jazzy-ur-robot-driver \
     ros-jazzy-foxglove-bridge \
     && rm -rf /var/lib/apt/lists/*
 

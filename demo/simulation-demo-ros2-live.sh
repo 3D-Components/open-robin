@@ -109,7 +109,8 @@ docker exec fiware-timescaledb psql -U orion -d orion -q -c "CREATE TRIGGER trig
 echo "DDS temporal support ready."
 
 # 3) Build the ROS 2 workspace if needed
-if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/setup.bash 2>/dev/null; then
+if ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/setup.bash 2>/dev/null \
+   || ! docker exec "${CONTAINER}" test -f /workspace/ros2_packages/install/welding_demo/share/welding_demo/launch/welding_robin_sim.launch.py 2>/dev/null; then
   echo "ROS 2 workspace not built — building packages (${BUILD_PKGS})..."
   docker exec --user root "${CONTAINER}" \
     chown -R "$(id -u):$(id -g)" /workspace/ros2_packages 2>/dev/null || true

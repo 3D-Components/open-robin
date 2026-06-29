@@ -8,8 +8,8 @@
     "Execute weld seam" skill with simulation and hardware modes.
     Lifecycle action server for executing a Cartesian weld trajectory.
     Simulation mode (use_simulation:=true): 6 s mock with IGNITING → WELDING × 3 → FINISHING phases.
-    Hardware mode (use_simulation:=false): delegates to /weld_experiment on RobinPlanner
-    (robin_moveit_control), which sequences MoveItPy PTP/LIN motions + WeldingCoordinator arc.
+    Hardware mode (use_simulation:=false): delegates to an external /execute_bead
+    action server implemented by the adopter's robot/process backend.
     Also handles START_PROCESS intent (routed by the supervisor).
 
     ros4hri compliance: conceptually implements motion_skills/ExecuteCartesianTrajectory.

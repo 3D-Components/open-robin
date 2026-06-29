@@ -380,6 +380,8 @@ Intent demo + skills (the heart of the module; runs on synthetic data)
 
 Shared schema + description
   robin_interfaces/             Shared ROS 2 msg/srv schema (generic telemetry + services)
+  robin_telemetry/              ROS bag aggregator: raw Fronius/geometry topics →
+                                ProcessTelemetry on /robin/telemetry
   robin_description/            Cell URDF/xacro + meshes (UR10e + torch + profilometer +
                                 table) rendered in the 3D view; hardware-agnostic, no
                                 driver code

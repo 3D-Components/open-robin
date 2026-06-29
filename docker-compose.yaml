@@ -77,6 +77,7 @@ services:
       - ./vulcanexus_ws/cleanup_ros2.sh:/workspace/ros2_packages/cleanup_ros2.sh
       # Rosbag data (read-only, avoids 1.7 GB docker cp on every run)
       - ./data/rosbags/correct_process_params:/workspace/ros2_packages/correct_process_params:ro
+      - ./data/rosbags/bag_2026-03-16:/workspace/ros2_packages/bag_2026-03-16:ro
 
     security_opt:
       - seccomp=unconfined

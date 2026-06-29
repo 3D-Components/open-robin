@@ -204,7 +204,8 @@ integration tasks, but they are not the primary demos:
 
 * ``demo/validate-setup.sh`` - service health checks
 * ``demo/cleanup-demo.sh`` - remove demo entities
-* ``demo/simulation-demo-rosbag.sh`` - ROS 2 bag replay path
+* ``demo/simulation-demo-rosbag-wfs-alc-ts.sh`` - current ROS 2 bag replay path
+* ``demo/simulation-demo-rosbag.sh`` - compatibility wrapper for the current replay path
 
 Cleanup
 -------

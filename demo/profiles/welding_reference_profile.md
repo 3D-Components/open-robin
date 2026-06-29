@@ -43,7 +43,7 @@ The welding demo records these controlled inputs in each measurement snapshot:
 For ROS/DDS interoperability validation use:
 
 ```bash
-./demo/simulation-demo-rosbag.sh
+./demo/simulation-demo-rosbag-wfs-alc-ts.sh
 ```
 
 The robust canonical welding demo remains `welding_profile.py`; rosbag replay is a
