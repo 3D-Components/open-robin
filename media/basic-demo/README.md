@@ -7,7 +7,7 @@ from the physical ROBIN welding-cell demonstrator media.
 Capture details:
 
 - Profile: `welding`
-- Process id: `reviewer-basic-demo-20260630-083524`
+- Process ID: `reviewer-basic-demo-20260630-083524`
 - Captured: `2026-06-30T08:35Z`
 - Hardware: none; Docker FIWARE/API/dashboard stack only
 
