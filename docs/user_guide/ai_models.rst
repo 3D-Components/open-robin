@@ -78,13 +78,16 @@ Training a New Model
 
 This script:
 
-1. Generates synthetic training data using a physics-inspired simulator
-2. Trains a ``ProcessGeometryMLP`` network (configurable hidden layers, dropout)
-3. Saves the checkpoint to ``data/models/<profile>/process_geometry_mlp.pt``
-   including feature normalization statistics
+1. Reads each profile's ``ai.feature_order`` and ``ai.model_path``
+2. Generates synthetic training data using a profile-specific demo simulator
+3. Trains a ``ProcessGeometryMLP`` network with the profile feature names baked
+   into the checkpoint
+4. Saves the checkpoint to the configured ``ai.model_path`` when that file is
+   missing
 
-Each :doc:`profile <profiles>` specifies its own ``ai.model_path``, so training
-a new model for one profile does not affect another profile's checkpoint.
+Existing checkpoints are skipped by default so the command does not replace the
+committed welding reference model. Use ``--profile <name>`` to train one profile
+or ``--overwrite`` when intentionally replacing an existing checkpoint.
 
 Model Architecture
 ------------------

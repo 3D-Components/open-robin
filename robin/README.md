@@ -76,14 +76,14 @@ graph LR
 
 - PyTorch MLP: 3 process inputs → 2 geometry outputs
 - Configurable architecture (hidden layers, activation)
-- Per-profile model checkpoints (`data/models/<profile>/process_geometry_mlp.pt`)
+- Per-profile model checkpoints configured by `ai.model_path`
 - Feature normalization baked into each checkpoint
 - Geometry-driven recommendation via constrained inverse optimization over the same forward model
 - Model checkpointing and versioning
 - Trust scoring for operator confidence
 
 The active model is determined by `ai.model_path` in the profile YAML. Train new
-models with `scripts/train_profile_model.py`.
+synthetic demo models with `scripts/train_profile_model.py`.
 
 ## Request Flow: Deviation Check
 

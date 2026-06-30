@@ -100,10 +100,11 @@ See ``config/profiles/welding.yaml`` for a complete example.
 Per-Profile AI Models
 ~~~~~~~~~~~~~~~~~~~~~
 
-Each profile specifies its model checkpoint in the ``ai.model_path`` field.  The reference
-**welding** profile points at a committed, trained checkpoint, so its AI path works out of the
-box.  The **spray-coating** profile points at ``data/models/spray_coating/process_geometry_mlp.pt``,
-which is **not committed** - so the spray demo runs the configuration-reuse and
+Each profile specifies its model checkpoint in the ``ai.model_path`` field.  The
+reference **welding** profile points at a committed, trained checkpoint, so its
+AI path works out of the box.  The **spray-coating** profile points at
+``data/models/spray_coating/process_geometry_mlp.pt``, which is **not
+committed** - so the spray demo runs the configuration-reuse and
 deviation-against-target path rather than an AI-prediction path.
 
 .. note::
@@ -114,8 +115,8 @@ deviation-against-target path rather than an AI-prediction path.
 
    .. code-block:: bash
 
-      poetry run python scripts/train_profile_model.py
-      # writes data/models/<profile>/process_geometry_mlp.pt for each profile
+      poetry run python scripts/train_profile_model.py --profile spray_coating
+      # writes the configured ai.model_path when it is missing
 
    The same reuse procedure applies when running without a model: the deviation reference
    falls back to the target geometry instead of an AI prediction (as in the spray-coating
