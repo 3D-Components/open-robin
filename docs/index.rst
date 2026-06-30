@@ -74,9 +74,8 @@ world - then run the simulated welding demo in :doc:`user_guide/demos`.  The sam
 adapt to other robotized processes by swapping the profile configuration rather than the
 module code (see :doc:`user_guide/profiles`).
 
-For publication planning and ARISE alignment, see:
+For ARISE catalog alignment, see:
 
-* ``../ARISE_PUBLICATION_ROADMAP.md``
 * ``../arise/catalog-metadata.yaml``
 
 Target Readiness Level

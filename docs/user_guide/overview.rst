@@ -103,7 +103,6 @@ Each profile maps domain terms onto the same five core measurement fields
 ``measuredVoltage``).  See ``demo/profiles/README.md`` for the comparison table
 and instructions for creating new profiles.
 
-For publication details, see:
+For publication metadata, see:
 
-* ``ARISE_PUBLICATION_ROADMAP.md``
 * ``arise/catalog-metadata.yaml``
