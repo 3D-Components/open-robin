@@ -88,7 +88,7 @@ class RobinFiwareClient:
             # },
             'toleranceThreshold': {
                 'type': 'Property',
-                'value': 10.0,  # Default 10%, configurable via WireCloud
+                'value': 10.0,  # Default 10%, configurable by API clients
                 'unitCode': 'P1',
             },
             'processStatus': {
