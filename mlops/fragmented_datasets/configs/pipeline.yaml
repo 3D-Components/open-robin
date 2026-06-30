@@ -1,0 +1,41 @@
+dataset:
+  dataset_id: fragmented_doe_corrected_canonical_doe_v2
+  schema_version: v1.0
+  feature_contract_version: corrected_inputs_canonical_doe_v2
+
+raw:
+  source_root: mlops/fragmented_datasets
+  mapping_csv_path: data/fragmented_doe_corrected/metadata/ros_doe_mapping_summary.csv
+
+filters:
+  progression_min: 0.10
+  progression_max: 0.90
+  min_geometry_samples_per_attempt: 25
+  min_welder_samples_per_attempt: 10
+
+validation:
+  height_mm:
+    min: 0.1
+    max: 20.0
+  width_mm:
+    min: 0.1
+    max: 50.0
+  current_A:
+    min: 0.0
+    max: 500.0
+  wire_feed_speed_mpm:
+    min: 0.0
+    max: 30.0
+
+outlier_policy:
+  enable_per_attempt_iqr_filter: true
+  iqr_multiplier: 1.5
+  min_samples_per_attempt: 20
+
+outputs:
+  bronze_dir: data/fragmented_doe_corrected/bronze/topic_exports
+  silver_csv: data/fragmented_doe_corrected/silver/bead_level/attempt_level_dataset.csv
+  gold_csv: data/fragmented_doe_corrected/gold/train_dataset.csv
+  selection_report_csv: data/fragmented_doe_corrected/gold/selection_report.csv
+  qc_report_json: data/fragmented_doe_corrected/gold/qc_report.json
+  readme_path: data/fragmented_doe_corrected/README.md

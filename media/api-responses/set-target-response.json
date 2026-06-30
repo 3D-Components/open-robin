@@ -1,0 +1,9 @@
+{
+  "status": "success",
+  "process_id": "reviewer_demo_process",
+  "target_geometry": {
+    "height": 3.2,
+    "width": 7.0
+  },
+  "mode_set": "geometry_driven"
+}

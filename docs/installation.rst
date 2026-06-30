@@ -1,0 +1,206 @@
+Installation Guide
+==================
+
+This guide will help you install and set up ROBIN on your system.
+
+Requirements
+------------
+
+System Requirements
+~~~~~~~~~~~~~~~~~~~
+
+* **Operating System**: Ubuntu 20.04+ / macOS 10.15+ / Windows 10+
+* **Python**: 3.12 or higher
+* **Memory**: Minimum 4GB RAM (8GB recommended)
+* **Storage**: At least 5GB free space
+* **Docker & Docker Compose**: For FIWARE services
+
+Software Dependencies
+~~~~~~~~~~~~~~~~~~~~~
+
+* **Docker & Docker Compose** (for FIWARE stack)
+* **Poetry** (for Python dependency management)
+* **Git** for version control
+* **curl** and **jq** for quickstart/API validation commands
+
+Hardware Dependencies
+~~~~~~~~~~~~~~~~~~~~~
+
+The default reviewer quickstart and no-hardware demos do **not** require
+industrial hardware. They run with Docker services, mock measurements, and the
+hardware-neutral API/dashboard stack.
+
+The physical ROBIN welding demonstrator profile is optional and
+deployment-specific. It was validated with a Linux/NVIDIA workstation and the
+project welding-cell setup, including UR10e, Fronius TPS320i, WAGO/OPC UA, and
+Garmo Garline equipment. Those devices, cell network details, credentials,
+safety procedures, and hardware acceptance steps are not required for the open
+module quickstart and are not bundled as portable dependencies.
+
+Simulation and Mock Dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For the basic no-hardware hello world, the simulation/mock path requires only:
+
+* Docker Compose services for Orion-LD, MongoDB, TimescaleDB, Mintaka, the
+  Process Intelligence API, and the dashboard;
+* ``curl`` and ``jq`` for the documented API checks;
+* the CLI inside the ``robin-alert-processor`` container.
+
+For the optional ROS 2 live simulation, use the bundled Vulcanexus container
+(``vulcanexus`` / ``vulcanexus-bridge``). The lite simulation uses synthetic
+skill behavior and does not require Gazebo, MoveIt, controllers, GPU access, or
+physical robot hardware.
+
+Installation Methods
+--------------------
+
+Method 1: Using Poetry (Recommended)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Clone the repository
+   git clone https://github.com/3D-Components/open-robin.git
+   cd open-robin
+
+   # Install Poetry if not already installed
+   curl -sSL https://install.python-poetry.org | python3 -
+
+   # Install Python dependencies
+   poetry install
+
+   # Activate the virtual environment
+   poetry shell
+
+Method 2: Using pip
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Clone the repository
+   git clone https://github.com/3D-Components/open-robin.git
+   cd open-robin
+
+   # Create a virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+   # Install dependencies
+   pip install -e .
+
+Method 3: Docker Installation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Clone and build the repository-local Docker images
+   git clone https://github.com/3D-Components/open-robin.git
+   cd open-robin
+   docker compose build
+
+   # Run the stack with FIWARE services
+   docker compose up -d
+
+The default Compose stack is hardware-neutral. It is intended for the reviewer
+quickstart, API/dashboard/FIWARE checks, and no-hardware demo paths. It does not
+require NVIDIA GPU access, X11 forwarding, ``/dev/dri``, ``/dev/input``, the
+physical robot, or the industrial cell network.
+
+For macOS/Docker Desktop networking compatibility, use the macOS override:
+
+.. code-block:: bash
+
+   docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d
+
+For the full physical ROBIN demonstrator profile on the validated Linux/NVIDIA
+workstation, add the Linux GPU override:
+
+.. code-block:: bash
+
+   docker compose -f docker-compose.yaml -f docker-compose.linux-gpu.override.yaml up -d
+
+The Linux GPU override enables NVIDIA runtime settings, X11/GUI forwarding, and
+Linux host device mounts used by the physical robot/cell setup. It is not needed
+for reviewer/demo runs.
+
+FIWARE Services Setup
+---------------------
+
+Docker Compose (Recommended)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Start FIWARE services
+   docker compose up -d
+
+   # Verify services are running
+   docker compose ps
+
+This will start:
+* **Orion-LD Context Broker** (port 1026)
+* **MongoDB** (port 27017)
+* **TimescaleDB** (host port 5433 → container 5432)
+* **Mintaka** (host port 9090 → container 8080)
+
+Manual Installation
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Start Orion-LD Context Broker
+   docker run -d --name orion-ld -p 1026:1026 fiware/orion-ld:1.8.0
+
+   # Start MongoDB
+   docker run -d --name mongo-db -p 27017:27017 mongo:4.4
+
+   # Start TimescaleDB (example, minimal config)
+   docker run -d --name timescaledb -e POSTGRES_DB=orion -e POSTGRES_USER=orion -e POSTGRES_PASSWORD=orionpass -p 5433:5432 timescale/timescaledb-ha:pg15-latest
+
+   # Start Mintaka (reads Orion-LD temporal store in TimescaleDB)
+   docker run -d --name mintaka -p 9090:8080 \
+     -e DATASOURCES_DEFAULT_URL=jdbc:postgresql://host.docker.internal:5433/orion \
+     -e DATASOURCES_DEFAULT_USERNAME=orion \
+     -e DATASOURCES_DEFAULT_PASSWORD=orionpass \
+     -e MINTAKA_BROKER_URL=http://orion-ld:1026 \
+     -e MICRONAUT_MULTITENANCY_TENANTRESOLVER_HTTPHEADER_ENABLED=true \
+     -e MICRONAUT_MULTITENANCY_TENANTRESOLVER_HTTPHEADER_NAMES_0=NGSILD-Tenant \
+     fiware/mintaka:latest
+
+Verification
+------------
+
+Test Installation
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   # Check system status
+   poetry run robin status
+
+   # Test FIWARE connections
+   curl -X GET 'http://localhost:1026/version'
+
+   # Test Mintaka temporal API
+   curl -X GET 'http://localhost:9090/temporal/entities?limit=1'
+
+Environment Setup
+~~~~~~~~~~~~~~~~~
+
+The FIWARE services will be accessible at:
+
+* **Orion-LD**: http://localhost:1026
+* **Mintaka**: http://localhost:9090
+* **TimescaleDB**: host port 5433 (if exposed)
+
+Troubleshooting
+---------------
+
+If you hit issues during installation, see the :doc:`reference/troubleshooting`
+guide for common problems and solutions.
+
+Next Steps
+----------
+
+After installation, proceed to the :doc:`quickstart` guide to begin using ROBIN. 

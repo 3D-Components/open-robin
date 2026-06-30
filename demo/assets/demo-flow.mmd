@@ -1,0 +1,27 @@
+graph TD
+    A["Start Demo"] --> B["Validate Setup\n./demo/validate-setup.sh"]
+    B --> C{"Choose Profile"}
+
+    C --> W["Welding Robust Demo\npython demo/profiles/welding_profile.py --mode both"]
+    C --> S["Spray Robust Demo\npython demo/profiles/spray_coating_profile.py --mode both"]
+
+    W --> D{"Mode Flow"}
+    S --> D
+
+    D --> P["Parameter-driven\nParams -> AI prediction -> Deviation check"]
+    D --> G["Geometry-driven\nTarget -> AI suggestion -> Deviation check"]
+
+    P --> T["Stream Telemetry\nadd-measurement"]
+    G --> T
+    T --> X["check-deviation\nper sample"]
+    X --> Y["Alerts generated on true deviation"]
+
+    Y --> K["Observe in ROBIN Dashboard\nlocalhost:5174"]
+    K --> O["Cleanup\n./demo/cleanup-demo.sh"]
+
+    style A fill:#e1f5fe
+    style W fill:#fff3e0
+    style S fill:#fff3e0
+    style P fill:#e8f5e8
+    style G fill:#e8f5e8
+    style K fill:#fff8e1

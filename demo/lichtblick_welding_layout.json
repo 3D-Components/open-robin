@@ -1,0 +1,107 @@
+{
+  "configById": {
+    "3d!welding": {
+      "cameraState": {
+        "distance": 3.5,
+        "perspective": true,
+        "phi": 52,
+        "target": [0, 0, 0.5],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "theta": 220,
+        "fovy": 45,
+        "near": 0.01,
+        "far": 5000
+      },
+      "followMode": "follow-none",
+      "followTf": "world",
+      "scene": {
+        "syncCamera": false,
+        "enableStats": false,
+        "backgroundColor": "#1e1e2e",
+        "labelScaleFactor": 1,
+        "ignoreColladaUpAxis": false,
+        "meshUpAxis": "y_up"
+      },
+      "transforms": {
+        "editable": false,
+        "showLabel": false,
+        "labelSize": 0.1,
+        "lineWidth": 1,
+        "enablePreloading": false
+      },
+      "topics": {
+        "/robot_description": {
+          "visible": false
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/tf_static": {
+          "visible": false
+        },
+        "/robin/weld_dimensions": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid": {
+          "type": "foxglove.Grid",
+          "visible": true,
+          "frameId": "world",
+          "size": 10,
+          "divisions": 10,
+          "lineWidth": 1,
+          "color": "#3a3a5c"
+        },
+        "urdf": {
+          "type": "foxglove.URDFModel",
+          "visible": true,
+          "url": "",
+          "fallbackColor": "#e8e8e8",
+          "opacity": 1
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      }
+    },
+    "RawMessages!weld": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "fontSize": 12,
+      "topicPath": "/robin/weld_dimensions"
+    },
+    "RawMessages!fronius": {
+      "diffEnabled": false,
+      "diffMethod": "custom",
+      "diffTopicPath": "",
+      "fontSize": 12,
+      "topicPath": "/robin/data/fronius"
+    }
+  },
+  "globalVariables": {},
+  "layout": {
+    "direction": "row",
+    "first": "3d!welding",
+    "second": {
+      "direction": "column",
+      "first": "RawMessages!weld",
+      "second": "RawMessages!fronius",
+      "splitPercentage": 50
+    },
+    "splitPercentage": 70
+  },
+  "playbackConfig": {
+    "speed": 1
+  },
+  "userNodes": {},
+  "version": "PANELS_1"
+}

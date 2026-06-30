@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+    schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>welding_http_bridge</name>
+  <version>0.1.0</version>
+  <description>
+    HTTP → /intents bridge for the ROBIN React dashboard.
+    Runs an aiohttp server on port 8766 alongside a ROS2 node.
+    The React UI calls POST /intent with {"intent": "...", "data": {...}}
+    and this node publishes a welding_msgs/msg/Intent message on /intents.
+    CORS-enabled for cross-origin dashboard access.
+    Requires: pip install aiohttp
+  </description>
+  <maintainer email="daniel.haas@3d-components.co">Daniel Haas</maintainer>
+  <maintainer email="virgilio.gomez@3d-components.co">Virgilio Gomez</maintainer>
+  <maintainer email="jayant@mil-as.no">Jayant Singh</maintainer>
+  <license>AGPL-3.0-only</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>welding_msgs</depend>
+  <exec_depend>python3-aiohttp</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

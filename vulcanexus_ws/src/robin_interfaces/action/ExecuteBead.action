@@ -1,0 +1,24 @@
+# ExecuteBead.action - Execute a single weld bead (motion + welding + scan)
+#
+# Sent by the experiment node to the planner node for per-bead execution.
+# Provides a clean cancellation boundary between experiment and planner.
+
+# Goal
+string bead_id                             # Unique bead identifier
+string plate_id                            # Target plate
+geometry_msgs/Point[] path                 # Ordered waypoints (bead centreline in base_link)
+float32 total_length                       # Pre-calculated total path length (m)
+float32 target_speed                       # Weld travel speed [m/s]
+float32 wire_feed_speed                    # Wire feed speed command [m/min]
+float32 arc_length_correction_mm           # Per-bead arc correction [mm], clamped to [-10, 10]
+bool dry_run                               # Motion only, no arc
+---
+# Result
+bool success
+string message
+float32 calibrated_ctwd                    # Measured CTWD from pre-weld cal [m]
+float32 applied_ctwd                       # Actually applied CTWD [m]
+---
+# Feedback
+string step                                # Current sub-step name
+float32 step_progress                      # 0.0-1.0 within current step

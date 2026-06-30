@@ -1,0 +1,113 @@
+schema_version: "0.1"
+project:
+  name: "ROBIN Open Process Intelligence Core"
+  short_name: "open-robin-core"
+  version: "0.1.0"
+  status: "release-candidate"
+  license: "AGPL-3.0-only"
+  repository: "https://github.com/3D-Components/open-robin"
+  homepage: "https://github.com/3D-Components/open-robin"
+  description: >
+    Reusable FIWARE + ROS 2 process intelligence core for machine-agnostic telemetry
+    ingestion, process monitoring, deviation detection, and AI-assisted parameter control.
+  keywords:
+    - "FIWARE"
+    - "NGSI-LD"
+    - "ROS 2"
+    - "DDS"
+    - "process monitoring"
+    - "industrial AI"
+  domain_profiles:
+    - "welding (demo profile)"
+    - "spray coating (demo profile)"
+  maturity:
+    trl: "4"
+    notes: "Validated in lab setup with FIWARE backend and ROS 2 telemetry ingestion."
+
+components:
+  - id: "core-api"
+    name: "Process Lifecycle and Alert API"
+    path: "robin/"
+    type: "python-service"
+    interfaces:
+      - "REST"
+      - "NGSI-LD"
+    reusable: true
+
+  - id: "telemetry-pipeline"
+    name: "ROS 2 Telemetry and DDS Mapping"
+    path: "vulcanexus_ws/src/welding_seam_skill/welding_seam_skill/welding_seam_skill_node.py"
+    type: "ros2-node"
+    interfaces:
+      - "ROS 2 topics"
+      - "DDS"
+    reusable: true
+    notes: "Publishes ProcessTelemetry on /robin/telemetry (synthetic in the demo)."
+
+  - id: "telemetry-schema"
+    name: "ProcessTelemetry Message"
+    path: "vulcanexus_ws/src/robin_interfaces/msg/ProcessTelemetry.msg"
+    type: "ros2-interface"
+    reusable: true
+
+  - id: "cell-description"
+    name: "ROBIN Cell URDF/Description"
+    path: "vulcanexus_ws/src/robin_description/"
+    type: "ros2-description"
+    reusable: true
+    notes: "Hardware-agnostic URDF/xacro + meshes (UR10e + torch + profilometer + table)."
+
+  - id: "dds-to-ngsi-config"
+    name: "Orion DDS Mapping Configuration"
+    path: "config-dds.json"
+    type: "configuration"
+    reusable: true
+
+  - id: "ui-shell"
+    name: "ROBIN Dashboard UI Shell"
+    path: "robin-dashboard/"
+    type: "web-ui"
+    reusable: true
+    notes: "Domain vocabulary is configurable via VITE_TERM_* env vars."
+
+# Vendor-specific hardware drivers (Fronius/Garmo/OPC-UA/UR), the Gazebo simulation, and
+# the MoveIt planning cell were REMOVED from this open release so the module is a clean,
+# hardware-agnostic, simulation-only base. Adopters add their own hardware backends behind
+# the skills' generic action/service interfaces. See the package map in README.md.
+non_core_adapters:
+  - "welding-specific ROS bags and launch profiles"
+
+deployment:
+  stack:
+    - "Docker Compose"
+    - "Orion-LD"
+    - "MongoDB"
+    - "TimescaleDB"
+    - "Mintaka"
+  default_ports:
+    orion: 1026
+    mintaka: 9090
+    alert_api: 8001
+    ui: 5174
+
+artifacts:
+  documentation:
+    - "README.md"
+    - "THIRD_PARTY_LICENSES.md"
+    - "current_stack_feb22.md"
+  demo_scripts:
+    - "demo/simulation-demo-rosbag.sh"
+    - "demo/profiles/welding_profile.py"
+    - "demo/profiles/spray_coating_profile.py"
+
+contacts:
+  organization: "3D-Components AS + Mechatronics Innovation Lab"
+  support_email: "info@3d-components.co"
+  issue_tracker: "https://github.com/3D-Components/open-robin/issues"
+  maintainers:
+    - name: "Daniel Haas"
+      email: "daniel.haas@3d-components.co"
+    - name: "Virgilio Gomez"
+      email: "virgilio.gomez@3d-components.co"
+    - name: "Jayant Singh"
+      email: "jayant@mil-as.no"

@@ -1,0 +1,132 @@
+rosbag2_bagfile_information:
+  version: 9
+  storage_identifier: mcap
+  duration:
+    nanoseconds: 290599997387
+  starting_time:
+    nanoseconds_since_epoch: 1773663217538480518
+  message_count: 9876
+  topics_with_message_count:
+    - topic_metadata:
+        name: /robin/weld_dimensions
+        type: robin_interfaces/msg/BeadGeometry
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 10
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: ""
+      message_count: 6046
+    - topic_metadata:
+        name: /robin/data/progression
+        type: robin_interfaces/msg/WeldProgression
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 10
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: ""
+      message_count: 2907
+    - topic_metadata:
+        name: /robin/data/is_welding
+        type: std_msgs/msg/Bool
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 10
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: ""
+      message_count: 10
+    - topic_metadata:
+        name: /robin/data/fronius
+        type: robin_interfaces/msg/WelderData
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 10
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: ""
+      message_count: 906
+    - topic_metadata:
+        name: /robin/data/active_bead
+        type: robin_interfaces/msg/ActiveBead
+        serialization_format: cdr
+        offered_qos_profiles:
+          - history: unknown
+            depth: 10
+            reliability: reliable
+            durability: volatile
+            deadline:
+              sec: 9223372036
+              nsec: 854775807
+            lifespan:
+              sec: 9223372036
+              nsec: 854775807
+            liveliness: automatic
+            liveliness_lease_duration:
+              sec: 9223372036
+              nsec: 854775807
+            avoid_ros_namespace_conventions: false
+        type_description_hash: ""
+      message_count: 7
+  compression_format: ""
+  compression_mode: ""
+  relative_file_paths:
+    - 2026-03-16-12-13-32_0.mcap
+  files:
+    - path: 2026-03-16-12-13-32_0.mcap
+      starting_time:
+        nanoseconds_since_epoch: 1773663217538480518
+      duration:
+        nanoseconds: 290599997387
+      message_count: 9876
+  custom_data: ~
+  ros_distro: jazzy

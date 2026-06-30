@@ -1,0 +1,122 @@
+profile:
+  name: welding
+  description: "Wire-arc additive manufacturing / robotic welding"
+
+vocabulary:
+  process: Weld
+  processPlural: Welds
+  segment: Pass
+  segmentPlural: Passes
+  geometry: Bead
+  profileHeight: Bead Height
+  profileWidth: Bead Width
+  depositionView: Cross Section
+  speed: Wire Speed
+  speedUnit: m/min
+  current: Current
+  currentUnit: A
+  voltage: Voltage
+  voltageUnit: V
+  toolPath: Torch path
+  workpiece: Workpiece
+
+fields:
+  measuredHeight:
+    label: Bead Height
+    unit: mm
+  measuredWidth:
+    label: Bead Width
+    unit: mm
+  measuredSpeed:
+    label: Wire Speed
+    unit: m/min
+  measuredCurrent:
+    label: Welding Current
+    unit: A
+  measuredVoltage:
+    label: Arc Voltage
+    unit: V
+
+ros2:
+  topics:
+    geometry: /robin/weld_dimensions
+    process_params: /robin/data/fronius
+    pose: /tcp_pose_broadcaster/pose
+    telemetry_output: /robin/telemetry
+  min_publish_period: 0.1
+
+skills:
+  start_process:
+    ros_type: service
+    ros_name: /welding/start
+    srv_type: robin_interfaces/srv/StartWeld
+    description: Start the welding arc
+  stop_process:
+    ros_type: service
+    ros_name: /welding/stop
+    srv_type: std_srvs/srv/Trigger
+    description: Stop the welding arc
+  set_parameters:
+    ros_type: service
+    ros_name: /welding/set_params
+    srv_type: robin_interfaces/srv/StartWeld
+    description: Update process parameters without restarting
+  run_experiment:
+    ros_type: action
+    ros_name: /weld_experiment
+    action_type: robin_interfaces/action/WeldExperiment
+    description: Execute a multi-bead welding experiment
+
+ai:
+  feature_order:
+    - wire_feed_speed_mpm_model_input
+    - travel_speed_mps_model_input
+    - arc_length_correction_mm_model_input
+  input_features:
+    - key: wire_feed_speed_mpm_model_input
+      label: Wire Feed Speed
+      unit: m/min
+      default: 10.0
+      step: 0.1
+    - key: travel_speed_mps_model_input
+      label: Travel Speed
+      unit: m/s
+      default: 0.020
+      step: 0.001
+    - key: arc_length_correction_mm_model_input
+      label: Arc Length Correction
+      unit: mm
+      default: 0.0
+      step: 0.1
+  model_path: data/models/unified_legacy_arc0_plus_fragmented/selected_gold_torch_mlp/torch_selected_gold_model.pt
+  default_tolerance: 10.0
+  default_mode: parameter_driven
+  forward_confidence:
+    mc_samples: 20
+    uncertainty_weight: 0.65
+    distance_weight: 0.35
+    uncertainty_scale: 0.08
+    distance_scale: 2.0
+    min_confidence: 0.05
+    max_confidence: 0.99
+  inverse_bounds:
+    wire_feed_speed_mpm_model_input: [5.0, 15.0]
+    travel_speed_mps_model_input: [0.010, 0.035]
+    arc_length_correction_mm_model_input: [-8.0, 8.0]
+  inverse_optimizer:
+    restarts: 32
+    max_iterations: 80
+    initial_step_ratio: 0.2
+    min_step_ratio: 0.002
+    step_decay: 0.5
+    regularization: 0.03
+    random_seed: 42
+    geometry_weights:
+      height: 1.0
+      width: 1.0
+
+dds:
+  input_topic: rt/robin/telemetry
+  entity_type: "urn:robin:Process"
+  entity_id: "urn:ngsi-ld:Process:ros_bridge"
+  attribute: "urn:robin:processTelemetry"

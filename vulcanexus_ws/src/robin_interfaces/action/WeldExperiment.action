@@ -1,0 +1,25 @@
+# WeldExperiment.action - Execute a set of weld beads across plates
+#
+# The dashboard submits experiment beads (parameters only, no positions).
+# The robot system computes physical bead placement on plates using the layout config.
+
+# Goal
+string plan_id                               # Optional approved plan session ID (uses stored plan if set)
+robin_interfaces/ExperimentBead[] beads    # Beads to weld (parameters + plate assignment)
+robin_interfaces/WeldPlate[] plates        # Plate definitions (position, dimensions)
+robin_interfaces/PlateLayout layout        # Layout config (pitch, margins)
+bool dry_run                               # If true, execute motion only without welding arc
+int32 beads_per_batch 0                    # Pause for nozzle cleaning every N beads (0 = no pause)
+---
+# Result
+bool success
+float32 completion_percentage
+string[] completed_bead_ids                # IDs of successfully completed beads
+string message
+---
+# Feedback
+string status
+float32 progress_percentage
+string current_bead_id
+string current_plate_id
+bool paused_for_cleaning                   # True when paused waiting for operator to continue

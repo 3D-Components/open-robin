@@ -1,0 +1,785 @@
+#!/usr/bin/env python3
+"""Robust welding profile demo for ROBIN.
+
+This script is the canonical welding demo. It exercises both operational modes
+with explicit AI-in-the-loop checks:
+
+* parameter_driven: operator sets process parameters -> AI predicts geometry ->
+  measured geometry is checked against AI prediction.
+* geometry_driven: operator sets target geometry -> AI suggests parameters ->
+  expected geometry from those parameters is checked against measurements.
+
+Telemetry is streamed via CLI (`python -m robin add-measurement`) so dashboard
+KPIs/charts update in real time, while `/check-deviation` is called per sample to
+trigger real alert entities when deviations exceed tolerance.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import random
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Sequence, Tuple
+
+import requests
+
+CONTAINER_NAME = 'robin-alert-processor'
+ALERT_ENGINE_URL = 'http://localhost:8001'
+DASHBOARD_URL = 'http://localhost:5174'
+
+
+@dataclass
+class WeldSample:
+    bead_height: float
+    bead_width: float
+    wire_feed_speed: float
+    travel_speed: float
+    arc_length_correction: float
+
+
+class DemoError(RuntimeError):
+    """Raised when a required shell command fails."""
+
+
+def run_command(cmd: List[str], check: bool = True) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        command_text = ' '.join(cmd)
+        message = (
+            f'Command failed: {command_text}\n'
+            f'stdout: {result.stdout.strip()}\n'
+            f'stderr: {result.stderr.strip()}'
+        )
+        raise DemoError(message)
+    return result
+
+
+def run_robin(args: List[str], check: bool = True) -> subprocess.CompletedProcess[str]:
+    cmd = ['docker', 'exec', CONTAINER_NAME, 'python', '-m', 'robin', *args]
+    return run_command(cmd, check=check)
+
+
+def compose_command(*args: str) -> List[str]:
+    cmd = ['docker', 'compose']
+    if sys.platform == 'darwin':
+        cmd.extend(['-f', 'docker-compose.yaml', '-f', 'docker-compose.macos.override.yaml'])
+    cmd.extend(args)
+    return cmd
+
+
+def orion_reachable_from_alert_processor() -> bool:
+    result = run_robin(['status'], check=False)
+    combined = f'{result.stdout}\n{result.stderr}'.lower()
+    return 'orion context broker: connected' in combined
+
+
+def ensure_stack_running() -> None:
+    run_command(['docker', '--version'])
+    result = run_command(['docker', 'ps', '--format', '{{.Names}}'])
+    names = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    if CONTAINER_NAME not in names:
+        print('Container not running. Starting docker compose stack...')
+        run_command(compose_command('up', '-d'))
+        time.sleep(5)
+
+    if not orion_reachable_from_alert_processor() and sys.platform == 'darwin':
+        print(
+            'Orion is not reachable from robin-alert-processor. '
+            'Recreating relevant services with macOS override...'
+        )
+        run_command(
+            compose_command(
+                'up',
+                '-d',
+                '--force-recreate',
+                'orion-ld',
+                'mintaka',
+                'alert-processor',
+            )
+        )
+        time.sleep(5)
+
+    if not orion_reachable_from_alert_processor():
+        raise DemoError(
+            'Orion is not reachable from robin-alert-processor. '
+            'Run `docker compose -f docker-compose.yaml -f docker-compose.macos.override.yaml up -d --force-recreate orion-ld mintaka alert-processor` '
+            'and retry.'
+        )
+
+
+def maybe_create_process(process_id: str, mode: str) -> bool:
+    result = run_robin(['create-process', process_id, '--mode', mode], check=False)
+    if result.returncode == 0:
+        print(f'Created process {process_id} ({mode}).')
+        return True
+    if 'already exists' in (result.stdout + result.stderr).lower():
+        print(f'Process {process_id} already exists. Reusing it.')
+        return True
+    print('Warning: could not create process via CLI. Continuing anyway.')
+    print(f'  stdout: {result.stdout.strip()}')
+    print(f'  stderr: {result.stderr.strip()}')
+    return False
+
+
+def create_geometry_target(process_id: str, height: float, width: float) -> bool:
+    result = run_robin(['create-target', process_id, str(height), str(width)], check=False)
+    if result.returncode == 0:
+        return True
+    print('Warning: could not set geometry target. Continuing.')
+    return False
+
+
+def set_process_mode(process_id: str, mode: str, api_url: str) -> bool:
+    try:
+        response = requests.post(
+            f"{api_url.rstrip('/')}/process/{process_id}/mode",
+            json={'mode': mode},
+            timeout=8,
+        )
+        return response.status_code == 200 and response.json().get('status') == 'success'
+    except Exception:
+        return False
+
+
+def get_ai_recommendation(
+    process_id: str,
+    mode: str,
+    api_url: str,
+    input_params: Dict[str, float] | None = None,
+    target_geometry: Dict[str, float] | None = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {'process_id': process_id, 'mode': mode}
+    if input_params:
+        payload['input_params'] = input_params
+    if target_geometry:
+        payload['target_geometry'] = target_geometry
+    try:
+        response = requests.post(
+            f"{api_url.rstrip('/')}/ai-recommendation",
+            json=payload,
+            timeout=30,
+        )
+        if response.status_code != 200:
+            raise DemoError(
+                f'AI recommendation request failed ({response.status_code}) '
+                f'for mode={mode}, process_id={process_id}',
+            )
+        body = response.json()
+        if body.get('status') != 'success':
+            raise DemoError(
+                f'AI recommendation returned error for mode={mode}, '
+                f'process_id={process_id}: {body.get("error") or body.get("message") or "unknown"}',
+            )
+        recommendation = body.get('recommendation')
+        if isinstance(recommendation, dict):
+            return recommendation
+        raise DemoError(
+            f'AI recommendation payload missing recommendation object for '
+            f'mode={mode}, process_id={process_id}',
+        )
+    except DemoError:
+        raise
+    except Exception as exc:
+        raise DemoError(
+            f'AI recommendation request failed for mode={mode}, process_id={process_id}: {exc}',
+        ) from exc
+
+
+def predict_geometry(
+    input_params: Dict[str, float], api_url: str
+) -> Dict[str, float]:
+    payload = {'input_params': input_params}
+    try:
+        response = requests.post(
+            f"{api_url.rstrip('/')}/ai/models/predict",
+            json=payload,
+            timeout=30,
+        )
+        if response.status_code != 200:
+            raise DemoError(
+                f'AI model predict request failed ({response.status_code})',
+            )
+        body = response.json()
+        prediction = body.get('prediction')
+        if not isinstance(prediction, dict):
+            raise DemoError('AI model predict payload missing prediction object')
+        height = prediction.get('height')
+        width = prediction.get('width')
+        if not isinstance(height, (int, float)) or not isinstance(width, (int, float)):
+            raise DemoError('AI model predict payload missing numeric height/width')
+        return {'height': float(height), 'width': float(width)}
+    except DemoError:
+        raise
+    except Exception as exc:
+        raise DemoError(f'AI model predict request failed: {exc}') from exc
+
+
+def check_deviation(
+    process_id: str,
+    mode: str,
+    tolerance: float,
+    measured_geometry: Dict[str, float],
+    input_params: Dict[str, float],
+    api_url: str,
+) -> Dict[str, Any] | None:
+    payload = {
+        'process_id': process_id,
+        'mode': mode,
+        'tolerance': tolerance,
+        'measured_geometry': measured_geometry,
+        'input_params': input_params,
+    }
+    try:
+        response = requests.post(
+            f"{api_url.rstrip('/')}/check-deviation",
+            json=payload,
+            timeout=10,
+        )
+        if response.status_code != 200:
+            return None
+        body = response.json()
+        return body if isinstance(body, dict) else None
+    except Exception:
+        return None
+
+
+def stop_process(process_id: str, api_url: str) -> None:
+    """Stop the process so it waits for a UI Start signal."""
+    try:
+        requests.post(
+            f'{api_url.rstrip("/")}/process/{process_id}/stop?reason=awaiting_start',
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
+def post_progress(process_id: str, progress: float, expected_duration: float, api_url: str) -> None:
+    """Report simulation progress (0-100) to the alert engine."""
+    try:
+        requests.post(
+            f'{api_url.rstrip("/")}/process/{process_id}/progress',
+            json={'progress': round(progress, 1), 'expected_duration': expected_duration},
+            timeout=2,
+        )
+    except Exception:
+        pass
+
+
+def get_process_status(process_id: str, api_url: str) -> str:
+    """Return the current process status from the backend ('active', 'stopped', etc.)."""
+    try:
+        resp = requests.get(
+            f'{api_url.rstrip("/")}/process/{process_id}/status',
+            timeout=5,
+        )
+        if resp.ok:
+            return (resp.json().get('process_data') or {}).get('status', 'unknown')
+    except Exception:
+        pass
+    return 'unknown'
+
+
+def wait_for_start(process_id: str, api_url: str) -> None:
+    """Poll process status until it becomes 'active' (user pressed Start in the UI)."""
+    print(f'Waiting for Start from the dashboard UI for process "{process_id}"…')
+    print(f'  Open {DASHBOARD_URL}, select process "{process_id}", and press Start.')
+    while True:
+        if get_process_status(process_id, api_url) == 'active':
+            print('Start received – beginning simulation.')
+            return
+        time.sleep(1.0)
+
+
+def extract_number(data: Dict[str, Any], keys: Sequence[str], fallback: float) -> float:
+    for key in keys:
+        value = data.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return float(fallback)
+
+
+def build_deviation_windows(duration: int) -> List[Tuple[float, float]]:
+    if duration <= 20:
+        return [(max(4.0, duration * 0.4), min(float(duration), max(6.0, duration * 0.4 + 5.0)))]
+
+    w1_start = max(10.0, duration * 0.25)
+    w2_start = max(w1_start + 12.0, duration * 0.65)
+    return [
+        (w1_start, min(float(duration), w1_start + 8.0)),
+        (w2_start, min(float(duration), w2_start + 8.0)),
+    ]
+
+
+def in_any_window(t: float, windows: Iterable[Tuple[float, float]]) -> bool:
+    return any(start <= t < end for start, end in windows)
+
+
+def generate_sample(
+    t: float,
+    expected_geometry: Dict[str, float],
+    reference_params: Dict[str, float],
+    deviation_windows: Sequence[Tuple[float, float]],
+) -> WeldSample:
+    height = expected_geometry['height'] + 0.20 * math.sin(t * 0.27) + random.uniform(-0.04, 0.04)
+    width = expected_geometry['width'] + 0.18 * math.sin(t * 0.33) + random.uniform(-0.05, 0.05)
+
+    wire_feed_speed = reference_params['wire_feed_speed_mpm_model_input']
+    travel_speed = reference_params['travel_speed_mps_model_input']
+    arc_length_correction = reference_params['arc_length_correction_mm_model_input']
+
+    sampled_wire_feed_speed = wire_feed_speed + 0.25 * math.sin(t * 0.21) + random.uniform(-0.08, 0.08)
+    sampled_travel_speed = travel_speed + 0.0008 * math.sin(t * 0.19) + random.uniform(-0.0003, 0.0003)
+    sampled_arc_length_correction = (
+        arc_length_correction
+        + 0.18 * math.sin(t * 0.17)
+        + random.uniform(-0.06, 0.06)
+    )
+
+    if in_any_window(t, deviation_windows):
+        height *= 0.65
+        width *= 1.35
+        sampled_travel_speed *= 1.08
+        sampled_arc_length_correction += 0.6
+
+    return WeldSample(
+        bead_height=max(0.5, round(height, 3)),
+        bead_width=max(0.5, round(width, 3)),
+        wire_feed_speed=max(1.0, round(sampled_wire_feed_speed, 3)),
+        travel_speed=max(0.001, round(sampled_travel_speed, 5)),
+        arc_length_correction=round(sampled_arc_length_correction, 3),
+    )
+
+
+def stream_measurements(
+    process_id: str,
+    mode: str,
+    duration: int,
+    interval: float,
+    tolerance: float,
+    expected_geometry: Dict[str, float],
+    reference_params: Dict[str, float],
+    api_url: str,
+) -> Tuple[int, int, int, int]:
+    windows = build_deviation_windows(duration)
+    print(
+        f'Streaming welding telemetry for {process_id} ({mode}) for {duration}s '
+        f'at {interval:.2f}s interval.'
+    )
+    print(
+        'Reference expectation: '
+        f"{expected_geometry['height']:.3f} mm x {expected_geometry['width']:.3f} mm"
+    )
+    print(
+        'Reference parameters: '
+        f"wire_feed_speed={reference_params['wire_feed_speed_mpm_model_input']:.3f}, "
+        f"travel_speed={reference_params['travel_speed_mps_model_input']:.4f}, "
+        f"arc_length_correction={reference_params['arc_length_correction_mm_model_input']:.3f}"
+    )
+    print(f'Deviation windows (s): {[(round(s, 1), round(e, 1)) for s, e in windows]}')
+    print()
+
+    count = 0
+    ok_count = 0
+    fail_count = 0
+    alert_count = 0
+    sim_elapsed = 0.0
+    last_progress_post = 0.0
+    last_tick = time.time()
+    was_paused = False
+
+    while sim_elapsed < duration:
+        now = time.time()
+
+        status = get_process_status(process_id, api_url)
+        if status != 'active':
+            if not was_paused:
+                print('  ⏸  Paused by operator – waiting for Resume…')
+                was_paused = True
+            post_progress(process_id, min(100.0, (sim_elapsed / duration) * 100), float(duration), api_url)
+            last_tick = now
+            time.sleep(0.5)
+            continue
+
+        if was_paused:
+            print('  ▶  Resumed – continuing simulation.')
+            was_paused = False
+
+        dt = now - last_tick
+        last_tick = now
+        sim_elapsed += dt
+
+        sample = generate_sample(sim_elapsed, expected_geometry, reference_params, windows)
+        measurement_id = f'weld-{int(time.time() * 1000)}-{count}'
+
+        result = run_robin(
+            [
+                'add-measurement',
+                process_id,
+                measurement_id,
+                str(sample.bead_height),
+                str(sample.bead_width),
+                '--input-param',
+                f'wire_feed_speed_mpm_model_input={sample.wire_feed_speed}',
+                '--input-param',
+                f'travel_speed_mps_model_input={sample.travel_speed}',
+                '--input-param',
+                f'arc_length_correction_mm_model_input={sample.arc_length_correction}',
+            ],
+            check=False,
+        )
+
+        count += 1
+        if result.returncode == 0:
+            ok_count += 1
+        else:
+            fail_count += 1
+
+        if now - last_progress_post >= 1.0:
+            pct = min(100.0, (sim_elapsed / duration) * 100)
+            post_progress(process_id, pct, float(duration), api_url)
+            last_progress_post = now
+
+        check = check_deviation(
+            process_id=process_id,
+            mode=mode,
+            tolerance=tolerance,
+            measured_geometry={'height': sample.bead_height, 'width': sample.bead_width},
+            input_params={
+                'wire_feed_speed_mpm_model_input': sample.wire_feed_speed,
+                'travel_speed_mps_model_input': sample.travel_speed,
+                'arc_length_correction_mm_model_input': sample.arc_length_correction,
+            },
+            api_url=api_url,
+        )
+
+        deviation_pct = 0.0
+        status = 'check_failed'
+        source = 'n/a'
+        if check:
+            source = str(check.get('expected_source', 'unknown'))
+            if 'deviation_percentage' in check and isinstance(check['deviation_percentage'], (int, float)):
+                deviation_pct = float(check['deviation_percentage'])
+            status = str(check.get('status', 'alert'))
+
+        alert_flag = deviation_pct > tolerance
+        if alert_flag:
+            alert_count += 1
+
+        marker = ' DEVIATION_WINDOW' if in_any_window(sim_elapsed, windows) else ''
+        print(
+            f'[{count:03d}] '
+            f'h={sample.bead_height:>6.3f}mm '
+            f'w={sample.bead_width:>6.3f}mm '
+            f'wfs={sample.wire_feed_speed:>6.3f} '
+            f'ts={sample.travel_speed:>7.4f} '
+            f'alc={sample.arc_length_correction:>6.3f} '
+            f'dev={deviation_pct:>6.2f}% '
+            f'status={status:<8} '
+            f'src={source:<26} '
+            f"alert={'YES' if alert_flag else 'no '}"
+            f'{marker}'
+        )
+
+        time.sleep(interval)
+
+    post_progress(process_id, 100, float(duration), api_url)
+    return ok_count, fail_count, count, alert_count
+
+
+def resolve_parameter_mode_expectation(
+    process_id: str,
+    input_params: Dict[str, float],
+    api_url: str,
+) -> Tuple[Dict[str, float], str]:
+    recommendation = get_ai_recommendation(
+        process_id=process_id,
+        mode='parameter_driven',
+        input_params=input_params,
+        api_url=api_url,
+    )
+    predicted = recommendation.get('predicted_geometry')
+    if isinstance(predicted, dict):
+        height = predicted.get('height')
+        width = predicted.get('width')
+        if isinstance(height, (int, float)) and isinstance(width, (int, float)):
+            return {'height': float(height), 'width': float(width)}, 'ai-recommendation'
+
+    raise DemoError(
+        f'Parameter-driven plan failed for process {process_id}: '
+        'AI recommendation did not include numeric predicted_geometry',
+    )
+
+
+def resolve_geometry_mode_plan(
+    process_id: str,
+    target_geometry: Dict[str, float],
+    fallback_params: Dict[str, float],
+    api_url: str,
+) -> Tuple[Dict[str, float], Dict[str, float], str]:
+    recommendation = get_ai_recommendation(
+        process_id=process_id,
+        mode='geometry_driven',
+        target_geometry=target_geometry,
+        api_url=api_url,
+    )
+    raw_params = recommendation.get('recommended_params')
+    if not isinstance(raw_params, dict):
+        raise DemoError(
+            f'Geometry-driven plan failed for process {process_id}: '
+            'AI recommendation missing recommended_params',
+        )
+
+    reference_params = {
+        'wire_feed_speed_mpm_model_input': extract_number(
+            raw_params,
+            ['wire_feed_speed_mpm_model_input'],
+            fallback_params['wire_feed_speed_mpm_model_input'],
+        ),
+        'travel_speed_mps_model_input': extract_number(
+            raw_params,
+            ['travel_speed_mps_model_input'],
+            fallback_params['travel_speed_mps_model_input'],
+        ),
+        'arc_length_correction_mm_model_input': extract_number(
+            raw_params,
+            ['arc_length_correction_mm_model_input'],
+            fallback_params['arc_length_correction_mm_model_input'],
+        ),
+    }
+
+    predicted = predict_geometry(reference_params, api_url)
+    return reference_params, predicted, 'ai-model-from-ai-suggested-params'
+
+
+def run_single_mode(
+    process_id: str,
+    mode: str,
+    duration: int,
+    interval: float,
+    tolerance: float,
+    target_height: float,
+    target_width: float,
+    base_wire_feed_speed: float,
+    base_travel_speed: float,
+    base_arc_length_correction: float,
+    api_url: str,
+    no_prompt: bool = False,
+) -> Tuple[int, int, int, int]:
+    maybe_create_process(process_id, mode)
+    set_process_mode(process_id, mode, api_url)
+
+    fallback_params = {
+        'wire_feed_speed_mpm_model_input': base_wire_feed_speed,
+        'travel_speed_mps_model_input': base_travel_speed,
+        'arc_length_correction_mm_model_input': base_arc_length_correction,
+    }
+
+    if mode == 'geometry_driven':
+        target_geometry = {'height': target_height, 'width': target_width}
+        create_geometry_target(process_id, target_height, target_width)
+        reference_params, expected_geometry, source = resolve_geometry_mode_plan(
+            process_id=process_id,
+            target_geometry=target_geometry,
+            fallback_params=fallback_params,
+            api_url=api_url,
+        )
+        print(f'[{process_id}] Geometry-driven plan source: {source}')
+    else:
+        reference_params = fallback_params
+        expected_geometry, source = resolve_parameter_mode_expectation(
+            process_id=process_id,
+            input_params=reference_params,
+            api_url=api_url,
+        )
+        print(f'[{process_id}] Parameter-driven expected geometry source: {source}')
+
+    post_progress(process_id, 0, float(duration), api_url)
+    if no_prompt:
+        print(f'[{process_id}] --no-prompt: streaming immediately.')
+    else:
+        stop_process(process_id, api_url)
+        wait_for_start(process_id, api_url)
+
+    return stream_measurements(
+        process_id=process_id,
+        mode=mode,
+        duration=duration,
+        interval=interval,
+        tolerance=tolerance,
+        expected_geometry=expected_geometry,
+        reference_params=reference_params,
+        api_url=api_url,
+    )
+
+
+def prompt_for_mode(default_mode: str) -> str:
+    options = {
+        '1': 'parameter_driven',
+        '2': 'geometry_driven',
+        '3': 'both',
+    }
+    default_key = next((k for k, v in options.items() if v == default_mode), '1')
+    while True:
+        print('Select operational mode:')
+        print('  1) parameter_driven')
+        print('  2) geometry_driven')
+        print('  3) both (runs both modes sequentially using separate process IDs)')
+        raw = input(f'Choice [{default_key}]: ').strip()
+        if raw == '':
+            raw = default_key
+        if raw in options:
+            return options[raw]
+        print('Invalid selection. Please choose 1, 2, or 3.')
+
+
+def prompt_for_tolerance(default_tolerance: float) -> float:
+    while True:
+        raw = input(
+            f'Set deviation threshold (%) [{default_tolerance:.1f}]: ',
+        ).strip()
+        if raw == '':
+            return default_tolerance
+        try:
+            value = float(raw)
+        except ValueError:
+            print('Invalid value. Enter a number (for example: 8, 10, 12.5).')
+            continue
+        if value <= 0 or value > 100:
+            print('Tolerance must be > 0 and <= 100.')
+            continue
+        return value
+
+
+def interactive_config(args: argparse.Namespace) -> argparse.Namespace:
+    if args.no_prompt or not sys.stdin.isatty():
+        return args
+
+    print(f'Open UI: {DASHBOARD_URL}')
+    print('In the dashboard, use the top-bar process selector to pick the process created by this demo.')
+    print()
+
+    args.mode = prompt_for_mode(args.mode)
+    args.tolerance = prompt_for_tolerance(args.tolerance)
+    print(
+        f'Configured run: mode={args.mode}, tolerance={args.tolerance:.1f}% '
+        f'(set before streaming starts)'
+    )
+    print()
+    return args
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description='Robust welding profile demo with explicit dual operational modes.',
+    )
+    parser.add_argument(
+        '--process-id',
+        default=f'weld-{int(time.time())}',
+        help='Base process ID (default: weld-<timestamp>)',
+    )
+    parser.add_argument(
+        '--mode',
+        default='parameter_driven',
+        choices=['parameter_driven', 'geometry_driven', 'both'],
+        help='Which operational mode to run. "both" runs sequentially.',
+    )
+    parser.add_argument('--duration', type=int, default=120)
+    parser.add_argument('--interval', type=float, default=2.0)
+    parser.add_argument('--tolerance', type=float, default=10.0)
+    parser.add_argument('--target-height', type=float, default=5.2)
+    parser.add_argument('--target-width', type=float, default=3.8)
+    parser.add_argument('--wire-feed-speed', type=float, default=10.0,
+                        help='Initial/setpoint wire feed speed')
+    parser.add_argument('--travel-speed', type=float, default=0.020,
+                        help='Initial/setpoint travel speed')
+    parser.add_argument('--arc-length-correction', type=float, default=0.0,
+                        help='Initial/setpoint arc length correction')
+    parser.add_argument('--api-url', default=ALERT_ENGINE_URL,
+                        help='Alert Engine URL (default: http://localhost:8001)')
+    parser.add_argument(
+        '--no-prompt',
+        action='store_true',
+        help='Disable interactive prompts for mode/tolerance (useful for CI or scripted runs).',
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = interactive_config(parse_args())
+
+    print('===========================================================')
+    print('  ROBIN - Robust Welding Demo (Dual Operational Modes)')
+    print('===========================================================')
+    print('Profile: welding')
+    print('Domain mapping:')
+    print('  Bead Height      -> measuredHeight')
+    print('  Bead Width       -> measuredWidth')
+    print('  Input Params     -> inputParams')
+    print()
+    print('Dual modes demonstrated:')
+    print('  parameter_driven: corrected inputs -> AI predicted geometry -> deviation checks')
+    print('  geometry_driven: target geometry -> AI suggested corrected inputs -> deviation checks')
+    print('AI inputs:')
+    print('  wire_feed_speed_mpm_model_input')
+    print('  travel_speed_mps_model_input')
+    print('  arc_length_correction_mm_model_input')
+    print(f'Dashboard UI: {DASHBOARD_URL}')
+    print()
+
+    ensure_stack_running()
+
+    modes = ['parameter_driven', 'geometry_driven'] if args.mode == 'both' else [args.mode]
+    summary: List[Tuple[str, str, int, int, int, int]] = []
+
+    try:
+        for mode in modes:
+            process_id = args.process_id if len(modes) == 1 else f'{args.process_id}-{mode.replace("_driven", "")}'
+            print('-----------------------------------------------------------')
+            print(f'Starting mode: {mode} (process: {process_id})')
+            print('-----------------------------------------------------------')
+
+            accepted, failed, streamed, alerts = run_single_mode(
+                process_id=process_id,
+                mode=mode,
+                duration=args.duration,
+                interval=args.interval,
+                tolerance=args.tolerance,
+                target_height=args.target_height,
+                target_width=args.target_width,
+                base_wire_feed_speed=args.wire_feed_speed,
+                base_travel_speed=args.travel_speed,
+                base_arc_length_correction=args.arc_length_correction,
+                api_url=args.api_url,
+                no_prompt=args.no_prompt,
+            )
+            summary.append((process_id, mode, accepted, failed, streamed, alerts))
+            print()
+    except DemoError as exc:
+        print()
+        print(f'❌ Demo aborted: {exc}')
+        print('No fallback was applied. Resolve the AI/backend issue and retry.')
+        return 1
+
+    print('========================')
+    print('Demo summary')
+    print('========================')
+    for process_id, mode, accepted, failed, streamed, alerts in summary:
+        print(
+            f'{process_id} [{mode}] -> '
+            f'streamed={streamed}, accepted={accepted}, failed={failed}, '
+            f'alerts_over_tolerance={alerts}'
+        )
+
+    print()
+    print(f'Dashboard: {DASHBOARD_URL}')
+    print('Tip: select the process ID above in the top-bar process selector.')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

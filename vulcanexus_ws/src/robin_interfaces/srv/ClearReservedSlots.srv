@@ -1,0 +1,11 @@
+# ClearReservedSlots.srv - Remove slot reservations from plates
+
+string plate_id             # Plate to clear (ignored if all_plates=true)
+int32[] slot_rows           # Legacy: specific row indices to clear (empty = all for plate)
+int32[] slot_cols           # Legacy: specific col indices to clear (empty = all for plate)
+string[] bead_ids           # Clear specific reservations by bead_id
+bool all_plates             # If true, clear ALL reservations on every plate
+---
+bool success
+string message
+int32 slots_cleared         # Number of reservation records removed
