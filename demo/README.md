@@ -103,6 +103,9 @@ These scripts remain available for setup/integration tasks:
 - `demo/simulation-demo-rosbag-wfs-alc-ts.sh` (current ROS 2 bag replay path)
 - `demo/simulation-demo-rosbag.sh` (compatibility wrapper for the current replay path)
 
+ROS bag playback setup and verification are documented in
+[`docs/ROS_BAG_PLAYBACK.md`](../docs/ROS_BAG_PLAYBACK.md).
+
 ## Cleanup
 
 ```bash

@@ -190,6 +190,7 @@ The repository includes a captured no-hardware basic demo evidence packet with
 commands, expected outputs, and screenshots:
 
 * `media/basic-demo/README.md <https://github.com/3D-Components/open-robin/blob/v0.1.0/media/basic-demo/README.md>`__
+
 .. figure:: ../media/basic-demo/screenshots/basic-demo-dashboard-live-ops.png
    :alt: ROBIN Dashboard Live Ops view showing a no-hardware basic demo process with one measurement.
 

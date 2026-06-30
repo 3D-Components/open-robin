@@ -131,6 +131,7 @@ Documentation Structure
    evidence
    DDS_BRIDGE_ARCHITECTURE
    LAUNCH_AND_VERIFY_INTENTS
+   ROS_BAG_PLAYBACK
    RESET_DEMO_DATA
 
 Community & Support

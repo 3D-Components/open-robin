@@ -211,6 +211,9 @@ integration tasks, but they are not the primary demos:
 * ``demo/simulation-demo-rosbag-wfs-alc-ts.sh`` - current ROS 2 bag replay path
 * ``demo/simulation-demo-rosbag.sh`` - compatibility wrapper for the current replay path
 
+For ROS bag playback setup, expected verification points, and DDS-path
+troubleshooting, see :doc:`/ROS_BAG_PLAYBACK`.
+
 Cleanup
 -------
 
