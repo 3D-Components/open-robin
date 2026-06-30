@@ -6,9 +6,9 @@ These files document the API contract so you can see the expected request/respon
 
 Request payload fixtures used by the longer curl examples are included in this folder so the commands can be copied directly from `media/api-responses/`. The Process Intelligence API is served on port **8001** (see `docker-compose.yaml` and the [quickstart](../../docs/quickstart.rst)).
 
-For the **non-welding (spray coating)** counterpart of this evidence set, see
-[`spray-coating/README.md`](spray-coating/README.md). It demonstrates that reuse beyond welding
-is a configuration change, not a code change.
+No separate spray-coating API-response files are bundled in this release. The
+non-welding reuse path is covered by the spray-coating profile and demo script
+under [`../../demo/profiles/`](../../demo/profiles/).
 
 ## Response Index
 

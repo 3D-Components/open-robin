@@ -183,6 +183,20 @@ This hello world does not exercise the richer Start-button simulation, live 3D
 visualization, or injected deviation windows. Those are covered by
 :doc:`user_guide/demos`.
 
+Bundled Basic Demo Evidence
+---------------------------
+
+The repository includes a captured no-hardware basic demo evidence packet with
+commands, expected outputs, and screenshots:
+
+* `media/basic-demo/README.md <https://github.com/3D-Components/open-robin/blob/main/media/basic-demo/README.md>`__
+
+.. figure:: ../media/basic-demo/screenshots/basic-demo-dashboard-live-ops.png
+   :alt: ROBIN Dashboard Live Ops view showing a no-hardware basic demo process with one measurement.
+
+   Basic no-hardware demo in the dashboard after one mock measurement was
+   ingested and read back through the API.
+
 Success Criteria
 ----------------
 

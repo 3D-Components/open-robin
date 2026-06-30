@@ -20,6 +20,8 @@ Reviewer Entry Points
   `media/screenshots/dashboard/ <https://github.com/3D-Components/open-robin/tree/main/media/screenshots/dashboard>`__
 * Demonstrator screenshots:
   `media/screenshots/demonstrator/ <https://github.com/3D-Components/open-robin/tree/main/media/screenshots/demonstrator>`__
+* Basic no-hardware demo evidence:
+  `media/basic-demo/ <https://github.com/3D-Components/open-robin/tree/main/media/basic-demo>`__
 * Example API responses:
   `media/api-responses/ <https://github.com/3D-Components/open-robin/tree/main/media/api-responses>`__
 * CSV export example:
