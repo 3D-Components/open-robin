@@ -20,14 +20,18 @@ ROBIN_PROFILE=spray_coating docker compose up -d
 ### Parameter-driven
 
 - Operator provides line speed / flow / pressure setpoints.
-- AI predicts expected coating geometry.
-- Streamed measurements are checked against AI prediction.
+- The script asks the API for expected coating geometry and falls back to the
+  configured default coating geometry when no valid spray-model prediction is
+  available.
+- Streamed measurements are checked against the resolved expected geometry.
 
 ### Geometry-driven
 
 - Operator provides target thickness and coverage width.
-- AI suggests process parameters.
-- Expected geometry from AI-guided parameters is compared against measured geometry.
+- The script asks the API for process parameters and a predicted geometry when
+  available.
+- Because this release does not commit a spray-coating model, the no-model path
+  uses the target thickness and coverage width as the deviation reference.
 
 ## Metric mapping
 
@@ -50,6 +54,6 @@ What changes for spray:
 What stays the same:
 
 - alert engine and deviation pipeline
-- AI model interface (`3 inputs -> 2 outputs`)
+- AI model interface (`3 inputs -> 2 outputs`) when a profile model is provided
 - dashboard architecture
 - FIWARE + Orion + Mintaka data path

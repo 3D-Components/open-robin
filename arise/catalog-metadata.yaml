@@ -95,7 +95,6 @@ artifacts:
     - "README.md"
     - "THIRD_PARTY_LICENSES.md"
     - "current_stack_feb22.md"
-    - "ARISE_PUBLICATION_ROADMAP.md"
   demo_scripts:
     - "demo/simulation-demo-rosbag.sh"
     - "demo/profiles/welding_profile.py"

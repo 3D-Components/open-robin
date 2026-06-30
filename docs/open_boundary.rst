@@ -88,6 +88,27 @@ process should keep the reusable API, dashboard, profile contract, FIWARE data
 model, and DDS integration pattern, then replace the domain profile, adapters,
 topic mappings, labels, and process-specific model.
 
+Role in the TRL6-7 Demonstrator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The TRL6-7 demonstrator validates ROBIN as an integrated process-intelligence
+loop in a realistic robotic manufacturing environment, not as a standalone robot
+controller.  In that role, ROBIN connects live or simulated process telemetry to
+FIWARE/NGSI-LD history, monitors geometry deviation, presents operator-facing
+state in the dashboard, and returns advisory AI-assisted recommendations.
+
+The open repository publishes the reusable software modules and integration
+contracts needed to reproduce that role with the no-hardware demo path or adapt
+it to another process.  The physical welding cell, hardware adapters, site
+network, safety procedures, and customer-specific deployment details remain
+demonstrator/deployment-specific and are not required to evaluate or reuse the
+open module.
+
+Pictures and video evidence for the physical TRL6-7 welding-cell demonstrator
+are indexed in the bundled evidence pack; see :doc:`evidence`,
+``media/README.md``, and the demonstrator media directory
+``media/screenshots/demonstrator/``.
+
 How to Reuse Beyond Welding
 ---------------------------
 
@@ -101,9 +122,10 @@ The profile configuration path - including the configurable-vs-welding-specific 
 worked welding -> spray-coating reuse example - is described in :doc:`user_guide/profiles`.
 
 The included spray-coating profile is the first non-welding profile example.  It shows that the
-module is configured through profiles and interfaces rather than hard-coded to welding; its
-expected FIWARE/API entities are committed as illustrative evidence under
-``media/api-responses/spray-coating/``.
+module is configured through profiles and interfaces rather than hard-coded to welding.  No
+separate spray-coating API-response media artifact is bundled in this release; run
+``demo/profiles/spray_coating_profile.py`` to generate process-specific API and dashboard
+evidence.
 
 Current Limitations
 -------------------

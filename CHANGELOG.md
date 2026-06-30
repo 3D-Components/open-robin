@@ -77,5 +77,5 @@ intelligence module for robotized manufacturing processes.
 - Industrial safety certification, certified emergency-stop behavior, and
   hardware acceptance testing are outside the scope of this open repository.
 - ROS 2 `launch_testing`, hardware-in-the-loop automation, browser end-to-end
-  tests, and full cross-stack performance benchmarking are future work and are
-  not included in this release baseline.
+  tests, and full cross-stack performance benchmarking are outside this release
+  baseline.

@@ -114,16 +114,20 @@ Dual-Mode Validation Logic
 
 1. Operator sets initial AI inputs. In the welding demo these are wire feed
    speed, travel speed, and arc length correction.
-2. AI predicts expected geometry.
+2. Expected geometry is resolved from the AI path when a profile model is available.
+   The spray-coating profile has no committed model, so the script reports the
+   fallback source it uses for the run.
 3. Telemetry is streamed.
-4. Alert processor compares measured geometry to AI-predicted geometry.
+4. Alert processor compares measured geometry to the resolved expected geometry.
 5. Deviation alerts are generated when tolerance is exceeded.
 
 **Geometry-driven**
 
 1. Operator sets target geometry.
-2. AI suggests AI input values for that target. In the welding demo, those are
-   wire feed speed, travel speed, and arc length correction.
+2. AI suggests AI input values for that target when a profile model is available.
+   In the welding demo, those are wire feed speed, travel speed, and arc length
+   correction. In the spray-coating no-model path, the target geometry remains
+   the deviation reference.
 3. Telemetry is streamed.
 4. Alert processor compares measured geometry against the expected geometry from
    AI-suggested inputs.
@@ -206,6 +210,9 @@ integration tasks, but they are not the primary demos:
 * ``demo/cleanup-demo.sh`` - remove demo entities
 * ``demo/simulation-demo-rosbag-wfs-alc-ts.sh`` - current ROS 2 bag replay path
 * ``demo/simulation-demo-rosbag.sh`` - compatibility wrapper for the current replay path
+
+For ROS bag playback setup, expected verification points, and DDS-path
+troubleshooting, see :doc:`/ROS_BAG_PLAYBACK`.
 
 Cleanup
 -------

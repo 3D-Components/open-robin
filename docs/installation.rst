@@ -21,6 +21,36 @@ Software Dependencies
 * **Docker & Docker Compose** (for FIWARE stack)
 * **Poetry** (for Python dependency management)
 * **Git** for version control
+* **curl** and **jq** for quickstart/API validation commands
+
+Hardware Dependencies
+~~~~~~~~~~~~~~~~~~~~~
+
+The default reviewer quickstart and no-hardware demos do **not** require
+industrial hardware. They run with Docker services, mock measurements, and the
+hardware-neutral API/dashboard stack.
+
+The physical ROBIN welding demonstrator profile is optional and
+deployment-specific. It was validated with a Linux/NVIDIA workstation and the
+project welding-cell setup, including UR10e, Fronius TPS320i, WAGO/OPC UA, and
+Garmo Garline equipment. Those devices, cell network details, credentials,
+safety procedures, and hardware acceptance steps are not required for the open
+module quickstart and are not bundled as portable dependencies.
+
+Simulation and Mock Dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For the basic no-hardware hello world, the simulation/mock path requires only:
+
+* Docker Compose services for Orion-LD, MongoDB, TimescaleDB, Mintaka, the
+  Process Intelligence API, and the dashboard;
+* ``curl`` and ``jq`` for the documented API checks;
+* the CLI inside the ``robin-alert-processor`` container.
+
+For the optional ROS 2 live simulation, use the bundled Vulcanexus container
+(``vulcanexus`` / ``vulcanexus-bridge``). The lite simulation uses synthetic
+skill behavior and does not require Gazebo, MoveIt, controllers, GPU access, or
+physical robot hardware.
 
 Installation Methods
 --------------------

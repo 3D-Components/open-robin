@@ -4,7 +4,7 @@ FIWARE / NGSI-LD and DDS Mapping Reference
 This page is the standalone interface reference for ROBIN's FIWARE,
 NGSI-LD, and DDS integration.  It documents the current data model,
 the DDS Enabler configuration, validation commands, and known mapping
-limitations so reviewers do not need to infer the interface from source code.
+limitations so users do not need to infer the interface from source code.
 
 Runtime Components
 ------------------
@@ -490,8 +490,7 @@ Representative response fixtures are kept in ``media/api-responses/``.
      - ``"status": "success"``, ``"recommendation"``.
 
 The response examples in ``media/api-responses/`` are illustrative evidence.
-The reviewer quickstart should refresh or confirm them from a clean-clone run
-before the final tag.
+The quickstart can refresh or confirm them from a clean-clone run.
 
 History and CSV Export
 ----------------------

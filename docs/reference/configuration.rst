@@ -100,7 +100,8 @@ Per-Profile AI Models
 
 Each profile specifies its model checkpoint in the ``ai.model_path`` field:
 
-* ``data/models/welding/process_geometry_mlp.pt``
+* ``data/models/unified_legacy_arc0_plus_fragmented/selected_gold_torch_mlp/``
+  ``torch_selected_gold_model.pt``
 * ``data/models/spray_coating/process_geometry_mlp.pt``
 
 Geometry-driven recommendations use the same forward model and solve the
@@ -110,7 +111,8 @@ inverse problem through profile-scoped constrained optimization settings:
 * ``ai.inverse_optimizer`` - restart count, step schedule, regularization, and weights
 * ``ai.forward_confidence`` - dynamic confidence knobs (MC-dropout samples and OOD penalty weights)
 
-Train new models with ``scripts/train_profile_model.py``.
+Train missing synthetic demo models with ``scripts/train_profile_model.py``.
+Existing checkpoints are skipped unless ``--overwrite`` is passed.
 
 Environment Variables
 ---------------------

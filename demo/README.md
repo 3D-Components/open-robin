@@ -10,8 +10,10 @@ This directory is intentionally focused on **two robust demos**:
 - `python demo/profiles/welding_profile.py`
 - `python demo/profiles/spray_coating_profile.py`
 
-These are the primary demonstrations of telemetry, UI updates, and real AI-driven
-alert generation in both operational modes.
+These are the primary demonstrations of telemetry, UI updates, deviation checks,
+and alert generation in both operational modes. The welding profile is AI-backed;
+the spray-coating profile demonstrates the same reuse path with the committed
+no-model fallback.
 
 ## What "robust" means in ROBIN
 
@@ -20,8 +22,8 @@ A robust demo must do all of the following in one workflow:
 1. Stream realistic telemetry samples continuously.
 2. Update dashboard KPIs/charts in real time.
 3. Execute dual operational logic explicitly:
-   - **Parameter-driven**: parameters -> AI predicted geometry -> deviation check.
-   - **Geometry-driven**: target geometry -> AI suggested parameters -> deviation check.
+   - **Parameter-driven**: parameters -> expected geometry -> deviation check.
+   - **Geometry-driven**: target geometry -> suggested parameters or target fallback -> deviation check.
 4. Call backend deviation checks continuously (`POST /check-deviation`).
 5. Trigger real alerts from injected simulation deviation windows (not static mock alerts).
 
@@ -58,7 +60,7 @@ and prints per-sample deviation results.
 
 ## Demo 2: Spray coating (reusability proof)
 
-Use spray profile vocabulary/model:
+Use spray profile vocabulary:
 
 ```bash
 ROBIN_PROFILE=spray_coating docker compose up -d
@@ -100,6 +102,9 @@ These scripts remain available for setup/integration tasks:
 - `demo/cleanup-demo.sh`
 - `demo/simulation-demo-rosbag-wfs-alc-ts.sh` (current ROS 2 bag replay path)
 - `demo/simulation-demo-rosbag.sh` (compatibility wrapper for the current replay path)
+
+ROS bag playback setup and verification are documented in
+[`docs/ROS_BAG_PLAYBACK.md`](../docs/ROS_BAG_PLAYBACK.md).
 
 ## Cleanup
 
